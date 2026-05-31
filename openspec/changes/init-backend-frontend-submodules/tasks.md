@@ -48,7 +48,7 @@
 - [x] 6.2 Re-clone the parent repo into a fresh temp directory using `git clone --recurse-submodules` against the feature branch and confirm `apps/backend/README.md` and `apps/web/README.md` are populated
 - [x] 6.3 Stage `.gitmodules`, `apps/backend`, `apps/web`, `README.md`, `AGENTS.md`, `docs/internal/13_engineering_standards/01_repo_structure.md`, and the openspec change directory; do not stage anything else
 - [x] 6.4 Commit with a message describing the addition of the two submodules and the doc updates (no AI/agent attributions per `AGENTS.md`)
-- [ ] 6.5 Push the feature branch and open a PR with `gh pr create`. PR description must include the migration step (`git submodule update --init --recursive`) for existing clones and confirm no `docs/internal/` changes
+- [x] 6.5 Push the feature branch and open a PR with `gh pr create`. PR description must include the migration step (`git submodule update --init --recursive`) for existing clones and confirm no `docs/internal/` changes
 - [ ] 6.6 After PR review and merge, run `openspec archive init-backend-frontend-submodules` (handled by `/opsx-archive`)
 
 ## 7. Rollback (only if needed)
