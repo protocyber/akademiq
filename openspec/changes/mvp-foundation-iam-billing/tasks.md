@@ -162,7 +162,7 @@
 - [x] 20a.2 Create `lib/query/client.ts` (per-request `QueryClient` factory) and `lib/query/provider.tsx` (client component wrapping `QueryClientProvider` + `HydrationBoundary` + Devtools)
 - [x] 20a.3 Create `lib/forms/apply-server-field-errors.ts` typed against the API client's `FieldErrors`; calls RHF `setError(field, { type: "server", message })` for each entry
 - [x] 20a.4 Mount `QueryClientProvider` and shadcn `<Toaster />` in `app/layout.tsx`
-- [ ] 20a.5 Add `apps/web/CONVENTIONS.md` documenting: shadcn-only UI, TanStack Query for all data, two-tier loading rule (spinner for action-bound controls, skeleton for layout regions), Zod + RHF + `applyServerFieldErrors` flow, Next `<Link>` for navigation
+- [x] 20a.5 Add `apps/web/CONVENTIONS.md` documenting: shadcn-only UI, TanStack Query for all data, two-tier loading rule (spinner for action-bound controls, skeleton for layout regions), Zod + RHF + `applyServerFieldErrors` flow, Next `<Link>` for navigation
 - [x] 20a.6 Add `lib/schemas/` directory with one schema file per form (`register.ts`, `login.ts`, `module-toggle.ts`); export inferred TypeScript types
 
 ## 21. Web app — API client & query layer
@@ -171,8 +171,8 @@
 - [x] 21.2 Implement transparent refresh on 401 `EXPIRED_ACCESS_TOKEN` inside `lib/api.ts`; redirect to `/login?next=...` on refresh failure; ensure refresh logic is shared by every TanStack hook
 - [x] 21.3 Create `lib/query/queries/use-plans.ts`, `use-tenant-me.ts`, `use-me.ts` (each wraps `useQuery` and calls `lib/api.ts`)
 - [x] 21.4 Create `lib/query/mutations/use-register-tenant.ts`, `use-login.ts`, `use-logout.ts`, `use-toggle-module.ts` (each wraps `useMutation`)
-- [ ] 21.5 Add SSR prefetch helper for `/register` plan catalog using `dehydrate` + `HydrationBoundary` so `usePlans` reads prefetched data on hydration
-- [ ] 21.6 Auth context becomes a thin client wrapper over `useMe` + token storage; exposes `useAuth()` hook
+- [x] 21.5 Add SSR prefetch helper for `/register` plan catalog using `dehydrate` + `HydrationBoundary` so `usePlans` reads prefetched data on hydration
+- [x] 21.6 Auth context becomes a thin client wrapper over `useMe` + token storage; exposes `useAuth()` hook
 - [ ] 21.7 Server-side helper that reads tokens from cookies for SSR-protected pages
 
 ## 22. Web app — pages
@@ -181,14 +181,14 @@
 - [x] 22.2 `/login` form built with shadcn `<Form>` + RHF + Zod + `useLogin`; submit `<Button>` shows inline `<Spinner />` and is disabled while `isPending`; non-field errors render via shadcn `<Alert>` plus toast
 - [x] 22.3 `/dashboard` placeholder page protected by auth; header reads `useTenantMe` and renders `<Skeleton>` until resolved; shows tenant name + plan
 - [x] 22.4 `/settings/modules` page reads `useTenantMe`; renders shadcn `<Skeleton>` rows on first paint; entitled rows use shadcn `<Switch>` bound to `useToggleModule` with inline row spinner during `isPending`; non-entitled rows render disabled `<Switch>` wrapped in shadcn `<Tooltip>` with "Upgrade plan" hint
-- [ ] 22.5 `/login` and `/register` redirect to `/dashboard` when already authenticated
-- [ ] 22.6 Each page that owns a `useQuery` renders a shadcn `<Alert variant="destructive">` with a retry `<Button>` (containing inline `<Spinner />` while retrying) on non-auth errors
+- [x] 22.5 `/login` and `/register` redirect to `/dashboard` when already authenticated
+- [x] 22.6 Each page that owns a `useQuery` renders a shadcn `<Alert variant="destructive">` with a retry `<Button>` (containing inline `<Spinner />` while retrying) on non-auth errors
 
 ## 23. Web app — tests
 
 - [x] 23.1 Vitest: Zod schemas in `lib/schemas/` — at least one valid and one invalid case per schema (`register`, `login`, `module-toggle`)
 - [x] 23.2 Vitest: `applyServerFieldErrors` maps a multi-field `VALIDATION_ERROR` payload to RHF `setError` calls with `{ type: "server" }` and matching messages
-- [ ] 23.3 Vitest: `lib/api.ts` triggers refresh on 401 `EXPIRED_ACCESS_TOKEN`, retries the original request, and redirects to `/login?next=...` on refresh failure
+- [x] 23.3 Vitest: `lib/api.ts` triggers refresh on 401 `EXPIRED_ACCESS_TOKEN`, retries the original request, and redirects to `/login?next=...` on refresh failure
 - [x] 23.4 Vitest + Testing Library: an action-bound component renders the inline `<Spinner />` and is `disabled` while the underlying mutation is `isPending`
 - [x] 23.5 Vitest + Testing Library: a layout-bound component renders shadcn `<Skeleton>` placeholders while the underlying `useQuery` is in initial loading state
 - [x] 23.6 ESLint check passes via `pnpm lint`; `react/forbid-elements` violations fail CI
@@ -198,13 +198,13 @@
 
 ## 24. CI
 
-- [ ] 24.1 GitHub Actions workflow in `apps/backend/.github/workflows/ci.yml`: `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --workspace`, `make test-e2e`
-- [ ] 24.2 GitHub Actions workflow in `apps/web/.github/workflows/ci.yml`: `pnpm lint`, `pnpm test:unit`, `pnpm test:e2e` against compose.test.yml from backend
-- [ ] 24.3 Parent repo workflow that fails fast if either submodule SHA references a non-merged commit
+- [x] 24.1 GitHub Actions workflow in `apps/backend/.github/workflows/ci.yml`: `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test --workspace`, `make test-e2e`
+- [x] 24.2 GitHub Actions workflow in `apps/web/.github/workflows/ci.yml`: `pnpm lint`, `pnpm test:unit`, `pnpm test:e2e` against compose.test.yml from backend
+- [x] 24.3 Parent repo workflow that fails fast if either submodule SHA references a non-merged commit
 
 ## 25. Docs & wrap-up
 
-- [ ] 25.1 Update `docs/internal/13_engineering_standards/01_repo_structure.md` to reflect the workspace layout that now exists (mark phase 1 services as built, others as planned)
-- [ ] 25.2 Cross-link the API and event contract docs from `docs/internal/11_integration_contracts/README.md`
-- [ ] 25.3 Run `openspec validate mvp-foundation-iam-billing --strict` and confirm green
+- [x] 25.1 Update `docs/internal/13_engineering_standards/01_repo_structure.md` to reflect the workspace layout that now exists (mark phase 1 services as built, others as planned)
+- [x] 25.2 Cross-link the API and event contract docs from `docs/internal/11_integration_contracts/README.md`
+- [x] 25.3 Run `openspec validate mvp-foundation-iam-billing --strict` and confirm green
 - [ ] 25.4 Run the full local pipeline: `make doctor && make submodules && make migrate && make seed && make test && make test-e2e && make test-web && make dev`, then walk the demo flow in a browser
