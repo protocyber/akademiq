@@ -77,13 +77,13 @@
 
 ## 11. IAM service — integration tests
 
-- [ ] 11.1 Login happy path + invalid credentials path (uniform error)
-- [ ] 11.2 Refresh rotation revokes old token; expired refresh rejected
-- [ ] 11.3 Logout invalidates refresh token
-- [ ] 11.4 `/me` with valid + expired tokens
-- [ ] 11.5 `/internal/users` happy path, missing service token, duplicate email returns 409
-- [ ] 11.6 `/internal/users/{id}` delete is idempotent
-- [ ] 11.7 Argon2 timing test: existence vs non-existence within 50 ms
+- [x] 11.1 Login happy path + invalid credentials path (uniform error)
+- [x] 11.2 Refresh rotation revokes old token; expired refresh rejected
+- [x] 11.3 Logout invalidates refresh token
+- [x] 11.4 `/me` with valid + expired tokens
+- [x] 11.5 `/internal/users` happy path, missing service token, duplicate email returns 409
+- [x] 11.6 `/internal/users/{id}` delete is idempotent
+- [x] 11.7 Argon2 timing test: existence vs non-existence within 50 ms
 
 ## 12. Billing service — schema & migrations
 
@@ -122,14 +122,14 @@
 
 ## 17. Billing service — integration tests
 
-- [ ] 17.1 `GET /plans` returns expected catalog after seed
-- [ ] 17.2 `POST /tenants/register` happy path persists tenant, subscription, tenant_module rows, returns tokens
-- [ ] 17.3 Validation error returns per-field shape
-- [ ] 17.4 IAM 409 from saga rolls back tenant row
+- [x] 17.1 `GET /plans` returns expected catalog after seed
+- [x] 17.2 `POST /tenants/register` happy path persists tenant, subscription, tenant_module rows, returns tokens
+- [x] 17.3 Validation error returns per-field shape
+- [x] 17.4 IAM 409 from saga rolls back tenant row
 - [ ] 17.5 Janitor reaps an injected mid-saga panic and the same email succeeds afterward
-- [ ] 17.6 `PATCH /tenants/me/modules` toggles entitled module; non-entitled returns 403 `FEATURE_NOT_AVAILABLE`
-- [ ] 17.7 Expired subscription path returns 403 `SUBSCRIPTION_EXPIRED`
-- [ ] 17.8 Outbox publisher writes both events to RabbitMQ in the documented order
+- [x] 17.6 `PATCH /tenants/me/modules` toggles entitled module; non-entitled returns 403 `FEATURE_NOT_AVAILABLE`
+- [x] 17.7 Expired subscription path returns 403 `SUBSCRIPTION_EXPIRED`
+- [x] 17.8 Outbox publisher writes both events to RabbitMQ in the documented order
 
 ## 18. Event contracts documentation
 
@@ -139,12 +139,12 @@
 
 ## 19. Cross-service e2e crate
 
-- [ ] 19.1 `apps/backend/tests/e2e/Cargo.toml` and harness that brings up `compose.test.yml`, waits for `/healthz` on both services and Postgres+RabbitMQ readiness
-- [ ] 19.2 Test 1: register → login → /me → list plans → toggle module → assert 403 on non-entitled
-- [ ] 19.3 Test 2: register with duplicate email → 409 → tenant row absent
+- [x] 19.1 `apps/backend/tests/e2e/Cargo.toml` and harness that brings up `compose.test.yml`, waits for `/healthz` on both services and Postgres+RabbitMQ readiness
+- [x] 19.2 Test 1: register → login → /me → list plans → toggle module → assert 403 on non-entitled
+- [x] 19.3 Test 2: register with duplicate email → 409 → tenant row absent
 - [ ] 19.4 Test 3: registration with injected mid-saga panic → janitor cleans up → retry succeeds
-- [ ] 19.5 Assert `tenant.registered` and `subscription.activated` events arrive in order via a temporary RabbitMQ consumer
-- [ ] 19.6 Wire `make test-e2e` (parent) → run the e2e crate against compose.test.yml; teardown on success or failure
+- [x] 19.5 Assert `tenant.registered` and `subscription.activated` events arrive in order via a temporary RabbitMQ consumer
+- [x] 19.6 Wire `make test-e2e` (parent) → run the e2e crate against compose.test.yml; teardown on success or failure
 
 ## 20. Web app — scaffold (`apps/web`)
 
