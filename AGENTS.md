@@ -2,11 +2,73 @@
 
 ## Repo state (read first)
 
-This repo currently contains **only documentation**. There is no source code, no `backend/`, no `Cargo.toml`, no `Makefile`, no CI config. Tracked files: `README.md` (one line) and the `docs/` tree.
+This is a parent repo that holds the architecture and product docs **plus**
+two git submodules: the backend monorepo at `apps/backend` and the web
+frontend at `apps/web`. Both submodules track their upstream `main`. The
+parent repo ships an orchestrator (`Makefile` + `mprocs.yaml` + root
+`.env.example`) but no Rust crates, no Next.js source, no service
+`Cargo.toml`, and no top-level CI config — those live inside each submodule.
 
-Do not look for crates, services, migrations, or build commands — they don't exist yet. The architecture docs describe an *intended* future system. When asked to "build", "run", or "test" something, confirm with the user before scaffolding new code, and treat the docs as the spec.
+When asked to "build", "run", or "test" something, prefer the parent
+orchestrator targets (`make dev`, `make up`, `make down`, `make build`,
+`make test`) which delegate to the right submodule. For per-service work,
+change directory into the relevant submodule. The architecture docs under
+`docs/internal/` describe the *intended* system; treat them as the spec
+when scaffolding new code, and confirm with the user before adding services
+or migrations.
 
-`docs/` is untracked in git as of now. If you add files inside `docs/`, expect them to show up alongside the existing untracked tree on `git status`.
+## Submodules
+
+| Mount path     | Repo                                              | Tracks |
+|----------------|---------------------------------------------------|--------|
+| `apps/backend` | `git@github.com:protocyber/akademiq-backend.git`  | `main` |
+| `apps/web`     | `git@github.com:protocyber/akademiq-web.git`      | `main` |
+
+Both repos are private under the `protocyber` GitHub org. SSH access is
+required to clone them.
+
+Workflow:
+
+- Fresh clone: `git clone --recurse-submodules git@github.com:protocyber/akademiq.git`
+- Existing clone: `git submodule update --init --recursive`
+- Pull upstream `main` for a submodule into the parent: `git submodule update --remote --merge apps/backend` (or `apps/web`)
+
+For the backend's internal layout (services, libs), see
+`docs/internal/13_engineering_standards/01_repo_structure.md`.
+
+## Local development
+
+The parent repo's `Makefile` is the entry point for cross-submodule work.
+
+| Target              | What it does                                                  |
+|---------------------|---------------------------------------------------------------|
+| `make dev`          | mprocs (primary): runs `apps/backend` and `apps/web` together |
+| `make dev-tmux`     | tmux fallback (`akademiq` session, two windows)               |
+| `make dev-parallel` | `make -j2` last-resort fallback (logs interleave)             |
+| `make dev-backend`  | only the backend dev loop                                     |
+| `make dev-web`      | only the web dev loop                                         |
+| `make up` / `down`  | backend infra (Postgres 18 + RabbitMQ) detached               |
+| `make build`        | build artefacts in both submodules                            |
+| `make test`         | run tests in both submodules                                  |
+| `make migrate`      | delegates to backend                                          |
+| `make submodules`   | `git submodule update --init --recursive`                     |
+| `make doctor`       | checks required tooling and prints install hints              |
+
+Per-machine config lives in three gitignored `.env` files. Each has a
+committed `.env.example` you can copy:
+
+- root `.env` — orchestrator paths (`BACKEND_DIR`, `WEB_DIR`,
+  `MPROCS_CONFIG`, `TMUX_SESSION`)
+- `apps/backend/.env` — Postgres / RabbitMQ ports + credentials, reserved
+  Redis slot, future `<SERVICE>_PORT` slots (commented)
+- `apps/web/.env` — `WEB_PORT`, `NEXT_PUBLIC_API_BASE_URL`, `NODE_ENV`
+
+`docker-compose.yml` references variables with `${VAR:-default}` so a
+missing `.env` does not crash the stack, but `make doctor` will flag it.
+
+Each submodule's `Makefile` is authoritative and works on its own
+(`cd apps/backend && make dev`, `cd apps/web && make dev`) without the
+parent repo.
 
 ## Documentation layout
 
@@ -44,7 +106,7 @@ From `docs/internal/13_engineering_standards/`:
 - JWT **RS256**, Argon2 password hashing
 - RabbitMQ for events
 - `tracing` + OpenTelemetry; every log line must carry `request_id`, `user_id`, `tenant_id`, `service_name`
-- Monorepo layout: `/backend/services/<name>-service` and `/backend/libs/common-{auth,db,logging,errors}`
+- Monorepo layout: `/apps/backend/services/<name>-service` and `/apps/backend/libs/common-{auth,db,logging,errors}`
 - Required Makefile targets per service: `dev`, `migrate`, `test`, `build`, `up`, `down`
 - CQRS: command and query handlers must live in separate modules
 - Never trust client-supplied `tenant_id`; resolve from JWT

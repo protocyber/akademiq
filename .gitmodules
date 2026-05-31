@@ -1,0 +1,8 @@
+[submodule "apps/backend"]
+	path = apps/backend
+	url = git@github.com:protocyber/akademiq-backend.git
+	branch = main
+[submodule "apps/web"]
+	path = apps/web
+	url = git@github.com:protocyber/akademiq-web.git
+	branch = main
