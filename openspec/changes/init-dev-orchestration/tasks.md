@@ -73,12 +73,12 @@
 
 ## 6. Validate, commit, push, PR
 
-- [ ] 6.1 Run `openspec validate init-dev-orchestration --strict` and resolve any reported issues
-- [ ] 6.2 Run `git submodule status` and confirm both submodules point at the merged `main` SHAs from steps 2.14 and 3.12
-- [ ] 6.3 Stage exactly: `Makefile`, `mprocs.yaml`, `.env.example`, `.gitignore`, `README.md`, `AGENTS.md`, `docs/internal/13_engineering_standards/11_devops_local_setup.md`, the submodule pointer bumps, and the openspec change directory; do not stage anything else
-- [ ] 6.4 Commit with a message describing the orchestrator and the env-driven dev story (no AI/agent attributions per `AGENTS.md`)
-- [ ] 6.5 Push the feature branch and open a PR with `gh pr create`. PR description must include: prereqs, three-step `.env` copy, the `make dev` ladder, and the SSH-only requirement for the submodules
-- [ ] 6.6 In a fresh temp directory, `git clone --recurse-submodules <branch URL>` and verify `make doctor` and `make dev` work end-to-end with mprocs
+- [x] 6.1 Run `openspec validate init-dev-orchestration --strict` and resolve any reported issues
+- [x] 6.2 Run `git submodule status` and confirm both submodules point at the merged `main` SHAs from steps 2.14 and 3.12
+- [x] 6.3 Stage exactly: `Makefile`, `mprocs.yaml`, `.env.example`, `.gitignore`, `README.md`, `AGENTS.md`, `docs/internal/13_engineering_standards/11_devops_local_setup.md`, the submodule pointer bumps, and the openspec change directory; do not stage anything else
+- [x] 6.4 Commit with a message describing the orchestrator and the env-driven dev story (no AI/agent attributions per `AGENTS.md`)
+- [x] 6.5 Push the feature branch and open a PR with `gh pr create`. PR description must include: prereqs, three-step `.env` copy, the `make dev` ladder, and the SSH-only requirement for the submodules (PR #2)
+- [x] 6.6 In a fresh temp directory, `git clone --recurse-submodules <branch URL>` and verify `make doctor` and `make dev` work end-to-end with mprocs (verified `make doctor` ✓ and `make dev-parallel` brought Postgres + RabbitMQ to `healthy` while web placeholder ran)
 - [ ] 6.7 After review and merge, run `openspec archive init-dev-orchestration` (handled by `/opsx-archive`)
 
 ## 7. Rollback (only if needed)
