@@ -7,9 +7,10 @@ contributor (or AI agent) the spec plus the code, without merging histories.
 
 Constraints from `AGENTS.md` and `docs/internal/13_engineering_standards/`:
 
-- The backend monorepo layout (`/backend/services/...`, `/backend/libs/...`)
-  is fixed by `01_repo_structure.md`. That layout lives *inside* the backend
-  submodule.
+- The backend monorepo's internal layout (`services/...`, `libs/...`) is fixed
+  by `01_repo_structure.md`. Today that doc roots its tree at `/backend`; this
+  change re-roots it at `/apps/backend` to match the parent submodule mount,
+  without changing the per-service split underneath.
 - The frontend is a Next.js app — the `WEB` container in
   `06_container_architecture/AcademiQ_Container_Diagram.md`.
 - All three repos are private under the `protocyber` GitHub org. SSH is the
@@ -30,6 +31,9 @@ following `AGENTS.md`.
   --recursive` the only steps a contributor needs.
 - Track `main` on both submodules so doc work in this parent repo can pull in
   upstream changes without manual SHA bumps when desired.
+- Keep the docs internally consistent: every path-style reference of the form
+  `/backend/...` is rewritten to `/apps/backend/...` so contributors can copy
+  paths verbatim from the spec.
 - Keep this change reversible: removing the submodules and reverting the docs
   must restore the docs-only state.
 
@@ -40,15 +44,17 @@ following `AGENTS.md`.
 - Next.js scaffold, Tailwind, auth UI, or any TypeScript inside `apps/web`.
 - CI workflows in either repo (parent or submodules).
 - Choosing or wiring linters, formatters, or pre-commit hooks.
-- Touching `docs/internal/13_engineering_standards/01_repo_structure.md` —
-  that doc describes the backend's *internal* layout and stays correct.
+- Structural rewrites of `docs/internal/` files. The only doc edited
+  structurally is `13_engineering_standards/01_repo_structure.md`, and only
+  to re-root its tree. Other files keep their content; descriptive nouns
+  like "backend services" or "frontend Zod" stay as prose.
 
 ## Decisions
 
 ### Decision 1: Two separate repos, mounted as git submodules
 
 Backend and frontend live in `protocyber/akademiq-backend` and
-`protocyber/akademiq-frontend`. They are added to this parent repo as git
+`protocyber/akademiq-web`. They are added to this parent repo as git
 submodules at `apps/backend` and `apps/web`.
 
 **Rationale:** Independent histories, independent CI later, and clean
@@ -70,19 +76,20 @@ The user picked these over `/backend` + `/frontend` and `/services/...`.
 
 **Rationale:** `apps/` is a familiar layout for mixed-language repos and keeps
 room for future siblings (e.g., `apps/mobile`, `apps/admin`) without renaming.
-The internal backend layout (`backend/services/...`) still applies — it is
-now `apps/backend/services/...` from the parent view, which matches
-`13_engineering_standards/01_repo_structure.md` once you read its `/backend`
-prefix as the submodule root.
+The internal backend layout (`services/...`, `libs/...`) still applies — it
+becomes `apps/backend/services/...` from the parent view.
 
-**Note:** No doc updates are needed inside
-`docs/internal/13_engineering_standards/01_repo_structure.md` because that
-file is scoped to "inside the backend repo" — its tree starts at `/backend`.
+**Doc impact:** `13_engineering_standards/01_repo_structure.md` is rewritten
+to root its tree at `/apps/backend`. Its scope stays "backend's internal
+layout"; we only change the prefix and add a closing line referencing
+`apps/web` as a separate submodule. No other `docs/internal/` files are
+edited structurally — only path-style `/backend/...` references (if any)
+are aligned, verified with `rg`.
 
 ### Decision 3: SSH URLs, private repos
 
 `.gitmodules` uses `git@github.com:protocyber/akademiq-backend.git` and
-`git@github.com:protocyber/akademiq-frontend.git`.
+`git@github.com:protocyber/akademiq-web.git`.
 
 **Rationale:** Both repos are private; SSH is the chosen contributor channel.
 Relative URLs were considered but the user picked explicit SSH URLs, which
@@ -160,9 +167,14 @@ handles auth nicely.
    `main`.
 3. From this parent repo on a feature branch:
    - `git submodule add -b main git@github.com:protocyber/akademiq-backend.git apps/backend`
-   - `git submodule add -b main git@github.com:protocyber/akademiq-frontend.git apps/web`
-4. Update `README.md` and `AGENTS.md`.
-5. Open a PR. Reviewers clone the branch with `--recurse-submodules` to
+   - `git submodule add -b main git@github.com:protocyber/akademiq-web.git apps/web`
+4. Update `README.md`, `AGENTS.md`, and re-root the tree in
+   `docs/internal/13_engineering_standards/01_repo_structure.md` from
+   `/backend` to `/apps/backend`.
+5. Run `rg -n '^[ \t`]*/backend(/|\b)' AGENTS.md README.md docs/` and fix any
+   remaining path-style hits. Descriptive prose ("backend services",
+   "frontend engineers") is kept.
+6. Open a PR. Reviewers clone the branch with `--recurse-submodules` to
    verify both pointers resolve.
 
 **Rollback:**

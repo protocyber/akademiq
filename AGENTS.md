@@ -2,11 +2,35 @@
 
 ## Repo state (read first)
 
-This repo currently contains **only documentation**. There is no source code, no `backend/`, no `Cargo.toml`, no `Makefile`, no CI config. Tracked files: `README.md` (one line) and the `docs/` tree.
+This is a parent repo that holds the architecture and product docs **plus**
+two git submodules: the backend monorepo at `apps/backend` and the web
+frontend at `apps/web`. Both submodules track their upstream `main`. The
+parent repo itself contains no Rust crates, no Next.js source, no `Cargo.toml`,
+no `Makefile`, and no top-level CI config — that lives inside each submodule.
 
-Do not look for crates, services, migrations, or build commands — they don't exist yet. The architecture docs describe an *intended* future system. When asked to "build", "run", or "test" something, confirm with the user before scaffolding new code, and treat the docs as the spec.
+When asked to "build", "run", or "test" something, change directory into the
+relevant submodule first. The architecture docs under `docs/internal/`
+describe the *intended* system; treat them as the spec when scaffolding new
+code, and confirm with the user before adding services or migrations.
 
-`docs/` is untracked in git as of now. If you add files inside `docs/`, expect them to show up alongside the existing untracked tree on `git status`.
+## Submodules
+
+| Mount path     | Repo                                              | Tracks |
+|----------------|---------------------------------------------------|--------|
+| `apps/backend` | `git@github.com:protocyber/akademiq-backend.git`  | `main` |
+| `apps/web`     | `git@github.com:protocyber/akademiq-web.git`      | `main` |
+
+Both repos are private under the `protocyber` GitHub org. SSH access is
+required to clone them.
+
+Workflow:
+
+- Fresh clone: `git clone --recurse-submodules git@github.com:protocyber/akademiq.git`
+- Existing clone: `git submodule update --init --recursive`
+- Pull upstream `main` for a submodule into the parent: `git submodule update --remote --merge apps/backend` (or `apps/web`)
+
+For the backend's internal layout (services, libs), see
+`docs/internal/13_engineering_standards/01_repo_structure.md`.
 
 ## Documentation layout
 
@@ -44,7 +68,7 @@ From `docs/internal/13_engineering_standards/`:
 - JWT **RS256**, Argon2 password hashing
 - RabbitMQ for events
 - `tracing` + OpenTelemetry; every log line must carry `request_id`, `user_id`, `tenant_id`, `service_name`
-- Monorepo layout: `/backend/services/<name>-service` and `/backend/libs/common-{auth,db,logging,errors}`
+- Monorepo layout: `/apps/backend/services/<name>-service` and `/apps/backend/libs/common-{auth,db,logging,errors}`
 - Required Makefile targets per service: `dev`, `migrate`, `test`, `build`, `up`, `down`
 - CQRS: command and query handlers must live in separate modules
 - Never trust client-supplied `tenant_id`; resolve from JWT

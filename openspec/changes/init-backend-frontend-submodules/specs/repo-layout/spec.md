@@ -32,7 +32,7 @@ submodule entries in this change.
 #### Scenario: Frontend submodule URL
 
 - **WHEN** a contributor reads the `url` value of the `apps/web` submodule entry in `.gitmodules`
-- **THEN** the value is exactly `git@github.com:protocyber/akademiq-frontend.git`
+- **THEN** the value is exactly `git@github.com:protocyber/akademiq-web.git`
 
 ### Requirement: Submodule entries SHALL track the upstream main branch
 
@@ -54,7 +54,7 @@ submodule.
 
 Each newly created submodule repository MUST contain only a `README.md` and
 a `.gitignore` at the time this change is merged. The repositories
-`protocyber/akademiq-backend` and `protocyber/akademiq-frontend` SHALL NOT
+`protocyber/akademiq-backend` and `protocyber/akademiq-web` SHALL NOT
 contain any source files, build configuration, CI workflows, or scaffolded
 applications as part of this change.
 
@@ -85,14 +85,21 @@ or existing checkout.
 - **WHEN** an AI agent or contributor reads `AGENTS.md`
 - **THEN** the "Repo state" section reflects that backend and web code now live in submodules at `apps/backend` and `apps/web`, and a "Submodules" section explains the workflow and SSH requirement
 
-### Requirement: Existing documentation under docs/ SHALL remain authoritative for in-submodule layout
+### Requirement: Path-style references in repo docs SHALL match the parent mount layout
 
-This change SHALL NOT modify the contents of files under `docs/internal/`.
-In particular, `docs/internal/13_engineering_standards/01_repo_structure.md`
-remains the source of truth for the directory layout *inside* the backend
-submodule.
+Every path-style reference to the backend monorepo in this repo's `AGENTS.md`, `README.md`, and files under `docs/internal/` MUST use a path rooted at `/apps/backend` rather than `/backend`. The internal layout under that root (e.g., `services/<name>-service`, `libs/common-{auth,db,logging,errors}`) MUST be preserved unchanged. Descriptive prose using "backend" or "frontend" as nouns (e.g., "backend services", "frontend Zod") is NOT a path-style reference and SHALL remain unchanged.
 
-#### Scenario: Engineering standards untouched
+#### Scenario: Engineering standards repo structure tree is re-rooted
 
-- **WHEN** a reviewer diffs the change
-- **THEN** no file under `docs/internal/` is added, modified, or removed
+- **WHEN** a contributor reads `docs/internal/13_engineering_standards/01_repo_structure.md`
+- **THEN** the tree begins with `/apps/backend` and lists `services/...` and `libs/...` underneath, with no occurrence of a top-level `/backend` directory in the tree
+
+#### Scenario: AGENTS.md monorepo bullet matches mount paths
+
+- **WHEN** a contributor reads the "Target tech stack" section in `AGENTS.md`
+- **THEN** the monorepo layout bullet uses `/apps/backend/services/<name>-service` and `/apps/backend/libs/common-{auth,db,logging,errors}`
+
+#### Scenario: No stale top-level path references remain
+
+- **WHEN** a reviewer runs `rg -n '(^|[ \t\(])/backend(/|[\s\)\.,;])' AGENTS.md README.md docs/`
+- **THEN** the command returns no matches

@@ -4,8 +4,33 @@ AcademiQ adalah platform SaaS multi-tenant untuk manajemen sekolah — mencakup
 identitas pengguna, tenant & langganan (billing), konfigurasi dan operasional
 akademik, kehadiran, penilaian, serta kenaikan dan kelulusan.
 
-Saat ini repositori ini hanya berisi dokumentasi. Belum ada kode backend yang
-ditulis; dokumen arsitektur menggambarkan sistem yang akan dibangun.
+Repo ini adalah parent repo: berisi dokumentasi arsitektur dan dua git
+submodule yang menyimpan kode aplikasi.
+
+## Struktur
+
+| Path           | Repo                                              | Isi                                |
+|----------------|---------------------------------------------------|------------------------------------|
+| `apps/backend` | `git@github.com:protocyber/akademiq-backend.git`  | Backend monorepo (Rust + Axum)     |
+| `apps/web`     | `git@github.com:protocyber/akademiq-web.git`      | Web frontend (Next.js)             |
+| `docs/`        | tidak ada submodule                               | Spesifikasi arsitektur dan produk  |
+
+## Memulai
+
+Submodule dilayani lewat SSH ke organisasi `protocyber` di GitHub. Pastikan
+kunci SSH Anda terdaftar dan memiliki akses ke kedua repo private tersebut.
+
+```bash
+# Clone baru (sekaligus mengisi semua submodule)
+git clone --recurse-submodules git@github.com:protocyber/akademiq.git
+
+# Clone yang sudah ada (mengisi submodule yang masih kosong)
+git submodule update --init --recursive
+
+# Tarik perubahan upstream pada satu submodule
+git submodule update --remote --merge apps/backend
+git submodule update --remote --merge apps/web
+```
 
 ## Dokumentasi
 
@@ -30,8 +55,33 @@ AcademiQ is a multi-tenant SaaS platform for school management — covering
 identity, tenant & subscription billing, academic configuration and operations,
 attendance, grading, and promotion.
 
-This repository currently contains documentation only. No backend code has been
-scaffolded yet; the architecture docs describe the intended future system.
+This repository is a parent repo: it holds the architecture documentation and
+two git submodules that contain the application code.
+
+## Layout
+
+| Path           | Repo                                              | Contents                           |
+|----------------|---------------------------------------------------|------------------------------------|
+| `apps/backend` | `git@github.com:protocyber/akademiq-backend.git`  | Backend monorepo (Rust + Axum)     |
+| `apps/web`     | `git@github.com:protocyber/akademiq-web.git`      | Web frontend (Next.js)             |
+| `docs/`        | not a submodule                                   | Architecture and product specs     |
+
+## Quick start
+
+Submodules are served over SSH from the `protocyber` GitHub organisation.
+Make sure your SSH key is registered and has access to both private repos.
+
+```bash
+# Fresh clone (populates submodules in one step)
+git clone --recurse-submodules git@github.com:protocyber/akademiq.git
+
+# Existing clone (populate empty submodules)
+git submodule update --init --recursive
+
+# Pull upstream changes for one submodule
+git submodule update --remote --merge apps/backend
+git submodule update --remote --merge apps/web
+```
 
 ## Documentation
 
