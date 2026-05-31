@@ -52,8 +52,29 @@ cp apps/backend/.env.example apps/backend/.env
 cp apps/web/.env.example apps/web/.env
 
 make doctor    # periksa tooling, beri petunjuk instalasi jika ada yang kurang
+make migrate   # jalankan migrasi backend (membuat iam_db & billing_db)
+make seed      # opsional: muat tiga plan + dua tenant demo
 make dev       # primary: mprocs (backend + web bersamaan)
 ```
+
+Demo flow setelah `make dev` siap:
+
+1. Buka `http://localhost:3000/register`, isi nama sekolah, pilih plan,
+   buat akun admin, submit.
+2. Setelah submit, halaman akan otomatis masuk ke `/dashboard`.
+3. Logout → `/login` → masuk lagi dengan kredensial yang sama.
+4. Pergi ke `/settings/modules`, toggle modul yang termasuk dalam plan
+   Anda. Modul yang tidak termasuk muncul dalam keadaan disabled dengan
+   hint untuk upgrade plan.
+
+Akun demo dari `make seed`:
+
+| Tenant       | Plan     | Email admin                       |
+|--------------|----------|-----------------------------------|
+| Demo Starter | Starter  | `admin@demo-starter.akademiq.dev` |
+| Demo Premium | Premium  | `admin@demo-premium.akademiq.dev` |
+
+Password demo akun ada di `apps/backend/services/billing-service/src/bin/seed.rs`.
 
 Alternatif `make dev`:
 
@@ -139,8 +160,29 @@ cp apps/backend/.env.example apps/backend/.env
 cp apps/web/.env.example apps/web/.env
 
 make doctor    # checks tooling and prints install hints if anything's missing
+make migrate   # run backend migrations (creates iam_db & billing_db)
+make seed      # optional: load three plans + two demo tenants
 make dev       # primary: mprocs (backend + web together)
 ```
+
+Demo flow once `make dev` is up:
+
+1. Open `http://localhost:3000/register`, fill in the school name, pick
+   a plan, create the admin account, submit.
+2. On submit you land on `/dashboard` already authenticated.
+3. Log out → `/login` → log back in with the same credentials.
+4. Navigate to `/settings/modules` and toggle modules entitled by your
+   plan. Non-entitled modules render disabled with an "Upgrade plan"
+   hint.
+
+Demo accounts loaded by `make seed`:
+
+| Tenant       | Plan     | Admin email                       |
+|--------------|----------|-----------------------------------|
+| Demo Starter | Starter  | `admin@demo-starter.akademiq.dev` |
+| Demo Premium | Premium  | `admin@demo-premium.akademiq.dev` |
+
+Demo passwords live in `apps/backend/services/billing-service/src/bin/seed.rs`.
 
 Alternatives to `make dev`:
 

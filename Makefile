@@ -11,7 +11,10 @@
 #
 #   make dev           # primary: launch backend + web together via mprocs
 #   make migrate       # delegate to backend (web has no migrations)
+#   make seed          # load demo data (delegates to backend)
 #   make test          # run tests in both submodules sequentially
+#   make test-e2e      # run cross-service backend e2e suite (compose.test.yml)
+#   make test-web      # run web Vitest + Playwright suites
 #   make build         # build artefacts in both submodules
 #   make up            # start backend infra (Postgres + RabbitMQ) detached
 #   make down          # stop backend infra
@@ -42,7 +45,7 @@ TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
 .PHONY: help dev dev-tmux dev-parallel dev-backend dev-web submodules \
-        up down build test migrate doctor
+        up down build test test-e2e test-web seed migrate doctor
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -109,6 +112,15 @@ test: ## Run tests in both submodules
 	$(MAKE) -C $(BACKEND_DIR) test
 	$(MAKE) -C $(WEB_DIR) test
 
+test-e2e: ## Run cross-service backend e2e suite (compose.test.yml)
+	$(MAKE) -C $(BACKEND_DIR) test-e2e
+
+test-web: ## Run web Vitest + Playwright suites
+	$(MAKE) -C $(WEB_DIR) test
+
+seed: ## Load demo data (plans + tenants) into the local stack
+	$(MAKE) -C $(BACKEND_DIR) seed
+
 migrate: ## Run database migrations (backend only)
 	$(MAKE) -C $(BACKEND_DIR) migrate
 
@@ -150,6 +162,8 @@ doctor: ## Check required dev tooling, print install hints
 	  fi; \
 	  check_required "node"           "node"    "Install Node 20 LTS via nvm (https://github.com/nvm-sh/nvm)."; \
 	  check_required "corepack"       "corepack" "Run: corepack enable (bundled with Node >= 16.13)."; \
+	  check_required "rustc (stable)" "rustc"   "Install via rustup (https://rustup.rs/)."; \
+	  check_required "cargo"          "cargo"   "Bundled with rustup."; \
 	  if command -v node >/dev/null 2>&1; then \
 	    nv=$$(node --version | sed s/^v//); \
 	    if [ "$$(printf "20.0.0\n%s\n" "$$nv" | sort -V | head -n1)" = "20.0.0" ]; then \
@@ -162,6 +176,11 @@ doctor: ## Check required dev tooling, print install hints
 	  echo "Optional tooling:"; \
 	  check_optional "mprocs (primary, used by make dev)" "mprocs" "brew install mprocs   (or  cargo install mprocs)"; \
 	  check_optional "tmux (used by make dev-tmux)"       "tmux"   "brew install tmux"; \
+	  if [ -d "$(WEB_DIR)/node_modules/@playwright" ]; then \
+	    printf "  \033[32m✓\033[0m Playwright browsers (apps/web/node_modules/@playwright present)\n"; \
+	  else \
+	    printf "  \033[33m·\033[0m Playwright not installed yet — run: cd $(WEB_DIR) && pnpm install && pnpm exec playwright install\n"; \
+	  fi; \
 	  echo ""; \
 	  echo ".env files:"; \
 	  for f in .env $(BACKEND_DIR)/.env $(WEB_DIR)/.env; do \
