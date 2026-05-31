@@ -1,0 +1,27 @@
+# =============================================================================
+# AcademiQ — Local development orchestrator (mprocs config)
+# =============================================================================
+# Spawns one process per submodule. Each process runs the submodule's own
+# `make dev`, which is responsible for environment, dependencies, and the
+# inner dev loop. Use:
+#
+#   make dev           # starts mprocs against this file (primary)
+#   make dev-tmux      # tmux fallback for machines without mprocs
+#   make dev-parallel  # `make -j2` last-resort fallback
+#
+# Keys (mprocs default):
+#   ↑/↓        switch between processes
+#   Ctrl-r     restart focused process
+#   Ctrl-x     stop focused process
+#   q          quit (sends SIGTERM to all)
+# =============================================================================
+
+procs:
+  backend:
+    cwd: apps/backend
+    shell: make dev
+  web:
+    cwd: apps/web
+    shell: make dev
+
+mouse_scroll_speed: 1

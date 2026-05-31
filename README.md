@@ -32,6 +32,42 @@ git submodule update --remote --merge apps/backend
 git submodule update --remote --merge apps/web
 ```
 
+## Quick start (pengembangan lokal)
+
+Prasyarat:
+
+- Docker Desktop ≥ 4.24 (atau Docker Engine + plugin compose ≥ 2.22)
+- Node 20 LTS via [nvm](https://github.com/nvm-sh/nvm); `nvm use` mengambil
+  versi dari `apps/web/.nvmrc`
+- `corepack enable` (sekali saja; ikut Node ≥ 16.13) — pnpm dipinned di
+  `apps/web/package.json`
+- Opsional: `brew install mprocs tmux` untuk pengalaman terbaik (mprocs
+  jadi orchestrator utama, tmux jadi fallback)
+
+Setelah submodule diisi, salin tiga `.env` dan jalankan:
+
+```bash
+cp .env.example .env
+cp apps/backend/.env.example apps/backend/.env
+cp apps/web/.env.example apps/web/.env
+
+make doctor    # periksa tooling, beri petunjuk instalasi jika ada yang kurang
+make dev       # primary: mprocs (backend + web bersamaan)
+```
+
+Alternatif `make dev`:
+
+- `make dev-tmux` — fallback tanpa mprocs (perlu tmux)
+- `make dev-parallel` — fallback terakhir tanpa tooling tambahan
+  (`make -j2`, log digabung)
+
+Target lain: `make up` / `make down` untuk infra backend (Postgres + RabbitMQ),
+`make build` / `make test` mendelegasikan ke kedua submodule.
+
+Setiap submodule juga bisa dijalankan mandiri (`cd apps/backend && make dev`,
+`cd apps/web && make dev`) tanpa parent repo. Detail per-app ada di README
+masing-masing submodule.
+
 ## Dokumentasi
 
 - `docs/internal/` — spesifikasi arsitektur dan rekayasa, disusun dalam 13 level
@@ -82,6 +118,43 @@ git submodule update --init --recursive
 git submodule update --remote --merge apps/backend
 git submodule update --remote --merge apps/web
 ```
+
+## Local development
+
+Prerequisites:
+
+- Docker Desktop ≥ 4.24 (or Docker Engine + compose plugin ≥ 2.22)
+- Node 20 LTS via [nvm](https://github.com/nvm-sh/nvm); `nvm use` picks up
+  the version from `apps/web/.nvmrc`
+- `corepack enable` (one-time; bundled with Node ≥ 16.13) — pnpm is pinned
+  in `apps/web/package.json`
+- Optional: `brew install mprocs tmux` for the best experience (mprocs is
+  the primary orchestrator, tmux is the fallback)
+
+After submodules are populated, copy the three `.env` files and start:
+
+```bash
+cp .env.example .env
+cp apps/backend/.env.example apps/backend/.env
+cp apps/web/.env.example apps/web/.env
+
+make doctor    # checks tooling and prints install hints if anything's missing
+make dev       # primary: mprocs (backend + web together)
+```
+
+Alternatives to `make dev`:
+
+- `make dev-tmux` — fallback for machines without mprocs (needs tmux)
+- `make dev-parallel` — last-resort fallback with no extra tooling
+  (`make -j2`, logs interleave)
+
+Other targets: `make up` / `make down` manage the backend infra
+(Postgres + RabbitMQ); `make build` / `make test` delegate into both
+submodules.
+
+Each submodule is also independently runnable
+(`cd apps/backend && make dev`, `cd apps/web && make dev`) without the parent
+repo. Per-app details live in the submodule READMEs.
 
 ## Documentation
 
