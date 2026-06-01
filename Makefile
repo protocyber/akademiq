@@ -25,6 +25,7 @@
 #   make dev-parallel  # `make -j2` last-resort fallback
 #   make dev-backend   # just the backend dev loop
 #   make dev-web       # just the web dev loop
+#   make ps            # show status of all services (backend + web)
 #   make submodules    # `git submodule update --init --recursive`
 #   make doctor        # check required dev tooling, print install hints
 #   make help          # this help screen
@@ -45,7 +46,7 @@ TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
 .PHONY: help dev dev-tmux dev-parallel dev-backend dev-web submodules \
-        up down build test test-e2e test-web seed migrate doctor
+        up down build test test-e2e test-web seed migrate ps doctor
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -123,6 +124,13 @@ seed: ## Load demo data (plans + tenants) into the local stack
 
 migrate: ## Run database migrations (backend only)
 	$(MAKE) -C $(BACKEND_DIR) migrate
+
+ps: ## Show status of all services (backend compose + web dev server)
+	@echo ">>> backend"
+	@$(MAKE) -C $(BACKEND_DIR) ps
+	@echo ""
+	@echo ">>> web"
+	@$(MAKE) -C $(WEB_DIR) ps
 
 # -----------------------------------------------------------------------------
 # Doctor: best-effort tooling check
