@@ -17,7 +17,7 @@
 #   make test-web      # run web Vitest + Playwright suites
 #   make build         # build artefacts in both submodules
 #   make up            # start backend infra (Postgres + RabbitMQ) detached
-#   make down          # stop backend infra
+#   make down          # stop backend infra (preserves volumes)
 #
 # Orchestrator extras:
 #
@@ -26,6 +26,9 @@
 #   make dev-backend   # just the backend dev loop
 #   make dev-web       # just the web dev loop
 #   make ps            # show status of all services (backend + web)
+#   make stop          # kill all host-run service processes (backend + web)
+#   make clean         # delete build artefacts in both submodules (keeps volumes)
+#   make purge         # DESTRUCTIVE: delete volumes + all artefacts (confirmation required)
 #   make submodules    # `git submodule update --init --recursive`
 #   make doctor        # check required dev tooling, print install hints
 #   make help          # this help screen
@@ -46,7 +49,7 @@ TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
 .PHONY: help dev dev-tmux dev-parallel dev-backend dev-web submodules \
-        up down build test test-e2e test-web seed migrate ps doctor
+        up down build test test-e2e test-web seed migrate ps stop clean purge doctor
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -131,6 +134,42 @@ ps: ## Show status of all services (backend compose + web dev server)
 	@echo ""
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) ps
+
+stop: ## Kill all host-run service processes (backend + web dev server)
+	@echo ">>> backend"
+	@$(MAKE) -C $(BACKEND_DIR) stop
+	@echo ""
+	@echo ">>> web"
+	@$(MAKE) -C $(WEB_DIR) stop
+
+clean: ## Delete build artefacts in both submodules (preserves volumes and node_modules)
+	@echo ">>> backend"
+	@$(MAKE) -C $(BACKEND_DIR) clean
+	@echo ""
+	@echo ">>> web"
+	@$(MAKE) -C $(WEB_DIR) clean
+
+purge: ## DESTRUCTIVE: delete volumes + all build artefacts (requires confirmation)
+	@printf '\033[0;31m\n'
+	@echo "  ╔══════════════════════════════════════════════════════════════╗"
+	@echo "  ║  WARNING: purge will permanently DELETE:                     ║"
+	@echo "  ║    • postgres + rabbitmq Docker volumes (all local data)     ║"
+	@echo "  ║    • Cargo target/ directory                                 ║"
+	@echo "  ║    • .next/ and node_modules/                                ║"
+	@echo "  ║  Run 'make up && make migrate && make seed' to restore data. ║"
+	@echo "  ╚══════════════════════════════════════════════════════════════╝"
+	@printf '\033[0m\n'
+	@printf "  Type 'yes' to continue, anything else to abort: "; \
+	read -r ans; \
+	if [ "$$ans" = "yes" ]; then \
+		$(MAKE) -C $(BACKEND_DIR) down 2>/dev/null || true; \
+		docker volume rm akademiq_postgres_data akademiq_rabbitmq_data 2>/dev/null || true; \
+		$(MAKE) -C $(BACKEND_DIR) clean 2>/dev/null || true; \
+		$(MAKE) -C $(WEB_DIR) purge 2>/dev/null || true; \
+		echo ">> purge complete."; \
+	else \
+		echo ">> aborted."; \
+	fi
 
 # -----------------------------------------------------------------------------
 # Doctor: best-effort tooling check
