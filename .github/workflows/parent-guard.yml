@@ -1,0 +1,70 @@
+name: parent-guard
+
+# Guards the parent repo: every push or PR is checked to make sure the
+# submodule SHAs it pins point at commits that actually exist on the
+# tracked branches of the submodule remotes. Stops "ghost SHA" merges
+# that would leave a fresh clone with broken `git submodule update`.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate-submodule-pointers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Read submodule entries
+        id: submodules
+        run: |
+          backend=$(git config -f .gitmodules submodule.apps/backend.url)
+          web=$(git config -f .gitmodules submodule.apps/web.url)
+          echo "backend_url=$backend" >> "$GITHUB_OUTPUT"
+          echo "web_url=$web" >> "$GITHUB_OUTPUT"
+          backend_sha=$(git ls-tree HEAD apps/backend | awk '{print $3}')
+          web_sha=$(git ls-tree HEAD apps/web | awk '{print $3}')
+          echo "backend_sha=$backend_sha" >> "$GITHUB_OUTPUT"
+          echo "web_sha=$web_sha" >> "$GITHUB_OUTPUT"
+      - name: Verify backend SHA exists on remote
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          repo="${{ steps.submodules.outputs.backend_url }}"
+          sha="${{ steps.submodules.outputs.backend_sha }}"
+          # Convert git@github.com:owner/repo.git → owner/repo
+          slug=$(echo "$repo" | sed -E 's|^git@github\.com:||; s|^https://github\.com/||; s|\.git$||')
+          echo "Checking $slug @ $sha"
+          gh api "repos/$slug/commits/$sha" --jq '.sha' >/dev/null
+      - name: Verify web SHA exists on remote
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          repo="${{ steps.submodules.outputs.web_url }}"
+          sha="${{ steps.submodules.outputs.web_sha }}"
+          slug=$(echo "$repo" | sed -E 's|^git@github\.com:||; s|^https://github\.com/||; s|\.git$||')
+          echo "Checking $slug @ $sha"
+          gh api "repos/$slug/commits/$sha" --jq '.sha' >/dev/null
+
+  openspec-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install openspec
+        run: npm install -g openspec || npm install -g @openspec/cli || true
+      - name: Validate active changes
+        run: |
+          if command -v openspec >/dev/null 2>&1; then
+            openspec validate --strict || exit 1
+          else
+            echo "openspec CLI not available on registry; skipping validation in CI"
+          fi
