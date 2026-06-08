@@ -24,7 +24,7 @@ Backend infra runs in containers from `apps/backend/docker-compose.yml`:
 
 - **PostgreSQL** — image `postgres:18-alpine`, healthchecked. Each
   microservice will own its own database
-  (`${POSTGRES_DB_PREFIX}_<service>_db`) created via that service's
+  (`<service>_db`) created via that service's
   refinery migrations.
 - **RabbitMQ** — image `rabbitmq:3-management-alpine`, AMQP + management
   UI, healthchecked.
