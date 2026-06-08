@@ -40,6 +40,32 @@ check_optional() {
   fi
 }
 
+check_openssl_dev() {
+  if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists openssl; then
+    printf "  ${GREEN}✓${RESET} OpenSSL development files (%s)\n" "$(pkg-config --modversion openssl)"
+    return
+  fi
+
+  printf "  ${RED}✗${RESET} OpenSSL development files — pkg-config cannot find openssl.\n"
+
+  case "$(uname -s)" in
+    Darwin)
+      printf "    Install: brew install pkg-config openssl@3\n"
+      printf "    If still missing: export PKG_CONFIG_PATH=\"$(brew --prefix openssl@3 2>/dev/null || printf /opt/homebrew/opt/openssl@3)/lib/pkgconfig:\${PKG_CONFIG_PATH:-}\"\n"
+      ;;
+    Linux)
+      printf "    Debian/Ubuntu: sudo apt-get install pkg-config libssl-dev\n"
+      printf "    Fedora:        sudo dnf install pkgconf openssl-devel\n"
+      printf "    Arch:          sudo pacman -S pkgconf openssl\n"
+      ;;
+    *)
+      printf "    Install pkg-config plus OpenSSL headers/libs, or set OPENSSL_DIR.\n"
+      ;;
+  esac
+
+  fail=1
+}
+
 echo "Required tooling:"
 
 check_required "git"            "git"     "Install via your OS package manager."
@@ -59,6 +85,7 @@ check_required "node"           "node"    "Install Node 20 LTS via nvm (https://
 check_required "corepack"       "corepack" "Run: corepack enable (bundled with Node >= 16.13)."
 check_required "rustc (stable)" "rustc"   "Install via rustup (https://rustup.rs/)."
 check_required "cargo"          "cargo"   "Bundled with rustup."
+check_openssl_dev
 
 if command -v node >/dev/null 2>&1; then
   nv=$(node --version | sed 's/^v//')
