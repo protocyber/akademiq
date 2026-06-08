@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduCore - Student &amp; Attendance Management</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface": "#f8f9ff",
+                        "outline-variant": "#3c4a42",
+                        "error": "#ffb4ab",
+                        "primary-fixed-dim": "#4edea3",
+                        "surface-bright": "#31394d",
+                        "tertiary": "#c4c7c9",
+                        "on-secondary-container": "#bec6e0",
+                        "on-error-container": "#ffdad6",
+                        "inverse-primary": "#006c49",
+                        "surface-variant": "#3f465c",
+                        "surface-dim": "#0b1326",
+                        "error-container": "#93000a",
+                        "on-primary": "#003924",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "surface": "#0b1326",
+                        "surface-container-low": "#131b2e",
+                        "inverse-on-surface": "#0b1c30",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "background": "#060e20",
+                        "tertiary-container": "#444749",
+                        "surface-container-high": "#212b3e",
+                        "surface-container-highest": "#2c364c",
+                        "on-secondary-fixed": "#131b2e",
+                        "on-tertiary-container": "#e0e3e5",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-primary-container": "#6ffbbe",
+                        "primary-container": "#10b981",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "on-background": "#eaf1ff",
+                        "inverse-surface": "#eaf1ff",
+                        "surface-tint": "#4edea3",
+                        "on-error": "#690005",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "surface-container-lowest": "#060e20",
+                        "surface-container": "#1b2438",
+                        "on-primary-fixed-variant": "#005236",
+                        "on-primary-fixed": "#002113",
+                        "secondary-container": "#3f465c",
+                        "primary-fixed": "#6ffbbe",
+                        "secondary": "#bec6e0",
+                        "primary": "#10b981",
+                        "outline": "#8b938c",
+                        "on-surface-variant": "#bbcabf",
+                        "on-tertiary": "#2e3133",
+                        "on-secondary": "#282f44",
+                        "secondary-fixed": "#dae2fd",
+                        "tertiary-fixed": "#e0e3e5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.5rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "sm": "8px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "margin-desktop": "40px",
+                        "xl": "32px",
+                        "md": "16px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Plus Jakarta Sans"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "headline-lg-mobile": ["Plus Jakarta Sans"],
+                        "headline-xl": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", { "lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "label-sm": ["12px", { "lineHeight": "16px", "fontWeight": "500" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "600" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "700" }],
+                        "headline-xl": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { background-color: #060e20; color: #f8f9ff; }
+        .sidebar-active { background-color: rgba(16, 185, 129, 0.15); border-left: 4px solid #10b981; color: #10b981; }
+        .custom-shadow { box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.4); }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        .status-pill-active { background-color: rgba(16, 185, 129, 0.2); color: #4edea3; }
+        .status-pill-inactive { background-color: rgba(139, 147, 140, 0.15); color: #8b938c; }
+    </style>
+</head>
+<body class="font-body-md text-body-md overflow-x-hidden dark">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full w-64 bg-surface-container-lowest flex flex-col z-40 border-r border-outline-variant/30">
+<div class="p-lg flex items-center gap-sm">
+<span class="text-headline-md font-headline-lg text-primary">EduCore</span>
+</div>
+<nav class="flex-1 mt-md">
+<!-- Dashboard -->
+<a class="flex items-center gap-4 px-4 py-3 text-outline hover:text-on-surface hover:bg-surface-variant/20 transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<!-- Students (Active) -->
+<a class="flex items-center gap-4 px-4 py-3 bg-primary/10 border-l-4 border-primary text-primary transition-transform duration-150 active:scale-95" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-md text-label-md">Students</span>
+</a>
+<!-- Attendance -->
+<a class="flex items-center gap-4 px-4 py-3 text-outline hover:text-on-surface hover:bg-surface-variant/20 transition-colors" href="#">
+<span class="material-symbols-outlined">calendar_today</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<!-- Staff -->
+<a class="flex items-center gap-4 px-4 py-3 text-outline hover:text-on-surface hover:bg-surface-variant/20 transition-colors" href="#">
+<span class="material-symbols-outlined">badge</span>
+<span class="font-label-md text-label-md">Staff</span>
+</a>
+<!-- Academic -->
+<a class="flex items-center gap-4 px-4 py-3 text-outline hover:text-on-surface hover:bg-surface-variant/20 transition-colors" href="#">
+<span class="material-symbols-outlined">school</span>
+<span class="font-label-md text-label-md">Academic</span>
+</a>
+<!-- Finance -->
+<a class="flex items-center gap-4 px-4 py-3 text-outline hover:text-on-surface hover:bg-surface-variant/20 transition-colors" href="#">
+<span class="material-symbols-outlined">payments</span>
+<span class="font-label-md text-label-md">Finance</span>
+</a>
+<!-- Settings -->
+<a class="flex items-center gap-4 px-4 py-3 text-outline hover:text-on-surface hover:bg-surface-variant/20 transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+<div class="p-lg mt-auto border-t border-outline-variant/30">
+<div class="flex items-center gap-3">
+<img alt="Administrator Profile" class="w-10 h-10 rounded-full object-cover ring-1 ring-outline-variant" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDjAAkfIFXbHFzI8KPVa0w-tDY-yPSj7bj6o-M7lUl_zOJlvwAKFcSqRdYoDBuwTfsWvmFvh9zUVjLUEckd4xWHYxIRDbqA4oTW5t9PQPA_AJ2SyzGrR8H6iBtzXqjqYZHoXBO-zOgzNwLKcD2XG-MrM2j-DpG-aY4-tnCWGet9sUkSRg7MPNdrtGth_LJiiJPg-cbE0MgovbHZahoQ_spz4kbwMIGx84Yp4cMb5BhwchyoXA8oqQJ647GuOEs8rUXqcQq0UXiM6Bjr"/>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Admin Sarah</p>
+<p class="text-[10px] text-outline">SaaS Admin</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen bg-background">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-lg py-sm bg-surface-container-lowest border-b border-outline-variant/30 sticky top-0 z-30">
+<div class="flex items-center gap-lg flex-1">
+<div class="relative w-full max-w-md">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant/50 rounded-lg focus:outline-none focus:border-primary text-body-sm text-on-surface placeholder:text-outline" placeholder="Search students, IDs or classes..." type="text"/>
+</div>
+<div class="flex items-center gap-sm">
+<span class="font-label-md text-label-md text-primary border-b-2 border-primary pb-1 px-1">2023/2024</span>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-2 text-on-surface-variant hover:bg-surface-variant/30 rounded-full transition-opacity active:opacity-80">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant/30 mx-2"></div>
+<button class="bg-primary text-on-primary px-4 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2 hover:brightness-110 transition-all">
+<span class="material-symbols-outlined">add</span>
+                Add Student
+            </button>
+</div>
+</header>
+<!-- Canvas -->
+<div class="p-lg max-w-[1440px] mx-auto">
+<!-- Page Header & Stats -->
+<div class="mb-xl">
+<h1 class="font-headline-lg text-headline-lg text-on-surface mb-xs">Student Management</h1>
+<p class="text-on-surface-variant">Oversee enrollments and track daily attendance across all grades.</p>
+</div>
+<div class="grid grid-cols-12 gap-lg">
+<!-- Filters & Main Table Container -->
+<div class="col-span-12 lg:col-span-8 space-y-lg">
+<!-- Filter Bar Card -->
+<div class="bg-surface-container p-md rounded-xl border border-outline-variant/30 custom-shadow flex flex-wrap gap-md items-center">
+<div class="flex items-center gap-2">
+<span class="text-label-sm text-outline uppercase tracking-wider">Grade</span>
+<select class="bg-surface-container-low border-outline-variant/50 text-on-surface rounded-lg text-body-sm py-1.5 focus:ring-primary focus:border-primary">
+<option>All Grades</option>
+<option>Grade 10</option>
+<option>Grade 11</option>
+<option>Grade 12</option>
+</select>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-label-sm text-outline uppercase tracking-wider">Section</span>
+<select class="bg-surface-container-low border-outline-variant/50 text-on-surface rounded-lg text-body-sm py-1.5 focus:ring-primary focus:border-primary">
+<option>All Sections</option>
+<option>Section A</option>
+<option>Section B</option>
+</select>
+</div>
+<div class="flex items-center gap-2">
+<span class="text-label-sm text-outline uppercase tracking-wider">Status</span>
+<select class="bg-surface-container-low border-outline-variant/50 text-on-surface rounded-lg text-body-sm py-1.5 focus:ring-primary focus:border-primary">
+<option>Active Only</option>
+<option>Inactive</option>
+</select>
+</div>
+<button class="ml-auto flex items-center gap-1 text-primary font-label-md text-label-md hover:brightness-125 transition-all">
+<span class="material-symbols-outlined text-[20px]">filter_list</span>
+                        Clear Filters
+                    </button>
+</div>
+<!-- Data Table Card -->
+<div class="bg-surface-container rounded-xl border border-outline-variant/30 custom-shadow overflow-hidden">
+<div class="p-md border-b border-outline-variant/30 flex justify-between items-center">
+<h3 class="font-headline-md text-headline-md text-on-surface">Student Roster</h3>
+<span class="text-label-sm text-outline">Showing 420 Students</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead class="bg-surface-container-high border-b border-outline-variant/30">
+<tr>
+<th class="px-lg py-3 font-label-md text-label-md text-outline">ID</th>
+<th class="px-lg py-3 font-label-md text-label-md text-outline">Student Name</th>
+<th class="px-lg py-3 font-label-md text-label-md text-outline">Grade</th>
+<th class="px-lg py-3 font-label-md text-label-md text-outline">Attendance</th>
+<th class="px-lg py-3 font-label-md text-label-md text-outline">Status</th>
+<th class="px-lg py-3 font-label-md text-label-md text-outline">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/20">
+<tr class="hover:bg-surface-variant/10 transition-colors group border-l-4 border-l-transparent hover:border-l-primary">
+<td class="px-lg py-4 font-mono text-body-sm text-outline">STU-8821</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary text-xs">AJ</div>
+<span class="font-medium text-on-surface">Alex Johnson</span>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm text-on-surface-variant">11 - B</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 w-16 bg-surface-variant/40 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[94%]"></div>
+</div>
+<span class="text-label-sm text-on-surface">94%</span>
+</div>
+</td>
+<td class="px-lg py-4">
+<span class="status-pill-active px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Active</span>
+</td>
+<td class="px-lg py-4">
+<button class="text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined">edit_note</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-variant/10 transition-colors border-l-4 border-l-transparent hover:border-l-primary">
+<td class="px-lg py-4 font-mono text-body-sm text-outline">STU-8822</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center font-bold text-primary text-xs">SM</div>
+<span class="font-medium text-on-surface">Sarah Miller</span>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm text-on-surface-variant">11 - B</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 w-16 bg-surface-variant/40 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[88%]"></div>
+</div>
+<span class="text-label-sm text-on-surface">88%</span>
+</div>
+</td>
+<td class="px-lg py-4">
+<span class="status-pill-active px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Active</span>
+</td>
+<td class="px-lg py-4">
+<button class="text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined">edit_note</span>
+</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-variant/10 transition-colors border-l-4 border-l-transparent hover:border-l-primary">
+<td class="px-lg py-4 font-mono text-body-sm text-outline">STU-8825</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-variant/40 flex items-center justify-center font-bold text-outline text-xs">BW</div>
+<span class="font-medium text-on-surface">Brian White</span>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm text-on-surface-variant">11 - A</td>
+<td class="px-lg py-4">
+<div class="flex items-center gap-2">
+<div class="flex-1 h-1.5 w-16 bg-surface-variant/40 rounded-full overflow-hidden">
+<div class="h-full bg-error w-[42%]"></div>
+</div>
+<span class="text-label-sm text-error">42%</span>
+</div>
+</td>
+<td class="px-lg py-4">
+<span class="status-pill-inactive px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Inactive</span>
+</td>
+<td class="px-lg py-4">
+<button class="text-outline hover:text-primary transition-colors">
+<span class="material-symbols-outlined">edit_note</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-md bg-surface-container-high border-t border-outline-variant/30 flex justify-between items-center">
+<button class="px-4 py-2 border border-outline-variant/30 bg-surface-container-low text-on-surface-variant rounded-lg text-body-sm hover:bg-surface-variant/20 transition-colors">Previous</button>
+<div class="flex gap-1">
+<span class="w-8 h-8 flex items-center justify-center bg-primary text-on-primary rounded-lg text-label-sm">1</span>
+<span class="w-8 h-8 flex items-center justify-center hover:bg-surface-variant/30 text-on-surface-variant rounded-lg text-label-sm cursor-pointer transition-colors">2</span>
+<span class="w-8 h-8 flex items-center justify-center hover:bg-surface-variant/30 text-on-surface-variant rounded-lg text-label-sm cursor-pointer transition-colors">3</span>
+</div>
+<button class="px-4 py-2 border border-outline-variant/30 bg-surface-container-low text-on-surface-variant rounded-lg text-body-sm hover:bg-surface-variant/20 transition-colors">Next</button>
+</div>
+</div>
+</div>
+<!-- Sidebar Content: Attendance Recording -->
+<div class="col-span-12 lg:col-span-4 space-y-lg">
+<div class="bg-surface-container rounded-xl border border-outline-variant/30 custom-shadow flex flex-col h-full">
+<div class="p-lg border-b border-outline-variant/30">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-xs">Today's Attendance</h3>
+<div class="flex items-center justify-between mt-md">
+<div>
+<p class="text-label-sm text-outline uppercase tracking-wider">Current Class</p>
+<p class="font-bold text-on-surface">Math 101 - Sec A</p>
+</div>
+<div class="text-right">
+<p class="text-label-sm text-outline uppercase tracking-wider">Period</p>
+<p class="font-bold text-on-surface">09:00 - 10:30</p>
+</div>
+</div>
+</div>
+<div class="p-md overflow-y-auto max-h-[500px] flex-1">
+<div class="space-y-3">
+<!-- Student Row 1 -->
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg group border border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border-2 border-outline-variant/30 shadow-sm overflow-hidden">
+<img alt="Student 1" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXcYX0ZtHLL-F3-5OcOGSarxHmcOr6jtuU5yo7m9POwkvgefEJJkXAn4sB94GJw3ua7L6jNH9UcRPcMtVPDG7zr1bxmbc4PFRqU_AYK1mih_KSrr9ZSg1eQq3ql2IpnwgKhCV80i_UqI9q9p2Ikrc5fiJbt9X_iv9ifjv_GRO80xRjBYbD2riI5Ob7hQ_qbfzN6-73E2Az6qJFjg1Y7JD66IXvnx2S7e_pZVekWmqNKlBC4R6xOSQxYJMpQXt50I9QR8l4IQTMsV1W"/>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">David Lee</p>
+<p class="text-[10px] text-outline">Roll #42</p>
+</div>
+</div>
+<div class="flex bg-surface-container-high rounded-lg border border-outline-variant/30 overflow-hidden">
+<button class="attendance-toggle px-3 py-1.5 text-xs font-bold transition-all bg-primary text-on-primary" data-status="present">P</button>
+<button class="attendance-toggle px-3 py-1.5 text-xs font-bold transition-all text-outline hover:bg-surface-variant/20" data-status="absent">A</button>
+</div>
+</div>
+<!-- Student Row 2 -->
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border-2 border-outline-variant/30 shadow-sm overflow-hidden">
+<img alt="Student 2" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA68IqQgl9M47Gh22K2E8w5EUQXXafNPr5YqTBuqidDrQELUeHMGgjbaXbpkU-pIuErl4Cy02slXau1xTgKIj_I7O_vCmamDFWpZPAY4rqsAhwu_mABtl_3LAWx-BEc9giox8w4nKpfAyf5Em4yxm1vvrnOsqEGiJ5G2Vs8xvuWtT6jdd80INcWHxoiG-g0SUqsYWEmNebBeDXFBxTpuEoFE81gLhgYOaZrgCCJeeeeud8Uqz2BzXVO3-3nXuEzKQMVNK3dPxL-ZIGi"/>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Emily Chen</p>
+<p class="text-[10px] text-outline">Roll #43</p>
+</div>
+</div>
+<div class="flex bg-surface-container-high rounded-lg border border-outline-variant/30 overflow-hidden">
+<button class="attendance-toggle px-3 py-1.5 text-xs font-bold transition-all text-outline hover:bg-surface-variant/20" data-status="present">P</button>
+<button class="attendance-toggle px-3 py-1.5 text-xs font-bold transition-all bg-error text-on-error-container" data-status="absent">A</button>
+</div>
+</div>
+<!-- Student Row 3 -->
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border-2 border-outline-variant/30 shadow-sm overflow-hidden">
+<img alt="Student 3" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAzSYjJ-byoLwYNl9FJllPyyu1peZkh1Az1ZXOGJVLRwXymrUb5K8PLZ-a2WHgPs7-_QxujrHGlRE0MsoI-4wuwg3sPFQFtpsxNFhfOQU_qAaY3vyitEh3RtnFKw-m5KSHfFHNXcVXU8yEQGKg0Xjukq7FgPyy2zaFjDKIEiQmX_cGL-WVIqMNpP1LjNoTS6G4JF1ec3b367YxjlCVMTMol9gPyDq649ME8ox7QocUkcpIr3k2mfmoohzZQ0GvOWjoTIvXpD_Rc-FZX"/>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">Marcus Thorne</p>
+<p class="text-[10px] text-outline">Roll #44</p>
+</div>
+</div>
+<div class="flex bg-surface-container-high rounded-lg border border-outline-variant/30 overflow-hidden">
+<button class="attendance-toggle px-3 py-1.5 text-xs font-bold transition-all bg-primary text-on-primary" data-status="present">P</button>
+<button class="attendance-toggle px-3 py-1.5 text-xs font-bold transition-all text-outline hover:bg-surface-variant/20" data-status="absent">A</button>
+</div>
+</div>
+<!-- Student Row 4 -->
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-outline-variant/10">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full border-2 border-outline-variant/30 shadow-sm overflow-hidden">
+<img alt="Student 4" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA-QdBQ33ILCGhn26pZ0LOBv4p8Tzdiw6uZt4-C37NrBFla1SQYJRbmeVnGbe3nRMk8JIpFyBAzEAkiqe5p3ytfVKCvq3MuCFPsknFMTm9oWQQNMXIPUY-mkWtPGpGPq0vuNUnmH21XxQ7ikJytoJtjvB04AgJZeuBJECBxY56xK0LwlsrEoriR7eXh41XJbKL6ToidjghsyZ6BC-5rccwsypqvmKbt33Olz_QlKnL3ISHqpU7WQ-gc7-vZQF2AxOL28yejZHDLbKMn"/>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface">James O'Connell</p>
+<p class="text-[10px] text-outline">Roll #45</p>
+</div>
+</div>
+<div class="flex bg-surface-container-high rounded-lg border border-outline-variant/30 overflow-hidden">
+<button class="attendance-toggle px-3 py-1.5 text-xs font-bold transition-all bg-primary text-on-primary" data-status="present">P</button>
+<button class="attendance-toggle px-3 py-1.5 text-xs font-bold transition-all text-outline hover:bg-surface-variant/20" data-status="absent">A</button>
+</div>
+</div>
+</div>
+</div>
+<div class="p-lg bg-surface-container-high border-t border-outline-variant/30 mt-auto">
+<button class="w-full bg-primary text-on-primary py-3 rounded-xl font-bold transition-transform active:scale-[0.98] hover:brightness-110">
+                            Submit Attendance (24/28)
+                        </button>
+<p class="text-center text-[10px] text-outline mt-sm">Last updated: 2 mins ago</p>
+</div>
+</div>
+<!-- Small Analytic Widget -->
+<div class="bg-primary/10 p-lg rounded-xl border border-primary/20 flex items-center justify-between">
+<div>
+<p class="text-label-sm text-primary uppercase font-bold tracking-widest">Global Attendance</p>
+<p class="text-headline-xl font-headline-xl text-on-primary-container">92.4%</p>
+</div>
+<div class="p-3 bg-surface-container/50 rounded-full border border-outline-variant/20">
+<span class="material-symbols-outlined text-primary text-[32px]">trending_up</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+    // Simple micro-interaction for attendance toggles
+    document.querySelectorAll('.attendance-toggle').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const parent = this.parentElement;
+            const siblings = parent.querySelectorAll('.attendance-toggle');
+            
+            siblings.forEach(s => {
+                s.classList.remove('bg-primary', 'bg-error', 'text-on-primary', 'text-on-error-container');
+                s.classList.add('text-outline', 'hover:bg-surface-variant/20');
+            });
+
+            if (this.dataset.status === 'present') {
+                this.classList.remove('text-outline', 'hover:bg-surface-variant/20');
+                this.classList.add('bg-primary', 'text-on-primary');
+            } else {
+                this.classList.remove('text-outline', 'hover:bg-surface-variant/20');
+                this.classList.add('bg-error', 'text-on-error-container');
+            }
+        });
+    });
+</script>
+</body></html>

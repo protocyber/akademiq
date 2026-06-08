@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>EduCore - Billing &amp; SPP Payments</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;family=Inter:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-surface": "#0b1c30",
+                        "outline-variant": "#bbcabf",
+                        "error": "#ba1a1a",
+                        "primary-fixed-dim": "#4edea3",
+                        "surface-bright": "#f8f9ff",
+                        "tertiary": "#5c5f61",
+                        "on-secondary-container": "#5c647a",
+                        "on-error-container": "#93000a",
+                        "inverse-primary": "#4edea3",
+                        "surface-variant": "#d3e4fe",
+                        "surface-dim": "#cbdbf5",
+                        "error-container": "#ffdad6",
+                        "on-primary": "#ffffff",
+                        "on-tertiary-fixed-variant": "#444749",
+                        "surface": "#f8f9ff",
+                        "surface-container-low": "#eff4ff",
+                        "inverse-on-surface": "#eaf1ff",
+                        "tertiary-fixed-dim": "#c4c7c9",
+                        "background": "#f8f9ff",
+                        "tertiary-container": "#a0a3a5",
+                        "surface-container-high": "#dce9ff",
+                        "surface-container-highest": "#d3e4fe",
+                        "on-secondary-fixed": "#131b2e",
+                        "on-tertiary-container": "#36393b",
+                        "on-tertiary-fixed": "#191c1e",
+                        "on-primary-container": "#00422b",
+                        "primary-container": "#10b981",
+                        "on-secondary-fixed-variant": "#3f465c",
+                        "on-background": "#0b1c30",
+                        "inverse-surface": "#213145",
+                        "surface-tint": "#006c49",
+                        "on-error": "#ffffff",
+                        "secondary-fixed-dim": "#bec6e0",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#e5eeff",
+                        "on-primary-fixed-variant": "#005236",
+                        "on-primary-fixed": "#002113",
+                        "secondary-container": "#dae2fd",
+                        "primary-fixed": "#6ffbbe",
+                        "secondary": "#565e74",
+                        "primary": "#006c49",
+                        "outline": "#6c7a71",
+                        "on-surface-variant": "#3c4a42",
+                        "on-tertiary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "secondary-fixed": "#dae2fd",
+                        "tertiary-fixed": "#e0e3e5"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "sm": "8px",
+                        "xs": "4px",
+                        "base": "4px",
+                        "lg": "24px",
+                        "margin-desktop": "40px",
+                        "xl": "32px",
+                        "md": "16px",
+                        "margin-mobile": "16px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Plus Jakarta Sans"],
+                        "label-sm": ["Inter"],
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Plus Jakarta Sans"],
+                        "headline-lg-mobile": ["Plus Jakarta Sans"],
+                        "headline-xl": ["Plus Jakarta Sans"]
+                    },
+                    "fontSize": {
+                        "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                        "headline-lg": ["28px", {"lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                        "label-sm": ["12px", {"lineHeight": "16px", "fontWeight": "500"}],
+                        "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-md": ["20px", {"lineHeight": "28px", "fontWeight": "600"}],
+                        "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                        "headline-xl": ["36px", {"lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); }
+    </style>
+</head>
+<body class="bg-surface text-on-surface font-body-md overflow-hidden">
+<!-- SideNavBar -->
+<aside class="fixed left-0 top-0 h-full flex flex-col z-40 bg-on-surface dark:bg-on-background w-64 shadow-sm">
+<div class="px-lg py-xl flex items-center gap-3">
+<div class="w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center text-white">
+<span class="material-symbols-outlined" data-icon="school" style="font-variation-settings: 'FILL' 1;">school</span>
+</div>
+<div>
+<h1 class="text-headline-md font-headline-lg text-primary-container leading-tight">EduCore</h1>
+<p class="text-label-sm text-outline-variant">SaaS Admin</p>
+</div>
+</div>
+<nav class="flex-1 px-sm space-y-1 mt-4">
+<a class="flex items-center gap-4 px-4 py-3 text-outline-variant hover:text-surface-bright hover:bg-surface-variant/10 transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-outline-variant hover:text-surface-bright hover:bg-surface-variant/10 transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Students</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-outline-variant hover:text-surface-bright hover:bg-surface-variant/10 transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="calendar_today">calendar_today</span>
+<span class="font-label-md text-label-md">Attendance</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-outline-variant hover:text-surface-bright hover:bg-surface-variant/10 transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="badge">badge</span>
+<span class="font-label-md text-label-md">Staff</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-outline-variant hover:text-surface-bright hover:bg-surface-variant/10 transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="school">school</span>
+<span class="font-label-md text-label-md">Academic</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 bg-primary-container/10 border-l-4 border-primary-container text-primary-container rounded-r-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="payments" style="font-variation-settings: 'FILL' 1;">payments</span>
+<span class="font-label-md text-label-md">Finance</span>
+</a>
+<a class="flex items-center gap-4 px-4 py-3 text-outline-variant hover:text-surface-bright hover:bg-surface-variant/10 transition-colors rounded-lg group" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+</nav>
+<div class="p-lg border-t border-white/10 mt-auto">
+<div class="flex items-center gap-3">
+<img alt="Administrator Profile" class="w-10 h-10 rounded-full border-2 border-primary-container/20" data-alt="A professional headshot of a middle-aged male administrator in a tailored navy blue suit and a crisp white shirt. He is smiling warmly against a soft-focus office background with books and warm indoor lighting. The overall mood is capable and approachable, reflecting a corporate modern aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBeqMXYnmFXbjMizJY4zwr5ILFJnPWoqd9DOoKjwCxQ8IRTXazlgU8OphXeMtKnikLl059R9I2v8g7tWlOspe4mGInJKveRfy74fsJMMKv0g3rZzZ5H_Uzg1Gjz0Fimi-RBsryrHWRqAjo2vWUWY0rf5VhHmChl2ySRmeu3asnv2OUHSDyOx66xjSRiEhlW281kFm_biqycxrcorcenUEvsaGN1XUWv1p5RjMorco4b7Lkm3SSmbMR4GuJNL8FoAw5lLU5GpUg4-cHg"/>
+<div class="overflow-hidden">
+<p class="text-label-md font-semibold text-white truncate">Robert Sterling</p>
+<p class="text-[10px] text-outline-variant truncate">Principal Administrator</p>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Canvas -->
+<main class="ml-64 min-h-screen flex flex-col bg-surface overflow-y-auto h-screen custom-scrollbar">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-lg py-sm sticky top-0 bg-surface/90 backdrop-blur-md z-30 border-b border-outline-variant">
+<div class="flex items-center gap-6">
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-3 text-outline" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container rounded-full border-none focus:ring-2 focus:ring-primary-container w-64 text-body-sm" placeholder="Search invoices, students..." type="text"/>
+</div>
+<div class="flex items-center gap-1">
+<span class="text-label-md text-primary font-bold border-b-2 border-primary py-1">2023/2024</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-high transition-colors relative">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="notifications">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant"></div>
+<div class="flex items-center gap-2">
+<span class="text-label-md text-on-surface-variant">Jun 12, 2024</span>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<div class="p-lg space-y-lg max-w-7xl mx-auto w-full">
+<!-- Page Header & Action -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Financial Billing</h2>
+<p class="text-body-md text-on-secondary-container">Manage student SPP, registrations, and payment history.</p>
+</div>
+<button class="flex items-center gap-2 bg-primary text-on-primary px-6 py-2.5 rounded-xl font-label-md hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 active:scale-95" onclick="openModal('invoice-modal')">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+                    Create Invoice
+                </button>
+</div>
+<!-- Bento Grid Overview -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-lg">
+<!-- Total Collected Card -->
+<div class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant shadow-sm flex flex-col justify-between overflow-hidden relative group">
+<div class="absolute top-0 right-0 p-4 opacity-5 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-8xl" data-icon="account_balance_wallet">account_balance_wallet</span>
+</div>
+<div>
+<p class="text-label-md text-on-secondary-container">Collected This Month</p>
+<h3 class="text-headline-xl font-headline-xl text-on-surface mt-1">$42,850.00</h3>
+</div>
+<div class="mt-4 flex flex-col gap-2">
+<div class="flex justify-between items-center text-label-sm">
+<span class="text-on-secondary-container">Target: $55,000</span>
+<span class="text-primary font-bold">78% achieved</span>
+</div>
+<div class="w-full bg-surface-container rounded-full h-2 overflow-hidden">
+<div class="bg-primary-container h-full rounded-full transition-all duration-1000" style="width: 78%;"></div>
+</div>
+</div>
+</div>
+<!-- Overdue Invoices -->
+<div class="bg-surface-container-lowest p-lg rounded-xl border border-outline-variant shadow-sm flex flex-col justify-between">
+<div class="flex justify-between items-start">
+<div>
+<p class="text-label-md text-on-secondary-container">Overdue Amount</p>
+<h3 class="text-headline-xl font-headline-xl text-error mt-1">$3,120.00</h3>
+</div>
+<span class="material-symbols-outlined text-error-container p-2 bg-error-container/10 rounded-lg" data-icon="error_outline">error_outline</span>
+</div>
+<div class="mt-4">
+<p class="text-body-sm text-on-secondary-container">From <span class="font-bold">14 students</span> across all grades.</p>
+<a class="text-label-md text-primary mt-2 inline-block hover:underline" href="#">View delinquent list</a>
+</div>
+</div>
+<!-- Quick Stats -->
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-surface-container-low p-md rounded-xl border border-outline-variant/30 flex flex-col justify-center">
+<p class="text-label-sm text-on-secondary-container">Pending</p>
+<p class="text-headline-md font-headline-md text-on-surface">12</p>
+</div>
+<div class="bg-surface-container-low p-md rounded-xl border border-outline-variant/30 flex flex-col justify-center">
+<p class="text-label-sm text-on-secondary-container">Paid Today</p>
+<p class="text-headline-md font-headline-md text-on-surface">24</p>
+</div>
+<div class="bg-surface-container-low p-md rounded-xl border border-outline-variant/30 flex flex-col justify-center">
+<p class="text-label-sm text-on-secondary-container">New Invoices</p>
+<p class="text-headline-md font-headline-md text-on-surface">05</p>
+</div>
+<div class="bg-primary-container/10 p-md rounded-xl border border-primary-container/20 flex flex-col justify-center">
+<p class="text-label-sm text-primary">Sync Status</p>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="sync">sync</span>
+<span class="text-label-md text-primary font-bold">Live</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Billing List Card -->
+<div class="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+<div class="p-lg flex items-center justify-between border-b border-outline-variant/50">
+<h3 class="text-headline-md font-headline-md">Recent Transactions</h3>
+<div class="flex gap-2">
+<button class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-lg text-label-sm hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="filter_list">filter_list</span>
+                            Filter
+                        </button>
+<button class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-lg text-label-sm hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="download">download</span>
+                            Export
+                        </button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-lg py-4 font-label-md text-label-md text-on-secondary-container">Student Name</th>
+<th class="px-lg py-4 font-label-md text-label-md text-on-secondary-container">Grade</th>
+<th class="px-lg py-4 font-label-md text-label-md text-on-secondary-container">Bill Type</th>
+<th class="px-lg py-4 font-label-md text-label-md text-on-secondary-container">Amount</th>
+<th class="px-lg py-4 font-label-md text-label-md text-on-secondary-container">Due Date</th>
+<th class="px-lg py-4 font-label-md text-label-md text-on-secondary-container">Status</th>
+<th class="px-lg py-4 font-label-md text-label-md text-on-secondary-container">Action</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/30">
+<!-- Table Row 1 -->
+<tr class="hover:bg-primary-container/5 transition-colors group">
+<td class="px-lg py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center text-[10px] font-bold">AW</div>
+<div>
+<p class="font-label-md text-on-surface">Alex Wood</p>
+<p class="text-xs text-on-secondary-container">ID: #202401</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm">Grade 10-B</td>
+<td class="px-lg py-4 text-body-sm">SPP June 2024</td>
+<td class="px-lg py-4 font-semibold">$250.00</td>
+<td class="px-lg py-4 text-body-sm">Jun 15, 2024</td>
+<td class="px-lg py-4">
+<span class="px-2 py-1 rounded-full bg-primary-container/10 text-primary text-[10px] font-bold uppercase tracking-wider">Paid</span>
+</td>
+<td class="px-lg py-4">
+<button class="text-on-secondary-container hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+</button>
+</td>
+</tr>
+<!-- Table Row 2 -->
+<tr class="hover:bg-primary-container/5 transition-colors group">
+<td class="px-lg py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-surface-variant text-on-secondary-container flex items-center justify-center text-[10px] font-bold">BS</div>
+<div>
+<p class="font-label-md text-on-surface">Bella Swan</p>
+<p class="text-xs text-on-secondary-container">ID: #202402</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm">Grade 9-A</td>
+<td class="px-lg py-4 text-body-sm">Registration Fee</td>
+<td class="px-lg py-4 font-semibold">$1,200.00</td>
+<td class="px-lg py-4 text-body-sm">Jun 10, 2024</td>
+<td class="px-lg py-4">
+<span class="px-2 py-1 rounded-full bg-error-container/10 text-error text-[10px] font-bold uppercase tracking-wider">Overdue</span>
+</td>
+<td class="px-lg py-4">
+<button class="bg-primary-container text-on-primary-container px-3 py-1 rounded-lg text-label-sm hover:opacity-90 transition-opacity" onclick="openModal('payment-modal')">
+                                        Pay
+                                    </button>
+</td>
+</tr>
+<!-- Table Row 3 -->
+<tr class="hover:bg-primary-container/5 transition-colors group">
+<td class="px-lg py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-tertiary-container text-on-tertiary-container flex items-center justify-center text-[10px] font-bold">CJ</div>
+<div>
+<p class="font-label-md text-on-surface">Chris Jordan</p>
+<p class="text-xs text-on-secondary-container">ID: #202408</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm">Grade 12-C</td>
+<td class="px-lg py-4 text-body-sm">SPP June 2024</td>
+<td class="px-lg py-4 font-semibold">$250.00</td>
+<td class="px-lg py-4 text-body-sm">Jun 15, 2024</td>
+<td class="px-lg py-4">
+<span class="px-2 py-1 rounded-full bg-surface-container-highest text-on-secondary-container text-[10px] font-bold uppercase tracking-wider">Unpaid</span>
+</td>
+<td class="px-lg py-4">
+<button class="bg-primary-container text-on-primary-container px-3 py-1 rounded-lg text-label-sm hover:opacity-90 transition-opacity" onclick="openModal('payment-modal')">
+                                        Pay
+                                    </button>
+</td>
+</tr>
+<!-- Table Row 4 -->
+<tr class="hover:bg-primary-container/5 transition-colors group border-l-4 border-primary-container">
+<td class="px-lg py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-primary-container/20 text-primary flex items-center justify-center text-[10px] font-bold">DM</div>
+<div>
+<p class="font-label-md text-on-surface">Diana Moore</p>
+<p class="text-xs text-on-secondary-container">ID: #202412</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-4 text-body-sm">Grade 10-B</td>
+<td class="px-lg py-4 text-body-sm">Lab Equipment</td>
+<td class="px-lg py-4 font-semibold">$85.00</td>
+<td class="px-lg py-4 text-body-sm">Jun 05, 2024</td>
+<td class="px-lg py-4">
+<span class="px-2 py-1 rounded-full bg-primary-container/10 text-primary text-[10px] font-bold uppercase tracking-wider">Paid</span>
+</td>
+<td class="px-lg py-4">
+<button class="text-on-secondary-container hover:text-primary transition-colors">
+<span class="material-symbols-outlined" data-icon="receipt_long">receipt_long</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-lg bg-surface-container-low flex items-center justify-between">
+<p class="text-label-sm text-on-secondary-container">Showing 1-4 of 128 results</p>
+<div class="flex gap-2">
+<button class="w-8 h-8 rounded flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-sm" data-icon="chevron_left">chevron_left</span></button>
+<button class="w-8 h-8 rounded flex items-center justify-center bg-primary text-on-primary font-label-sm">1</button>
+<button class="w-8 h-8 rounded flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-colors text-label-sm">2</button>
+<button class="w-8 h-8 rounded flex items-center justify-center border border-outline-variant hover:bg-surface-container transition-colors"><span class="material-symbols-outlined text-sm" data-icon="chevron_right">chevron_right</span></button>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Payment Modal (Manual Payment Form) -->
+<div class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm transition-opacity duration-300" id="payment-modal">
+<div class="bg-surface rounded-xl shadow-2xl w-full max-w-md transform scale-95 transition-transform duration-300 overflow-hidden">
+<div class="p-lg bg-primary-container text-on-primary-container flex justify-between items-center">
+<div>
+<h3 class="font-headline-md text-headline-md">Record Payment</h3>
+<p class="text-label-sm opacity-80">Manual cash or bank transfer entry</p>
+</div>
+<button class="hover:bg-white/10 rounded-full p-1" onclick="closeModal('payment-modal')"><span class="material-symbols-outlined" data-icon="close">close</span></button>
+</div>
+<form class="p-lg space-y-md">
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1">Select Student</label>
+<div class="relative">
+<select class="w-full bg-surface-container border border-outline-variant rounded-lg px-4 py-2.5 text-body-sm focus:ring-2 focus:ring-primary-container appearance-none outline-none">
+<option>Bella Swan (ID: #202402)</option>
+<option>Chris Jordan (ID: #202408)</option>
+<option>Other Student...</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-2.5 text-on-secondary-container pointer-events-none" data-icon="expand_more">expand_more</span>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1">Amount ($)</label>
+<input class="w-full bg-surface-container border border-outline-variant rounded-lg px-4 py-2.5 text-body-sm focus:ring-2 focus:ring-primary-container outline-none" placeholder="0.00" type="number"/>
+</div>
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1">Payment Date</label>
+<input class="w-full bg-surface-container border border-outline-variant rounded-lg px-4 py-2.5 text-body-sm focus:ring-2 focus:ring-primary-container outline-none" type="date"/>
+</div>
+</div>
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1">Payment Method</label>
+<div class="flex gap-2">
+<label class="flex-1 border border-outline-variant rounded-lg p-3 text-center cursor-pointer hover:bg-primary-container/10 transition-colors has-[:checked]:border-primary-container has-[:checked]:bg-primary-container/10">
+<input checked="" class="hidden" name="pay_method" type="radio"/>
+<span class="text-label-sm">Cash</span>
+</label>
+<label class="flex-1 border border-outline-variant rounded-lg p-3 text-center cursor-pointer hover:bg-primary-container/10 transition-colors has-[:checked]:border-primary-container has-[:checked]:bg-primary-container/10">
+<input class="hidden" name="pay_method" type="radio"/>
+<span class="text-label-sm">Transfer</span>
+</label>
+<label class="flex-1 border border-outline-variant rounded-lg p-3 text-center cursor-pointer hover:bg-primary-container/10 transition-colors has-[:checked]:border-primary-container has-[:checked]:bg-primary-container/10">
+<input class="hidden" name="pay_method" type="radio"/>
+<span class="text-label-sm">Other</span>
+</label>
+</div>
+</div>
+<div>
+<label class="block font-label-md text-label-md text-on-surface-variant mb-1">Notes (Optional)</label>
+<textarea class="w-full bg-surface-container border border-outline-variant rounded-lg px-4 py-2.5 text-body-sm focus:ring-2 focus:ring-primary-container outline-none" placeholder="Reference number, etc." rows="2"></textarea>
+</div>
+<div class="pt-4 flex gap-4">
+<button class="flex-1 py-3 border border-outline-variant rounded-xl font-label-md hover:bg-surface-container-low transition-colors" onclick="closeModal('payment-modal')" type="button">Cancel</button>
+<button class="flex-1 py-3 bg-primary text-on-primary rounded-xl font-label-md hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all" type="submit">Submit Payment</button>
+</div>
+</form>
+</div>
+</div>
+<!-- Create Invoice Modal (Placeholder) -->
+<div class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-on-surface/40 backdrop-blur-sm transition-opacity duration-300" id="invoice-modal">
+<div class="bg-surface rounded-xl shadow-2xl w-full max-w-lg transform scale-95 transition-transform duration-300 overflow-hidden">
+<div class="p-lg bg-surface-container-highest flex justify-between items-center border-b border-outline-variant">
+<h3 class="font-headline-md text-headline-md text-on-surface">Generate New Invoice</h3>
+<button class="hover:bg-black/5 rounded-full p-1" onclick="closeModal('invoice-modal')"><span class="material-symbols-outlined" data-icon="close">close</span></button>
+</div>
+<div class="p-lg space-y-md">
+<div class="p-4 bg-primary-container/10 border border-primary-container/20 rounded-lg flex items-start gap-3">
+<span class="material-symbols-outlined text-primary" data-icon="info">info</span>
+<p class="text-body-sm text-on-primary-container">Batch invoicing for specific grades is available under the "Bulk Operations" tab.</p>
+</div>
+<div class="space-y-4">
+<div>
+<label class="block font-label-md text-label-md mb-1">Invoice Type</label>
+<select class="w-full bg-surface-container border border-outline-variant rounded-lg px-4 py-2.5">
+<option>SPP Monthly Tuition</option>
+<option>Registration / Admission</option>
+<option>Extracurricular Activity</option>
+<option>Infrastructure Fee</option>
+</select>
+</div>
+<div>
+<label class="block font-label-md text-label-md mb-1">Target Grade</label>
+<div class="grid grid-cols-2 gap-2">
+<div class="flex items-center gap-2"><input class="rounded text-primary" type="checkbox"/> <span class="text-body-sm">Grade 9</span></div>
+<div class="flex items-center gap-2"><input class="rounded text-primary" type="checkbox"/> <span class="text-body-sm">Grade 10</span></div>
+<div class="flex items-center gap-2"><input class="rounded text-primary" type="checkbox"/> <span class="text-body-sm">Grade 11</span></div>
+<div class="flex items-center gap-2"><input class="rounded text-primary" type="checkbox"/> <span class="text-body-sm">Grade 12</span></div>
+</div>
+</div>
+</div>
+<div class="pt-4 flex gap-4">
+<button class="flex-1 py-3 border border-outline-variant rounded-xl font-label-md" onclick="closeModal('invoice-modal')">Discard</button>
+<button class="flex-1 py-3 bg-primary text-on-primary rounded-xl font-label-md shadow-lg shadow-primary/20">Generate Invoices</button>
+</div>
+</div>
+</div>
+</div>
+<script>
+        function openModal(id) {
+            const modal = document.getElementById(id);
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.querySelector('div').classList.remove('scale-95');
+                modal.querySelector('div').classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeModal(id) {
+            const modal = document.getElementById(id);
+            modal.querySelector('div').classList.remove('scale-100');
+            modal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+            }, 300);
+        }
+
+        // Close on clicking backdrop
+        window.onclick = function(event) {
+            if (event.target.id === 'payment-modal') closeModal('payment-modal');
+            if (event.target.id === 'invoice-modal') closeModal('invoice-modal');
+        }
+
+        // Visual fluff: Active row highlighting logic
+        document.querySelectorAll('tbody tr').forEach(row => {
+            row.addEventListener('click', () => {
+                document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('bg-primary-container/5', 'border-l-4', 'border-primary-container'));
+                row.classList.add('bg-primary-container/5', 'border-l-4', 'border-primary-container');
+            });
+        });
+    </script>
+</body></html>
