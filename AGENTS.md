@@ -5,13 +5,17 @@
 This is a parent repo that holds the architecture and product docs **plus**
 two git submodules: the backend monorepo at `apps/backend` and the web
 frontend at `apps/web`. Both submodules track their upstream `main`. The
-parent repo itself contains no Rust crates, no Next.js source, no `Cargo.toml`,
-no `Makefile`, and no top-level CI config — that lives inside each submodule.
+parent repo ships an orchestrator (`Makefile` + `mprocs.yaml` + root
+`.env.example`) but no Rust crates, no Next.js source, no service
+`Cargo.toml`, and no top-level CI config — those live inside each submodule.
 
-When asked to "build", "run", or "test" something, change directory into the
-relevant submodule first. The architecture docs under `docs/internal/`
-describe the *intended* system; treat them as the spec when scaffolding new
-code, and confirm with the user before adding services or migrations.
+When asked to "build", "run", or "test" something, prefer the parent
+orchestrator targets (`make dev`, `make up`, `make down`, `make build`,
+`make test`) which delegate to the right submodule. For per-service work,
+change directory into the relevant submodule. The architecture docs under
+`docs/internal/` describe the *intended* system; treat them as the spec
+when scaffolding new code, and confirm with the user before adding services
+or migrations.
 
 ## Submodules
 
@@ -31,6 +35,40 @@ Workflow:
 
 For the backend's internal layout (services, libs), see
 `docs/internal/13_engineering_standards/01_repo_structure.md`.
+
+## Local development
+
+The parent repo's `Makefile` is the entry point for cross-submodule work.
+
+| Target              | What it does                                                  |
+|---------------------|---------------------------------------------------------------|
+| `make dev`          | mprocs (primary): runs `apps/backend` and `apps/web` together |
+| `make dev-tmux`     | tmux fallback (`akademiq` session, two windows)               |
+| `make dev-parallel` | `make -j2` last-resort fallback (logs interleave)             |
+| `make dev-backend`  | only the backend dev loop                                     |
+| `make dev-web`      | only the web dev loop                                         |
+| `make up` / `down`  | backend infra (Postgres 18 + RabbitMQ) detached               |
+| `make build`        | build artefacts in both submodules                            |
+| `make test`         | run tests in both submodules                                  |
+| `make migrate`      | delegates to backend                                          |
+| `make submodules`   | `git submodule update --init --recursive`                     |
+| `make doctor`       | checks required tooling and prints install hints              |
+
+Per-machine config lives in three gitignored `.env` files. Each has a
+committed `.env.example` you can copy:
+
+- root `.env` — orchestrator paths (`BACKEND_DIR`, `WEB_DIR`,
+  `MPROCS_CONFIG`, `TMUX_SESSION`)
+- `apps/backend/.env` — Postgres / RabbitMQ ports + credentials, reserved
+  Redis slot, future `<SERVICE>_PORT` slots (commented)
+- `apps/web/.env` — `WEB_PORT`, `NEXT_PUBLIC_API_BASE_URL`, `NODE_ENV`
+
+`docker-compose.yml` references variables with `${VAR:-default}` so a
+missing `.env` does not crash the stack, but `make doctor` will flag it.
+
+Each submodule's `Makefile` is authoritative and works on its own
+(`cd apps/backend && make dev`, `cd apps/web && make dev`) without the
+parent repo.
 
 ## Documentation layout
 
