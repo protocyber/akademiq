@@ -67,10 +67,10 @@ phase that satisfies the demo, not as a flag-day mega-PR.
   `docs/internal/11_integration_contracts/apis/`.
 - `make seed && make dev` brings up a browser-clickable demo.
 
-## Phase 2 — Academic Configuration ⏳
+## Phase 2 — Academic Configuration 🚧
 
 **Owning service**: `academic-config-service`
-**Delivering change**: `mvp-academic-config` (placeholder)
+**Delivering change**: `mvp-academic-config`
 **Demo flows:**
 
 1. **Create academic year** — a tenant admin creates a new academic
@@ -137,7 +137,60 @@ phase that satisfies the demo, not as a flag-day mega-PR.
 - The import flow surfaces row-level validation errors and rolls back
   on partial failure.
 
-## Phase 4 — Tenant User Management ⏳
+## Phase 4 — Grading: Grade Capture ⏳
+
+**Owning service**: `grading-service`
+**Delivering change**: `mvp-grading-grade-capture`
+**Depends on**: Phase 3 (`mvp-academic-ops`) for enrollment and teaching assignments.
+**Demo flows:**
+
+1. **Capture grades** — a teacher records per-subject grades for enrolled
+   students in an active academic year.
+2. **Validate against policy** — grade input uses the grading policy and
+   subject passing grades configured in phase 2.
+
+**Scope:**
+
+- New service `grading-service` storing assessment/grade capture records
+  for enrolled students and assigned teachers.
+- Reads academic-year, subject, and grading-policy data from Academic
+  Config and enrollment/teaching-assignment data from Academic Operations.
+- Events emitted: `grade.recorded`.
+
+**Exit criteria:**
+
+- A teacher can record and update grades only for subjects/classes they
+  are assigned to teach.
+- Captured grades are available to the report-card workflow.
+
+## Phase 5 — Report Card Workflow ⏳
+
+**Owning service**: `report-card-service`
+**Delivering change**: `mvp-report-card-workflow`
+**Depends on**: Phase 3 (`mvp-academic-ops`) for enrollment and teaching assignments, and Phase 4 (`mvp-grading-grade-capture`) for captured grades.
+**Demo flows:**
+
+1. **Generate report card** — a homeroom teacher generates a report card
+   from captured subject grades for an enrolled student.
+2. **Approve report card** — the report card moves through the documented
+   approval lifecycle before publication.
+
+**Scope:**
+
+- New report-card workflow that aggregates captured grades by student,
+  academic year, and grading policy.
+- State-machine enforcement for draft, review, approved, and published
+  report cards.
+- Events emitted: `report_card.generated`, `report_card.approved`,
+  `report_card.published`.
+
+**Exit criteria:**
+
+- A tenant user can create a report card (rapor) for an enrolled student
+  using captured grades.
+- The approval workflow rejects illegal state transitions.
+
+## Phase 6 — Tenant User Management ⏳
 
 **Owning service**: `iam-service` (extension)
 **Delivering change**: `mvp-tenant-user-management` (placeholder)
@@ -175,8 +228,6 @@ rationale.
 
 - **Attendance** — depends on phase 3 timetable data; no demo value
   before students and teachers exist.
-- **Grading & report cards** — depends on phase 3 enrollment +
-  teaching assignments; report-card workflow is its own state machine.
 - **Promotion & graduation** — consumes finalized report cards from
   the grading phase.
 - **Notification (Email / SMS / WhatsApp)** — needs a real provider
