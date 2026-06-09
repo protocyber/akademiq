@@ -1,9 +1,9 @@
 # =============================================================================
 # AcademiQ — Local development orchestrator (mprocs config)
 # =============================================================================
-# Spawns one process per submodule. Each process runs the submodule's own
-# `make dev`, which is responsible for environment, dependencies, and the
-# inner dev loop. Use:
+# Spawns the submodule dev loops plus one log-only process per backend service.
+# The backend process owns Docker Compose; service panes only tail filtered logs.
+# Use:
 #
 #   make dev           # starts mprocs against this file (primary)
 #   make dev-tmux      # tmux fallback for machines without mprocs
@@ -20,6 +20,30 @@ procs:
   backend:
     cwd: apps/backend
     shell: make dev
+  iam-service:
+    cwd: apps/backend
+    shell: |
+      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 iam-service; do
+        sleep 2
+      done
+  billing-service:
+    cwd: apps/backend
+    shell: |
+      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 billing-service; do
+        sleep 2
+      done
+  academic-config-service:
+    cwd: apps/backend
+    shell: |
+      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 academic-config-service; do
+        sleep 2
+      done
+  academic-ops-service:
+    cwd: apps/backend
+    shell: |
+      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 academic-ops-service; do
+        sleep 2
+      done
   web:
     cwd: apps/web
     shell: make dev
