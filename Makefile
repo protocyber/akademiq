@@ -49,7 +49,7 @@ TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
 .PHONY: help dev dev-tmux dev-parallel dev-backend dev-web submodules \
-        up down build test test-e2e test-web seed migrate ps stop clean purge doctor
+        up down restart rebuild build test test-e2e test-web seed migrate ps stop clean purge doctor
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -107,6 +107,12 @@ up: ## Start backend infra (Postgres + RabbitMQ) detached
 
 down: ## Stop backend infra
 	$(MAKE) -C $(BACKEND_DIR) down
+
+restart: ## Recreate backend dev containers without rebuilding (env/compose changes)
+	$(MAKE) -C $(BACKEND_DIR) restart
+
+rebuild: ## Force-rebuild backend dev images, then run
+	$(MAKE) -C $(BACKEND_DIR) rebuild
 
 build: ## Build artefacts for both submodules
 	$(MAKE) -C $(BACKEND_DIR) build

@@ -14,7 +14,7 @@ The backend monorepo is mounted in the parent repo as a submodule at
     /iam-service             ✓ phase 1
     /billing-service         ✓ phase 1
     /academic-config-service ✓ phase 2
-    /academic-ops-service    ⏳ phase 3
+    /academic-ops-service    🚧 phase 3
     /attendance-service      ⏳ phase 5+
     /grading-service         ⏳ phase 5+
     /promotion-service       ⏳ phase 5+
