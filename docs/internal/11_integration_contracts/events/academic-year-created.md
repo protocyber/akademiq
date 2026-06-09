@@ -23,7 +23,8 @@ Academic Operations consumes this event before creating year-scoped homerooms.
   "academic_year_id": "uuid",
   "name": "2026/2027",
   "start_date": "2026-07-01",
-  "end_date": "2027-06-30"
+  "end_date": "2027-06-30",
+  "status": "Planning"
 }
 ```
 
@@ -34,6 +35,7 @@ Academic Operations consumes this event before creating year-scoped homerooms.
 | `name`             | string          | Human-readable academic year name. |
 | `start_date`       | date (ISO 8601) | First date in the academic year. |
 | `end_date`         | date (ISO 8601) | Last date in the academic year. |
+| `status`           | string          | Initial lifecycle status. |
 
 ## Routing
 

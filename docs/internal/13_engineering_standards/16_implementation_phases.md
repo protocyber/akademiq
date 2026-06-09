@@ -102,10 +102,10 @@ phase that satisfies the demo, not as a flag-day mega-PR.
 - `academic_year.created` payload is documented and consumed by the
   phase 3 service.
 
-## Phase 3 — Academic Operations ⏳
+## Phase 3 — Academic Operations 🚧
 
 **Owning service**: `academic-ops-service`
-**Delivering change**: `mvp-academic-ops` (placeholder)
+**Delivering change**: `mvp-academic-ops`
 **Demo flows:**
 
 1. **Add students manually** — a tenant admin creates students one by
