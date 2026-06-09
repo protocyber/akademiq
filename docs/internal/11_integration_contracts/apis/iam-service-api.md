@@ -85,6 +85,141 @@ Authenticated. Returns the user's profile and memberships.
 }
 ```
 
+## Tenant user management endpoints
+
+All `/tenants/me/*` endpoints are authenticated and require the `tenant_admin`
+role from the JWT. The tenant scope is resolved from the JWT `tenant_id` claim;
+clients MUST NOT send `tenant_id` in these requests.
+
+Assignable roles: `teacher`, `homeroom_teacher`, `principal`, `parent`,
+`student`.
+
+### `POST /tenants/me/invitations`
+
+Request:
+
+```json
+{ "email": "teacher@school.test", "role": "teacher" }
+```
+
+Success (201):
+
+```json
+{
+  "data": {
+    "invitation_id": "uuid",
+    "email": "teacher@school.test",
+    "role_code": "teacher",
+    "status": "pending",
+    "expires_at": "2026-06-16T12:00:00Z",
+    "activation_link": "/invitations/accept?token=<token>",
+    "token": "<token>"
+  },
+  "meta": {}
+}
+```
+
+The raw token is returned only once. IAM stores only an Argon2 hash, sends the
+activation email when `EMAIL_PROVIDER=resend`, and emits `tenant_user.invited`.
+The activation link is built from `PUBLIC_WEB_BASE_URL`, for example
+`https://akademiq-web.vercel.app/invitations/accept?token=<token>`.
+
+Errors: `VALIDATION_ERROR` (400), `ROLE_NOT_ASSIGNABLE` (400),
+`PENDING_INVITATION_EXISTS` (409), `FORBIDDEN` (403).
+
+### `GET /tenants/me/invitations`
+
+Returns invitations for the current tenant.
+
+```json
+{
+  "data": [
+    {
+      "invitation_id": "uuid",
+      "tenant_id": "uuid",
+      "email": "teacher@school.test",
+      "role_code": "teacher",
+      "status": "pending",
+      "expires_at": "2026-06-16T12:00:00Z",
+      "invited_by": "uuid",
+      "accepted_at": null,
+      "created_at": "2026-06-09T12:00:00Z"
+    }
+  ],
+  "meta": {}
+}
+```
+
+### `POST /tenants/me/invitations/{id}/revoke`
+
+Revokes a pending invitation. Returns 204. A revoked token cannot be accepted.
+
+### `POST /invitations/accept`
+
+Public endpoint.
+
+Request:
+
+```json
+{ "token": "<token>", "password": "password123!", "full_name": "Teacher Name" }
+```
+
+Success (201): same token envelope as `/auth/login`. IAM creates the user and
+tenant role in the same transaction that marks the invitation `accepted`, then
+emits `tenant_user.activated`.
+
+Errors: `VALIDATION_ERROR` (400), `INVALID_INVITATION_TOKEN` (401),
+`INVITATION_ALREADY_USED` (409), `INVITATION_REVOKED` (409),
+`INVITATION_EXPIRED` (410), `EMAIL_ALREADY_EXISTS` (409).
+
+### `GET /tenants/me/users`
+
+Returns tenant users and roles.
+
+```json
+{
+  "data": [
+    {
+      "user_id": "uuid",
+      "tenant_id": "uuid",
+      "email": "teacher@school.test",
+      "full_name": "Teacher Name",
+      "status": "active",
+      "role_code": "teacher"
+    }
+  ],
+  "meta": {}
+}
+```
+
+### `PATCH /tenants/me/users/{id}/role`
+
+Request:
+
+```json
+{ "role": "principal" }
+```
+
+Returns 204 and emits `tenant_user.role_changed`. Existing access tokens keep
+their old role until expiry; refresh-token rotation issues a new access token
+with the current role.
+
+### `POST /tenants/me/users/{id}/disable`
+
+Disables login for the account. Returns 204 and emits `tenant_user.disabled`.
+
+### `POST /tenants/me/users/{id}/enable`
+
+Re-enables login for the account. Returns 204.
+
+### `POST /tenants/me/users/{id}/reset-password`
+
+Returns a temporary password for the admin to share manually.
+
+```json
+{ "data": { "temporary_password": "string" }, "meta": {} }
+```
+
 ## Internal endpoints
 
 These endpoints are reachable only inside the cluster. They require an
