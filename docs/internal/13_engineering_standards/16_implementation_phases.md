@@ -190,10 +190,10 @@ phase that satisfies the demo, not as a flag-day mega-PR.
   using captured grades.
 - The approval workflow rejects illegal state transitions.
 
-## Phase 6 — Tenant User Management ⏳
+## Phase 6 — Tenant User Management 🚧
 
 **Owning service**: `iam-service` (extension)
-**Delivering change**: `mvp-tenant-user-management` (placeholder)
+**Delivering change**: `mvp-tenant-user-management`
 **Demo flows:**
 
 1. **Invite tenant user** — the admin invites a teacher / homeroom /
