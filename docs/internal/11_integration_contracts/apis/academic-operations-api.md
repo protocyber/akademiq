@@ -59,6 +59,9 @@ Request:
 { "nip": "T-001", "full_name": "Grace Hopper" }
 ```
 
+Response includes `user_id` when the teacher profile has been linked to an IAM
+tenant user account; otherwise `user_id` is `null`.
+
 Errors:
 
 - `409 DUPLICATE_NIP` when the tenant already has the same NIP.
@@ -70,6 +73,24 @@ Lists tenant-scoped teachers ordered by name.
 ### GET `/teachers/{teacher_id}`
 
 Returns one tenant-scoped teacher.
+
+### PATCH `/teachers/{teacher_id}/account`
+
+Links a teacher profile to an IAM tenant user account. Requires `academic_ops`
+entitlement. This link is included in future `teacher.assigned` events as
+`teacher_user_id`, allowing the grading service to authorize grade entry from
+the teacher's JWT subject.
+
+Request:
+
+```json
+{ "user_id": "uuid" }
+```
+
+Errors:
+
+- `404 NOT_FOUND` when the teacher profile does not exist in the tenant.
+- `409 TEACHER_USER_ALREADY_LINKED` when the user account is already linked to another teacher profile in the tenant.
 
 ## Homerooms
 
@@ -132,6 +153,11 @@ Request:
 ```json
 { "teacher_id": "uuid", "subject_id": "uuid", "homeroom_id": "uuid", "academic_year_id": "uuid" }
 ```
+
+The emitted event includes `teacher_user_id` when the teacher profile has been
+linked to an IAM user account. If it is `null`, grading rejects writes for that
+assignment with `TEACHER_ACCOUNT_NOT_LINKED` until the profile is linked and a
+new assignment event is emitted.
 
 Errors:
 

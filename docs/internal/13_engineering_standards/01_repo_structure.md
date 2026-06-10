@@ -14,9 +14,9 @@ The backend monorepo is mounted in the parent repo as a submodule at
     /iam-service             ✓ phase 1
     /billing-service         ✓ phase 1
     /academic-config-service ✓ phase 2
-    /academic-ops-service    🚧 phase 3
+    /academic-ops-service    ✓ phase 3
+    /grading-service         🚧 phase 4
     /attendance-service      ⏳ phase 5+
-    /grading-service         ⏳ phase 5+
     /promotion-service       ⏳ phase 5+
     /notification-service    ⏳ phase 5+
   /libs
@@ -27,6 +27,8 @@ The backend monorepo is mounted in the parent repo as a submodule at
     /common-testing          ✓ phase 1 (testcontainers, JWT mint)
   /tests
     /e2e                     ✓ phase 1 (cross-service compose-driven crate)
+  /tools
+    /akademiq-cli            ✓ operator/developer CLI (`akademiq` binary)
 ```
 
 Each service is independently buildable and deployable. The phase
@@ -50,3 +52,7 @@ this document. See `apps/web/CONVENTIONS.md` for its rules.
   embedded with `refinery::embed_migrations!("migrations")`.
 - Per-service Makefiles (one per crate) follow the standard target
   list in [`12_makefile_standards.md`](./12_makefile_standards.md).
+- Operator/developer utilities live under `tools/` and must stay thin:
+  reuse shared crates for primitives, call service APIs for domain workflows,
+  and use direct SQL only for narrow admin maintenance tasks with no required
+  domain events.
