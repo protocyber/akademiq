@@ -18,6 +18,7 @@ for an academic year.
   "payload": {
     "tenant_id": "uuid",
     "teacher_id": "uuid",
+    "teacher_user_id": "uuid-or-null",
     "subject_id": "uuid",
     "homeroom_id": "uuid",
     "academic_year_id": "uuid"
@@ -28,4 +29,7 @@ for an academic year.
 ## Notes
 
 The grading service uses this tuple as its authorization projection for who may
-record grades for a subject in a class.
+record grades for a subject in a class. `teacher_user_id` is the IAM user id
+linked to the teacher profile. When it is `null`, grading stores the assignment
+but rejects writes with `TEACHER_ACCOUNT_NOT_LINKED` so admins know the profile
+must be linked before the teacher can enter grades.

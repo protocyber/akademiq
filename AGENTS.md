@@ -70,6 +70,30 @@ Each submodule's `Makefile` is authoritative and works on its own
 (`cd apps/backend && make dev`, `cd apps/web && make dev`) without the
 parent repo.
 
+## Akademiq CLI guardrails
+
+The `akademiq` binary is an operator/developer convenience CLI, not a
+second backend implementation.
+
+- Keep CLI commands thin and operational.
+- Reuse existing shared crates for primitives, especially
+  `common-auth::hash_password` for IAM password work.
+- Prefer existing service HTTP APIs for workflows with domain rules,
+  authorization checks, side effects, or events.
+- Use direct SQL only for narrow admin maintenance tasks with no required
+  domain events, such as listing IAM users or setting a local password hash.
+- Do not duplicate service command handlers, repositories, entitlement logic,
+  validation workflows, or event publishing in the CLI.
+- Wrap existing scripts first when they already own the workflow, such as
+  projection bootstrap scripts.
+- Keep Makefile focused on lifecycle orchestration: `dev`, `up`, `down`,
+  `test`, `build`, `migrate`, `doctor`.
+- Prefer CLI commands for parameterized operations: `akademiq iam set-password
+  ...`, `akademiq iam users`, `akademiq demo doctor`.
+- CLI output must not print secrets, password hashes, tokens, or private keys.
+- Commands that mutate data must print the target resource and exit non-zero
+  when nothing changed.
+
 ## Documentation layout
 
 ```

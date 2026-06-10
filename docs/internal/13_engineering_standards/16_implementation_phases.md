@@ -137,7 +137,7 @@ phase that satisfies the demo, not as a flag-day mega-PR.
 - The import flow surfaces row-level validation errors and rolls back
   on partial failure.
 
-## Phase 4 — Grading: Grade Capture ⏳
+## Phase 4 — Grading: Grade Capture 🚧
 
 **Owning service**: `grading-service`
 **Delivering change**: `mvp-grading-grade-capture`
