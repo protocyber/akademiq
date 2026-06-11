@@ -44,6 +44,12 @@ procs:
       until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 academic-ops-service; do
         sleep 2
       done
+  grading-service:
+    cwd: apps/backend
+    shell: |
+      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 grading-service; do
+        sleep 2
+      done
   web:
     cwd: apps/web
     shell: make dev

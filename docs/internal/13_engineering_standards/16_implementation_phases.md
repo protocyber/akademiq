@@ -163,32 +163,32 @@ phase that satisfies the demo, not as a flag-day mega-PR.
   are assigned to teach.
 - Captured grades are available to the report-card workflow.
 
-## Phase 5 — Report Card Workflow ⏳
+## Phase 5 — Report Card Workflow 🚧
 
-**Owning service**: `report-card-service`
+**Owning service**: `grading-service`
 **Delivering change**: `mvp-report-card-workflow`
-**Depends on**: Phase 3 (`mvp-academic-ops`) for enrollment and teaching assignments, and Phase 4 (`mvp-grading-grade-capture`) for captured grades.
+**Depends on**: Phase 4 (`mvp-grading-grade-capture`) for captured grades, plus Phase 3 (`mvp-academic-ops`) for enrollment and teaching assignments.
 **Demo flows:**
 
-1. **Generate report card** — a homeroom teacher generates a report card
-   from captured subject grades for an enrolled student.
-2. **Approve report card** — the report card moves through the documented
-   approval lifecycle before publication.
+1. **Generate report card** — a homeroom teacher generates report-card drafts from captured subject grades for all enrolled students in a class. Pass/fail is derived from the grading policy at generation time.
+2. **Approve report card** — the report card moves through `Draft → HomeroomReview → PrincipalApproval → Published` before publication. Each step is role-gated and appends an audit row.
 
 **Scope:**
 
-- New report-card workflow that aggregates captured grades by student,
-  academic year, and grading policy.
-- State-machine enforcement for draft, review, approved, and published
-  report cards.
-- Events emitted: `report_card.generated`, `report_card.approved`,
-  `report_card.published`.
+- `grading-service` report-card workflow extending phase 4: `report_card` + `report_approval` tables, `grading_policy_projection` table (fed by `grading_policy.configured` event from academic-config-service), and `outbox` table for reliable event publishing.
+- State-machine enforcement for `Draft`, `HomeroomReview`, `PrincipalApproval`, `Published`, and `Archived` report cards.
+- Grade edit-lock: grades are locked once a report card leaves `Draft`; returning the card to `Draft` re-opens editing.
+- Year-close archival: consuming `academic_year.status_changed` with `Closed`/`Archived` transitions all `Published` cards for that year to `Archived`.
+- Event emitted: `report_card.approved` (via transactional outbox).
+- Web workflow board (`/grading/report-cards`), detail page (`/grading/report-cards/{id}`), and parent/student read-only portal (`/portal/report-card`).
 
 **Exit criteria:**
 
-- A tenant user can create a report card (rapor) for an enrolled student
-  using captured grades.
-- The approval workflow rejects illegal state transitions.
+- A homeroom teacher can generate drafts, submit, get homeroom and principal approval, and the card is Published.
+- The approval workflow rejects illegal state transitions (409) and wrong roles (403).
+- Grades are locked once a card leaves Draft; returning unlocks them.
+- `report_card.approved` event emitted with the correct payload on principal approval.
+- Integration tests covering all state transitions; e2e tests cover the full chain and reject/return loop.
 
 ## Phase 6 — Tenant User Management 🚧
 
