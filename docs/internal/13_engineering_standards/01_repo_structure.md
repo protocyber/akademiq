@@ -15,7 +15,7 @@ The backend monorepo is mounted in the parent repo as a submodule at
     /billing-service         ✓ phase 1
     /academic-config-service ✓ phase 2
     /academic-ops-service    ✓ phase 3
-    /grading-service         🚧 phase 4
+    /grading-service         🚧 phases 4-5 (grade capture + report cards)
     /attendance-service      ⏳ phase 5+
     /promotion-service       ⏳ phase 5+
     /notification-service    ⏳ phase 5+

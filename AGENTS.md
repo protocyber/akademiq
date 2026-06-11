@@ -36,6 +36,14 @@ Workflow:
 For the backend's internal layout (services, libs), see
 `docs/internal/13_engineering_standards/01_repo_structure.md`.
 
+For backend implementation rules, read and follow
+`apps/backend/CONVENTIONS.md`. That file is authoritative for backend
+guardrails including service layering, migrations, `AppError` usage,
+tenant/auth handling, event/outbox patterns, projection-based service
+communication, testing, CLI limits, and observability. Keep root guidance as a
+pointer; update `apps/backend/CONVENTIONS.md` rather than duplicating backend
+rules here.
+
 ## Local development
 
 The parent repo's `Makefile` is the entry point for cross-submodule work.
@@ -69,6 +77,14 @@ missing `.env` does not crash the stack, but `make doctor` will flag it.
 Each submodule's `Makefile` is authoritative and works on its own
 (`cd apps/backend && make dev`, `cd apps/web && make dev`) without the
 parent repo.
+
+## Web frontend rules
+
+For any work under `apps/web`, read and follow `apps/web/CONVENTIONS.md`.
+That file is authoritative for web guardrails including shadcn/ui-only page UI,
+TanStack Query-only data access, centralized error messages, form handling,
+loading states, and testing expectations. Keep root guidance as a pointer;
+update `apps/web/CONVENTIONS.md` rather than duplicating web rules here.
 
 ## Akademiq CLI guardrails
 
