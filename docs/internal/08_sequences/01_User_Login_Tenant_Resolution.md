@@ -21,10 +21,11 @@ IAM-->>WebApp: Identity token (sub, typ=identity, no tenant)
 opt Login with Gmail
   User->>WebApp: Click "Login with Gmail"
   WebApp->>IAM: GET /auth/google/start
-  IAM-->>Google: 302 (state + PKCE)
+  note over IAM: store state + PKCE verifier with short TTL
+  IAM-->>Google: Redirect (state + PKCE challenge)
   Google-->>IAM: GET /auth/google/callback?code&state
   note over IAM: verify ID token (JWKS, aud, iss, exp)<br/>match google_sub → email(verified) → auto-provision
-  IAM-->>WebApp: Identity token
+  IAM-->>WebApp: Redirect /auth/callback?identity_token=...
 end
 
 WebApp->>IAM: GET /my-tenants (identity token)
@@ -58,3 +59,5 @@ end
 - **Identity ≠ membership**: accounts are created by public signup, by Google
   auto-provisioning, or by invitation; tenant membership is granted separately by
   accepting an invitation. An account can exist with no tenants.
+- **Google callback errors** redirect to `/auth/callback?oauth_error=...`; the
+  web app surfaces the error and returns the user to login.

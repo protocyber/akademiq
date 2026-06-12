@@ -80,7 +80,15 @@ Errors: `VALIDATION_ERROR` (400), `EMAIL_ALREADY_EXISTS` (409),
 
 ### `GET /auth/google/start`
 
-Public. Generates `state` + PKCE and `302`-redirects to Google consent.
+Public. Generates `state` + PKCE, stores the verifier server-side with a short
+TTL, and redirects the browser to Google consent. Requires IAM-only environment
+configuration: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and
+`GOOGLE_REDIRECT_URI`.
+
+Success: temporary redirect to Google with `response_type=code`, `scope=openid
+email profile`, `state`, `code_challenge`, and `code_challenge_method=S256`.
+
+Errors: `GOOGLE_OAUTH_DISABLED` (400) when Google OAuth env is not configured.
 
 ### `GET /auth/google/callback`
 
@@ -89,6 +97,23 @@ token (JWKS, `aud`, `iss`, expiry), resolves the account
 (match `google_sub` → verified-email auto-link → auto-provision), issues an
 **identity token**, and redirects to the web app. The client secret and Google's
 tokens are never exposed to the browser.
+
+Success: temporary redirect to `${PUBLIC_WEB_BASE_URL}/auth/callback` with
+`identity_token=<IAM identity JWT>`.
+
+Failure: temporary redirect to `${PUBLIC_WEB_BASE_URL}/auth/callback` with
+`oauth_error=<code>`. Stable callback error codes include `invalid_state`,
+`exchange_failed`, `verification_failed`, `missing_code`, and `google_denied`.
+
+Account resolution rules:
+
+1. Existing `google_sub` logs in the matching user.
+2. If no `google_sub` match and Google reports `email_verified=true`, a matching
+   email account is auto-linked (`google_sub` stored and `email_verified=true`).
+3. Otherwise IAM auto-provisions a user with generated `username`, Google email,
+   `email_verified=true`, `password_hash=NULL`, `google_sub` set, and no tenant
+   membership. If an unverified Google email collides with an existing account,
+   IAM refuses rather than linking that account.
 
 ### `POST /auth/refresh`
 

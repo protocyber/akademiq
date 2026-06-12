@@ -50,7 +50,7 @@ This service handles authentication and authorization.
 ### Main Entities
 | Entity | Purpose |
 |-------|---------|
-| User | Login identity. `username` is the universal key; `email`, `password_hash`, and `google_sub` are all optional, enabling email/username/Google login and passwordless accounts. |
+| User | Login identity. `username` is the universal key; `email`, `password_hash`, and `google_sub` are all optional, enabling email/username/Google login and passwordless accounts. `google_sub` has a partial unique index when present. |
 | Role | Group of permissions |
 | Permission | Fine-grained access control |
 | User Tenant Role | Role assignment per tenant (a user may have zero or many) |
@@ -62,3 +62,8 @@ and membership are separate: a user can exist with **no** tenant membership
 (public signup or Google auto-provision) and may belong to **many** tenants.
 Login resolves a user without a tenant; a tenant is selected afterward, and
 `User Tenant Role` is checked when issuing a tenant-scoped token.
+
+Google-only users have `password_hash = NULL`; password login against these rows
+returns `INVALID_CREDENTIALS` after a dummy password verification. Verified
+Google email auto-link sets both `google_sub` and `email_verified=true` on the
+existing row.

@@ -1,0 +1,143 @@
+# =============================================================================
+# AcademiQ — Traefik file-provider fragment (DEV)
+# =============================================================================
+# ENVIRONMENT-SPECIFIC — READ THIS FIRST
+# -----------------------------------------------------------------------------
+# This file describes ONE maintainer's local development setup. It is NOT a
+# requirement to run AcademiQ. The host names (`akademiq.dev.sby.test`,
+# `akademiq.10.201.0.25.nip.io`), the LAN IP (`10.201.0.25`), and the host
+# ports below are all specific to that machine.
+#
+# Other contributors are free to:
+#   - run everything on localhost with no reverse proxy at all, or
+#   - use their own domain / IP / ports, or
+#   - use a different proxy (Caddy, nginx, etc.).
+#
+# Treat this as a working reference for how the maintainer fronts the web app
+# and the backend APIs behind a single HTTPS origin. Adapt freely.
+#
+# HOW IT IS LOADED
+# -----------------------------------------------------------------------------
+# The live Traefik instance is owned by the shared infra repo
+# (`surabaya-dev/traefik`, deployed via Portainer). That Traefik runs the file
+# provider over `/etc/traefik` with `--providers.file.watch=true`, and this
+# file is bind-mounted into that directory, e.g.:
+#
+#   - /home/fitrah/projects/akademiq/infra/traefik/akademiq.dynamic.yaml:/etc/traefik/akademiq.dynamic.yaml:ro
+#
+# This fragment is REFERENCE-ONLY for shared definitions: it references the
+# `redirect-https@file` middleware and the default TLS store, which are defined
+# once in the shared `surabaya-dev/traefik/dynamic/services.yaml`. It does NOT
+# redefine them (avoids Traefik duplicate-definition warnings). The TLS
+# certificates (`dev.sby.test.crt` / `dev.sby.test.key`) live only in the
+# shared repo's `certs/` and are never committed here.
+#
+# ROUTING MODEL
+# -----------------------------------------------------------------------------
+# A single public origin serves both the web app and the APIs:
+#   - `/api/v1/<service>/*`  -> backend service port   (priority 100)
+#   - everything else        -> Next.js web app (3009) (priority 1)
+# Because path routing happens here, the web client uses absolute same-origin
+# base URLs (NEXT_PUBLIC_*_BASE_URL = https://akademiq.dev.sby.test) and needs
+# NO Next.js rewrite/proxy.
+#
+# ADDING A NEW BACKEND SERVICE
+# -----------------------------------------------------------------------------
+# When a new backend service lands under apps/backend/services/<name>-service:
+#   1. Pick its `<SERVICE>_PORT` (keep apps/backend/.env.example in sync).
+#   2. Add an `akademiq-<name>-https` router below with
+#      `PathPrefix(`/api/v1/<name>`)` and `priority: 100`.
+#   3. Add a matching `akademiq-<name>` service loadBalancer entry pointing at
+#      `http://10.201.0.25:<SERVICE_PORT>` (adapt host/IP per environment).
+# =============================================================================
+
+http:
+  routers:
+    # --- Web app (catch-all, lowest priority) --------------------------------
+    akademiq:
+      rule: "Host(`akademiq.dev.sby.test`) || Host(`akademiq.10.201.0.25.nip.io`)"
+      service: akademiq-web
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-https
+
+    akademiq-https:
+      rule: "Host(`akademiq.dev.sby.test`) || Host(`akademiq.10.201.0.25.nip.io`)"
+      service: akademiq-web
+      entryPoints:
+        - websecure
+      priority: 1
+      tls: {}
+
+    # --- Backend APIs (path-prefix, high priority) ---------------------------
+    akademiq-iam-https:
+      rule: "(Host(`akademiq.dev.sby.test`) || Host(`akademiq.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/iam`)"
+      service: akademiq-iam
+      entryPoints:
+        - websecure
+      priority: 100
+      tls: {}
+
+    akademiq-billing-https:
+      rule: "(Host(`akademiq.dev.sby.test`) || Host(`akademiq.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/billing`)"
+      service: akademiq-billing
+      entryPoints:
+        - websecure
+      priority: 100
+      tls: {}
+
+    akademiq-academic-config-https:
+      rule: "(Host(`akademiq.dev.sby.test`) || Host(`akademiq.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/academic-config`)"
+      service: akademiq-academic-config
+      entryPoints:
+        - websecure
+      priority: 100
+      tls: {}
+
+    akademiq-academic-ops-https:
+      rule: "(Host(`akademiq.dev.sby.test`) || Host(`akademiq.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/academic-ops`)"
+      service: akademiq-academic-ops
+      entryPoints:
+        - websecure
+      priority: 100
+      tls: {}
+
+    akademiq-grading-https:
+      rule: "(Host(`akademiq.dev.sby.test`) || Host(`akademiq.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/grading`)"
+      service: akademiq-grading
+      entryPoints:
+        - websecure
+      priority: 100
+      tls: {}
+
+  services:
+    akademiq-web:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.25:3009"
+
+    akademiq-iam:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.25:8081"
+
+    akademiq-billing:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.25:8082"
+
+    akademiq-academic-config:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.25:8083"
+
+    akademiq-academic-ops:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.25:8084"
+
+    akademiq-grading:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.25:8086"

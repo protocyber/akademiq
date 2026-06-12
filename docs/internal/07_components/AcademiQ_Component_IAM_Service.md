@@ -31,6 +31,7 @@ subgraph Infrastructure_Layer
     TOKEN[Token Provider - RS256 JWT, identity + tenant-scoped]
     HASH[Password Hashing Service - Argon2id]
     GOOGLE[Google OIDC Client - code exchange + ID token verify]
+    OAUTHSTATE[OAuth State Store - state + PKCE verifier TTL]
 end
 
 CTRL --> UC1
@@ -62,6 +63,7 @@ UC2 --> TOKEN
 UC6 --> TOKEN
 UC7 --> TOKEN
 UC7 --> GOOGLE
+UC7 --> OAUTHSTATE
 UC1 --> HASH
 UC2 --> HASH
 ```
@@ -75,5 +77,8 @@ UC2 --> HASH
 - **Google OAuth** (`UC7`) verifies a Google ID token and match-or-creates an
   account, then issues an identity token — IAM remains the sole token issuer (no
   external IdP).
+- **OAuth state** stores CSRF `state` and the PKCE verifier server-side until the
+  callback consumes it; missing, unknown, or expired state fails closed before
+  token exchange.
 - **Public signup** (`UC1`) creates accounts independent of any tenant; passwords
   are optional (Google-only accounts have none).

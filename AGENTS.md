@@ -78,6 +78,45 @@ Each submodule's `Makefile` is authoritative and works on its own
 (`cd apps/backend && make dev`, `cd apps/web && make dev`) without the
 parent repo.
 
+## Dev environment routing (Traefik)
+
+> **Environment-specific. Not required to run AcademiQ.** The maintainer fronts
+> the stack with Traefik on `akademiq.dev.sby.test` (LAN IP `10.201.0.25`).
+> These host names, IP, and the proxy itself are one person's local setup —
+> AcademiQ is open source and you can run on `localhost`, your own domain, or no
+> proxy at all. The reference config lives in `infra/traefik/`.
+
+In that setup a single public origin serves both the web app and the backend
+APIs. Traefik routes `/api/v1/<service>/*` (priority 100) to the matching
+backend service port and everything else to the Next.js web app (`:3009`,
+priority 1):
+
+| Path                        | Service                 | Port |
+|-----------------------------|-------------------------|------|
+| `/api/v1/iam/*`             | iam-service             | 8081 |
+| `/api/v1/billing/*`         | billing-service         | 8082 |
+| `/api/v1/academic-config/*` | academic-config-service | 8083 |
+| `/api/v1/academic-ops/*`    | academic-ops-service    | 8084 |
+| `/api/v1/grading/*`         | grading-service         | 8086 |
+| everything else             | web (Next.js)           | 3009 |
+
+Because path routing happens at the proxy, the web client uses absolute
+**same-origin** base URLs (`NEXT_PUBLIC_*_BASE_URL=https://akademiq.dev.sby.test`)
+and needs **no Next.js rewrite/proxy**. The source-of-truth fragment is
+`infra/traefik/akademiq.dynamic.yaml` and lives **only in this repo**. The live
+Traefik is owned by the shared `surabaya-dev/traefik` stack (Portainer). Traefik
+has **no nginx-style `include`**; its file provider runs in directory mode and
+auto-merges every `*.yaml` in `/etc/traefik`. The fragment is made visible by a
+bind mount added in the **Portainer stack definition** (not the `surabaya-dev`
+repo), so no akademiq config lives in that shared repo. See
+`infra/traefik/README.md` for the exact volume line and wiring.
+
+**When adding a new backend service, you MUST add its Traefik mapping** (a
+`PathPrefix(/api/v1/<name>)` router at `priority: 100` plus a matching service
+entry) to `infra/traefik/akademiq.dynamic.yaml`, alongside the docker-compose
+entry and the `<SERVICE>_PORT` in `apps/backend/.env.example`. Keep the mapping
+in lockstep with the service set.
+
 ## Web frontend rules
 
 For any work under `apps/web`, read and follow `apps/web/CONVENTIONS.md`.

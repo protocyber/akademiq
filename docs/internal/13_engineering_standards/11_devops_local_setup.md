@@ -97,3 +97,34 @@ each service:
 
 Document each service's port and any new env variables in
 `apps/backend/.env.example` at the same time.
+
+## Dev reverse-proxy routing (environment-specific)
+
+> **Optional and environment-specific.** One maintainer fronts the local stack
+> with Traefik so a single HTTPS origin (`akademiq.dev.sby.test`, LAN IP
+> `10.201.0.25`) serves both the web app and the backend APIs. This is **not**
+> required — AcademiQ is open source and runs fine on `localhost` with no proxy,
+> on your own domain, or behind a different proxy. The reference config lives in
+> the parent repo at `infra/traefik/` (see `infra/traefik/README.md`).
+
+In that setup, Traefik routes by path prefix:
+
+| Path                        | Service                 | Port | Priority |
+|-----------------------------|-------------------------|------|----------|
+| `/api/v1/iam/*`             | iam-service             | 8081 | 100      |
+| `/api/v1/billing/*`         | billing-service         | 8082 | 100      |
+| `/api/v1/academic-config/*` | academic-config-service | 8083 | 100      |
+| `/api/v1/academic-ops/*`    | academic-ops-service    | 8084 | 100      |
+| `/api/v1/grading/*`         | grading-service         | 8086 | 100      |
+| everything else             | web (Next.js)           | 3009 | 1        |
+
+Because the proxy handles path routing, the web client uses absolute
+same-origin base URLs and needs no Next.js rewrite. The live Traefik instance
+is owned by the shared `surabaya-dev/traefik` repo, which bind-mounts the
+akademiq fragment (`infra/traefik/akademiq.dynamic.yaml`) and keeps the shared
+`redirect-https` middleware + TLS certs.
+
+**Adding a new backend service** means adding its Traefik mapping (a
+`PathPrefix(/api/v1/<name>)` router at `priority: 100` plus a matching service
+entry) to `infra/traefik/akademiq.dynamic.yaml`, in lockstep with the
+docker-compose entry and the `<SERVICE>_PORT` in `apps/backend/.env.example`.

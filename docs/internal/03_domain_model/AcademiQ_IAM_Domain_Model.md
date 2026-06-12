@@ -88,10 +88,13 @@ User "1" --> "0..1" AdminProfile
   by `username` + password. No synthetic placeholder emails are stored.
 - **`password_hash`** is nullable: Google-only accounts have no password.
 - **`google_sub`** is the linked Google subject id, unique when present, set when
-  an account authenticates via "Login with Gmail".
+  an account authenticates via "Login with Gmail". Returning Google users resolve
+  by this value before email matching.
 - **`email_verified`** flips true on email verification or a verified Google login.
+  IAM only auto-links Google to an existing account when Google reports
+  `email_verified=true`; unverified Google email collisions do not claim the
+  existing account.
 - **Identity ≠ membership**: a `User` can exist with **zero**
   `UserTenantMembership` rows (public signup / Google auto-provision) and may
   belong to **many** tenants. Login resolves a user independently of any tenant;
   tenant context is selected afterwards (see the login sequence diagram).
-
