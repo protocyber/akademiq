@@ -42,6 +42,12 @@ phase that satisfies the demo, not as a flag-day mega-PR.
   `common-errors`, `common-testing`.
 - `iam-service`: login, refresh, logout, `/me`, internal user create +
   delete, RS256 JWT, Argon2id passwords, role seed.
+  > **Note**: the authentication model is extended after this phase by
+  > `username-identity-login` (login by email **or** username, optional email),
+  > `public-signup-tenant-tokens` (public signup + identity/tenant-scoped two-token
+  > model, multi-tenant membership), and `google-oauth-login` (Login with Gmail).
+  > Email-as-sole-identity and the single-`tenant_id`-in-JWT described here are
+  > superseded by those changes.
 - `billing-service`: tenant registration saga (with compensating delete
   on IAM failure + janitor for mid-saga crashes), plan catalog, module
   toggling with plan entitlement enforcement, RabbitMQ outbox emitting

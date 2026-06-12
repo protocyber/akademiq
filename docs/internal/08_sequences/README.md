@@ -44,9 +44,9 @@ Services involved:
 - Tenant Service (resolve memberships)
 
 Flow includes:
-- Credential validation
-- Token issuance
-- Tenant role resolution
+- Credential validation (email or username; or Login with Gmail)
+- Identity-token issuance, then tenant selection (`/my-tenants` → `/enter`)
+- Tenant-scoped token issuance after membership check
 
 ### 🟢 2️⃣ Academic Year Initialization Flow
 

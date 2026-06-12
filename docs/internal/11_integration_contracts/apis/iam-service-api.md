@@ -10,44 +10,89 @@ Validation errors use `code = "VALIDATION_ERROR"` and a `fields` map
 keyed by request-body field name, per
 `13_engineering_standards/14_validation_contract.md`.
 
+## Token model
+
+Login is a **two-step exchange**:
+
+1. **Login** (email/username/Google) → a tenant-less **identity token**
+   (`{ sub, typ:"identity" }`, short-lived, non-refreshable). It authorizes only
+   tenant-less routes: `GET /me`, `GET /my-tenants`, `POST /tenants/{id}/enter`,
+   and invitation acceptance.
+2. **Enter a tenant** (`POST /tenants/{id}/enter`) → a **tenant-scoped token**
+   (`{ sub, tenant_id, role, typ:"access" }`, 15-min TTL) plus a tenant-scoped
+   refresh token. This is the token every other service verifies.
+
+A user may belong to zero, one, or many tenants. Refresh tokens are scoped to a
+tenant; switching tenants is a fresh `/enter`, not a refresh.
+
 ## Auth endpoints
 
 ### `POST /auth/login`
 
+Authenticate by email **or** username. The server classifies `identifier` by the
+presence of `@` (contains `@` → email lookup; otherwise → username lookup).
+
 Request:
 
 ```json
-{ "email": "string", "password": "string" }
+{ "identifier": "string", "password": "string" }
 ```
 
-Success (200):
+Success (200) — returns an **identity token**:
 
 ```json
 {
   "data": {
-    "access_token": "<RS256 JWT>",
-    "refresh_token": "<jti>.<random>",
-    "expires_in": 900
+    "identity_token": "<RS256 JWT, typ=identity>",
+    "expires_in": 600
   },
-  "meta": {
-    "user_id": "uuid",
-    "tenant_id": "uuid",
-    "role": "tenant_admin"
-  }
+  "meta": { "user_id": "uuid" }
 }
 ```
+
+The client then calls `GET /my-tenants` and `POST /tenants/{id}/enter` to obtain a
+tenant-scoped token (see below).
 
 Errors:
 
 | Code                  | HTTP | Cause |
 |-----------------------|------|-------|
 | `VALIDATION_ERROR`    | 400  | Missing or malformed fields. |
-| `INVALID_CREDENTIALS` | 401  | Email unknown or password mismatch. Identical body for either case. |
+| `INVALID_CREDENTIALS` | 401  | Identifier unknown or password mismatch (or account has no password). Identical body and timing for every case. |
 | `USER_INACTIVE`       | 403  | User exists but `status != 'active'`. |
+
+### `POST /auth/register`
+
+Public, rate-limited. Creates an account with **no** tenant membership and returns
+an identity token. `username` is optional (auto-generated when absent).
+
+Request:
+
+```json
+{ "email": "string", "password": "string", "username": "string?", "full_name": "string" }
+```
+
+Success (201): same identity-token envelope as `/auth/login`. The account starts
+with `email_verified=false` and is usable immediately (verify-later).
+
+Errors: `VALIDATION_ERROR` (400), `EMAIL_ALREADY_EXISTS` (409),
+`USERNAME_ALREADY_EXISTS` (409).
+
+### `GET /auth/google/start`
+
+Public. Generates `state` + PKCE and `302`-redirects to Google consent.
+
+### `GET /auth/google/callback`
+
+Public. Validates `state`, exchanges the code server-side, verifies the Google ID
+token (JWKS, `aud`, `iss`, expiry), resolves the account
+(match `google_sub` → verified-email auto-link → auto-provision), issues an
+**identity token**, and redirects to the web app. The client secret and Google's
+tokens are never exposed to the browser.
 
 ### `POST /auth/refresh`
 
-Authenticated via `Authorization: Bearer <expired-or-valid-access>`.
+Authenticated via `Authorization: Bearer <expired-or-valid tenant-scoped access>`.
 
 Request body:
 
@@ -55,8 +100,8 @@ Request body:
 { "refresh_token": "<jti>.<random>" }
 ```
 
-Returns the same envelope as `/auth/login` with rotated refresh token.
-Old refresh token's `(user_id, jti)` row is marked revoked.
+Returns a rotated **tenant-scoped** token envelope for the refresh token's bound
+tenant (it cannot change tenants). Old `(user_id, jti)` row is marked revoked.
 
 Errors: `INVALID_REFRESH_TOKEN` (401), `EXPIRED_REFRESH_TOKEN` (401).
 
@@ -64,17 +109,55 @@ Errors: `INVALID_REFRESH_TOKEN` (401), `EXPIRED_REFRESH_TOKEN` (401).
 
 Authenticated. Body: `{ "refresh_token": "..." }`. Returns 204.
 
+## Tenant selection endpoints
+
+Authenticated by an **identity token**.
+
+### `GET /my-tenants`
+
+Returns the caller's memberships (empty for a 0-tenant user):
+
+```json
+{
+  "data": [
+    { "tenant_id": "uuid", "tenant_name": "string", "role_code": "tenant_admin" }
+  ],
+  "meta": {}
+}
+```
+
+### `POST /tenants/{id}/enter`
+
+Verifies membership in `{id}` and issues a **tenant-scoped** token:
+
+```json
+{
+  "data": {
+    "access_token": "<RS256 JWT, typ=access>",
+    "refresh_token": "<jti>.<random>",
+    "expires_in": 900
+  },
+  "meta": { "user_id": "uuid", "tenant_id": "uuid", "role": "tenant_admin" }
+}
+```
+
+Errors: `FORBIDDEN` (403) when the caller is not a member of `{id}`.
+
 ## Self endpoints
 
 ### `GET /me`
 
-Authenticated. Returns the user's profile and memberships.
+Authenticated — works with an **identity token** (no tenant entered) or a
+tenant-scoped token. Returns the user's profile and memberships. `email` may be
+`null` for users without one.
 
 ```json
 {
   "data": {
     "user_id": "uuid",
-    "email": "string",
+    "username": "string",
+    "email": "string|null",
+    "email_verified": false,
     "full_name": "string",
     "status": "active|disabled|pending",
     "memberships": [
@@ -161,12 +244,13 @@ Public endpoint.
 Request:
 
 ```json
-{ "token": "<token>", "password": "password123!", "full_name": "Teacher Name" }
+{ "token": "<token>", "password": "password123!", "full_name": "Teacher Name", "username": "teacher_one?" }
 ```
 
-Success (201): same token envelope as `/auth/login`. IAM creates the user and
-tenant role in the same transaction that marks the invitation `accepted`, then
-emits `tenant_user.activated`.
+Success (201): same token envelope as `/auth/login`. IAM creates the user with a
+unique username (auto-generated when omitted), keeps the invitation email as the
+optional contact address, and creates the tenant role in the same transaction
+that marks the invitation `accepted`, then emits `tenant_user.activated`.
 
 Errors: `VALIDATION_ERROR` (400), `INVALID_INVITATION_TOKEN` (401),
 `INVITATION_ALREADY_USED` (409), `INVITATION_REVOKED` (409),
@@ -182,7 +266,8 @@ Returns tenant users and roles.
     {
       "user_id": "uuid",
       "tenant_id": "uuid",
-      "email": "teacher@school.test",
+      "username": "teacher_one",
+      "email": "teacher@school.test|null",
       "full_name": "Teacher Name",
       "status": "active",
       "role_code": "teacher"
@@ -229,14 +314,19 @@ These endpoints are reachable only inside the cluster. They require an
 
 ### `POST /internal/users`
 
-Used by `billing-service` during the registration saga.
+Used by `billing-service` during the registration saga, and for admin-created
+accounts. `email` and `username` are both optional: an email-less account (e.g.
+an older teacher/parent) omits `email`, and a blank `username` is auto-generated.
+At least one of `email` or `username` must end up set (the server guarantees a
+username). A passwordless account omits `password`.
 
 Request:
 
 ```json
 {
-  "email": "string",
-  "password": "string",
+  "email": "string?",
+  "username": "string?",
+  "password": "string?",
   "full_name": "string",
   "tenant_id": "uuid",
   "role_code": "tenant_admin"
@@ -246,7 +336,7 @@ Request:
 Success (201):
 
 ```json
-{ "data": { "user_id": "uuid", "email": "string" }, "meta": {} }
+{ "data": { "user_id": "uuid", "username": "string", "email": "string|null" }, "meta": {} }
 ```
 
 Errors:
@@ -254,7 +344,8 @@ Errors:
 | Code                       | HTTP | Cause |
 |----------------------------|------|-------|
 | `VALIDATION_ERROR`         | 400  | Field-level errors. |
-| `EMAIL_ALREADY_EXISTS`     | 409  | `email` already in `user.email`. |
+| `EMAIL_ALREADY_EXISTS`     | 409  | `email` already in `user.email` (case-insensitive). |
+| `USERNAME_ALREADY_EXISTS`  | 409  | `username` already taken (case-insensitive). |
 | `UNAUTHORIZED_SERVICE_CALL`| 401  | Missing or wrong `X-Service-Token`. |
 
 ### `DELETE /internal/users/{id}`
