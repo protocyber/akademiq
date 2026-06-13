@@ -67,6 +67,21 @@ dev: ## Launch backend + web together (mprocs primary)
 		echo ">>     make dev-parallel   # plain make -j2 fallback"; \
 		exit 1; \
 	fi
+	$(MAKE) -C $(BACKEND_DIR) up
+	@set -a; \
+	[ -f $(BACKEND_DIR)/.env ] && source $(BACKEND_DIR)/.env; \
+	pg="postgres://$${POSTGRES_USER:-akademiq}:$${POSTGRES_PASSWORD:-akademiq_dev}@127.0.0.1:$${POSTGRES_PORT:-5432}"; \
+	export IAM_DATABASE_URL="$$pg/iam_db"; \
+	export BILLING_DATABASE_URL="$$pg/billing_db"; \
+	export ACADEMIC_CONFIG_DATABASE_URL="$$pg/academic_config_db"; \
+	export ACADEMIC_OPS_DATABASE_URL="$$pg/academic_ops_db"; \
+	export GRADING_DATABASE_URL="$$pg/grading_db"; \
+	export RABBITMQ_URL="amqp://$${RABBITMQ_USER:-akademiq}:$${RABBITMQ_PASSWORD:-akademiq_dev}@127.0.0.1:$${RABBITMQ_PORT:-5672}"; \
+	export IAM_BASE_URL="http://127.0.0.1:$${IAM_PORT:-8081}"; \
+	export FEATURES_TOML_PATH="features.toml"; \
+	if command -v mold >/dev/null; then export RUSTFLAGS="-Clink-arg=-fuse-ld=mold"; fi; \
+	export CARGO_BUILD_JOBS="$${CARGO_BUILD_JOBS:-4}"; \
+	set +a; \
 	mprocs --config $(MPROCS_CONFIG)
 
 dev-tmux: ## Launch backend + web in a tmux session (fallback for no mprocs)
