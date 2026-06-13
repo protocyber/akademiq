@@ -53,7 +53,7 @@ TMUX_SESSION ?= akademiq
         up down build test test-e2e test-web seed migrate ps stop clean purge doctor
 
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # -----------------------------------------------------------------------------
 # Dev orchestration ladder: mprocs (primary) → tmux (fallback) → -j2 (last)
@@ -127,25 +127,25 @@ up: ## Start backend infra (Postgres + RabbitMQ) detached
 down: ## Stop backend infra
 	$(MAKE) -C $(BACKEND_DIR) down
 
-build: ## Build artefacts for both submodules (PRICEY)
+build: ## Build artefacts for both submodules (SLOW)
 	@bash scripts/confirm.sh "make build" "builds the backend release Docker images (~8 min cold) AND the web bundle. For the daily loop use 'make dev'."
 	YES=1 $(MAKE) -C $(BACKEND_DIR) build
 	$(MAKE) -C $(WEB_DIR) build
 
-test: ## Run tests in both submodules (PRICEY)
+test: ## Run tests in both submodules (SLOW)
 	@bash scripts/confirm.sh "make test" "compiles and runs the FULL backend + web test suites — several minutes. For a quick check run 'cargo test' in apps/backend."
 	$(MAKE) -C $(BACKEND_DIR) test
 	$(MAKE) -C $(WEB_DIR) test
 
-test-e2e: ## Run cross-service backend e2e suite (compose.test.yml) (PRICEY)
+test-e2e: ## Run cross-service backend e2e suite (compose.test.yml) (SLOW)
 	@bash scripts/confirm.sh "make test-e2e" "builds the compose.test.yml stack and runs the cross-service suite — several minutes."
 	YES=1 $(MAKE) -C $(BACKEND_DIR) test-e2e
 
-test-web: ## Run web Vitest + Playwright suites (PRICEY)
+test-web: ## Run web Vitest + Playwright suites (SLOW)
 	@bash scripts/confirm.sh "make test-web" "runs Vitest + Playwright (may download browsers) — several minutes."
 	$(MAKE) -C $(WEB_DIR) test
 
-seed: ## Load demo data (plans + tenants) into the local stack (PRICEY)
+seed: ## Load demo data (plans + tenants) into the local stack (SLOW)
 	@bash scripts/confirm.sh "make seed" "builds the seed image and starts the stack — a few minutes on a cold cache."
 	YES=1 $(MAKE) -C $(BACKEND_DIR) seed
 
@@ -166,7 +166,7 @@ stop: ## Kill all host-run service processes (backend + web dev server)
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) stop
 
-clean: ## Delete build artefacts in both submodules (PRICEY next build)
+clean: ## Delete build artefacts in both submodules (SLOW next build)
 	@bash scripts/confirm.sh "make clean" "deletes the ~9.5 GB backend target/ and web artefacts; the NEXT build will be a full cold rebuild."
 	@echo ">>> backend"
 	@YES=1 $(MAKE) -C $(BACKEND_DIR) clean

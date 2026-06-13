@@ -27,7 +27,7 @@ if [ -n "${YES:-}" ] || [ -n "${CI:-}" ] || [ ! -t 0 ]; then
 fi
 
 printf "${YELLOW}\n"
-printf "  ⚠️  %s is PRICEY\n" "$label"
+printf "  ⚠️  %s is SLOW\n" "$label"
 printf "     %s\n" "$cost"
 printf "${RESET}"
 printf "  Proceed? [y/N] "

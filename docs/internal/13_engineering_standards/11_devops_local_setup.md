@@ -8,8 +8,9 @@ Local development happens through three Makefiles:
   into the submodules and provides the `make dev` ladder
   (mprocs → tmux → `make -j2`).
 - The **backend submodule** (`apps/backend`) ships its own `Makefile` and a
-  `docker-compose.yml` running PostgreSQL 18 + RabbitMQ. Each service crate
-  is added as another compose entry by future changes.
+  `docker-compose.yml` running PostgreSQL 18 + RabbitMQ plus the five service
+  entries. The dev loop runs the services on the host (`cargo watch`); the
+  compose service entries are for `make seed` / deploy images.
 - The **web submodule** (`apps/web`) ships its own `Makefile`. Dev runs
   on the host (`pnpm dev`) for the best Next.js HMR experience.
 
@@ -29,10 +30,10 @@ Backend infra runs in containers from `apps/backend/docker-compose.yml`:
 - **RabbitMQ** — image `rabbitmq:3-management-alpine`, AMQP + management
   UI, healthchecked.
 
-Service containers are added to the same compose file when their crates
-land. The file already documents the canonical `develop.watch` block in a
-commented service template so the next change adding `iam-service` is
-mechanical.
+The five service crates have their own entries in the same compose file,
+built from `Dockerfile.service-template` (the `runtime` stage). These are used
+by `make seed` and optional full-in-Docker runs; the day-to-day dev loop runs
+the services on the **host** via `cargo watch` (`make dev`), not in containers.
 
 ## Port and credential customization
 
@@ -66,8 +67,11 @@ reserved as commented-out lines and become live as their crates land.
 The parent repo offers three ways to run backend + web together. Pick the
 first one that works on your machine:
 
-1. **mprocs (primary)** — `make dev`. Reads `mprocs.yaml`, spawns named
-   processes "backend" and "web", each running its submodule's `make dev`.
+1. **mprocs (primary)** — `make dev`. Brings Postgres + RabbitMQ up in Docker,
+   then reads `mprocs.yaml` and spawns one pane per backend service running
+   `cargo watch -x "run -p <svc>"` **on the host** plus a `web` pane. Services
+   compile incrementally against one shared `target/`; the host env (127.0.0.1
+   DB/broker URLs, `mold` linker) is exported by the `make dev` target.
    Best per-process scrollback and restart UX.
    `brew install mprocs` (or `cargo install mprocs`).
 2. **tmux (fallback)** — `make dev-tmux`. Creates a tmux session
@@ -78,21 +82,42 @@ first one that works on your machine:
    tooling. Logs from both processes interleave.
 
 Run `make doctor` to check tooling and print install hints. It exits
-non-zero only if a *required* tool is missing; mprocs and tmux are
-advisory.
+non-zero only if a *required* tool is missing; mprocs, tmux, `cargo-watch`,
+`clang`, and `mold` are advisory.
+
+## Make commands — when to run what
+
+`make dev` / `make dev-host` is the daily loop and is cheap. The build/test
+targets are **SLOW** and guarded: they print a warning and ask before running,
+auto-skipping in CI / non-TTY / with `YES=1` (e.g. `YES=1 make build`).
+
+| Command | When to run | Cost |
+|---|---|---|
+| `make dev` / `make dev-host` | Daily loop — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
+| `make up` / `make down` | Start/stop Postgres + RabbitMQ | seconds |
+| `make migrate` | After adding a migration | fast |
+| `make seed` | Once, to load demo data | **SLOW** — minutes (cold) |
+| `make build` | Rarely; only to test the release **deploy images** (CI builds these → GHCR) | **SLOW** — ~8 min cold / ~75s per-service change |
+| `make test` | Before a PR (full suites). Quick check: `cargo test` in `apps/backend` | **SLOW** — minutes |
+| `make test-e2e` | Before a PR touching cross-service flows | **SLOW** — minutes |
+| `make test-web` | Web Vitest + Playwright | **SLOW** — minutes |
+| `make clean` | Rarely; forces a full cold rebuild next | **SLOW** next build — deletes ~9.5 GB |
+| `make purge` | Nuke volumes + artefacts | destructive (confirms) |
+
+`make rebuild` was removed — the host loop (`make dev`) replaced the old
+in-container image-rebuild flow.
 
 ## Per-service expectations
 
-Once service crates land under `apps/backend/services/<name>-service`,
-each service:
+Each service crate under `apps/backend/services/<name>-service`:
 
-- Adds an entry to `apps/backend/docker-compose.yml` (the commented
-  template in that file shows the canonical shape).
-- Defines a `develop.watch` rule pointing at its `src/` so
-  `docker compose watch` rebuilds + restarts only its container on file
-  change.
-- Reads `DATABASE_URL`, `AMQP_URL`, and its `<SERVICE>_PORT` from
+- Has an entry in `apps/backend/docker-compose.yml` built from
+  `Dockerfile.service-template` via its `SERVICE_NAME` build arg.
+- Reads `DATABASE_URL`, `RABBITMQ_URL`, and its `<SERVICE>_PORT` from
   environment.
+- Runs under `cargo watch` on the host in the dev loop (a pane in
+  `mprocs.yaml` / `mprocs.host.yaml`); the deploy image runs the compiled
+  binary directly.
 - Exposes a healthcheck endpoint Compose can poll.
 
 Document each service's port and any new env variables in
