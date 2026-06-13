@@ -1,21 +1,34 @@
 ## ADDED Requirements
 
-### Requirement: Tenant admins SHALL invite tenant-scoped users by email and role
+### Requirement: Tenant admins SHALL invite tenant-scoped users by email and roles
 
 The service MUST provide `POST /api/v1/iam/tenants/me/invitations` restricted
-to `tenant_admin`, accepting an email and a role from the assignable set
-(`teacher`, `homeroom_teacher`, `principal`, `parent`, `student`). It MUST
-store only a hash of the activation token and emit `tenant_user.invited`.
+to callers with `user.invite`, accepting an email and one or more roles from the
+assignable set (built-in and custom). It MUST store only a hash of the activation
+token and emit `tenant_user.invited`. Accepting the invitation MUST grant the
+invitee every invited role within one transaction.
 
 #### Scenario: Admin invites a teacher
 
-- **WHEN** a tenant admin POSTs `{ email, role: "teacher" }` to `/tenants/me/invitations`
+- **WHEN** an admin with `user.invite` POSTs `{ email, roles: ["teacher"] }` to `/tenants/me/invitations`
 - **THEN** the response is HTTP 201 with a pending invitation and an activation link, and a `tenant_user.invited` event is published
 
-#### Scenario: Non-admin cannot invite
+#### Scenario: Non-privileged caller cannot invite
 
-- **WHEN** a user without the `tenant_admin` role POSTs to `/tenants/me/invitations`
+- **WHEN** a user without `user.invite` POSTs to `/tenants/me/invitations`
 - **THEN** the response is HTTP 403
+
+#### Scenario: Multi-role invitation grants all roles on acceptance
+
+- **WHEN** an admin invites an email with roles `["teacher", "homeroom_teacher"]`
+  and the invitee accepts
+- **THEN** the created membership includes both roles in the tenant
+
+#### Scenario: Invitation with a custom role
+
+- **WHEN** an admin invites an email with a tenant-defined custom role
+- **THEN** acceptance grants that custom role and the user's effective
+  permissions include the custom role's permissions
 
 ### Requirement: Invitation tokens SHALL be single-use and time-bound
 
@@ -49,16 +62,36 @@ has a final approver.
 - **WHEN** a tenant admin invites a user with role `principal`
 - **THEN** the invitation succeeds and, after acceptance, the user's access token carries the `principal` role
 
-### Requirement: Role changes SHALL take effect on the next access token
+### Requirement: Tenant admins SHALL assign one or more roles per user
 
-Changing a tenant user's role MUST NOT require the user to log out. The new
-role MUST be reflected the next time an access token is issued via refresh-token
-rotation, and MUST emit `tenant_user.role_changed`.
+Role assignment MUST manage a set of roles per user. The service MUST provide
+add and remove operations (e.g. `POST /tenants/me/users/{id}/roles/{roleId}` and
+`DELETE /tenants/me/users/{id}/roles/{roleId}`), gated on the `user.role.assign`
+permission. The assignable set MUST include the tenant's built-in assignable
+roles and its custom roles. Role changes MUST NOT require the user to log out;
+updated roles MUST be reflected the next time an access token is issued via
+refresh-token rotation, and MUST emit `tenant_user.role_changed`.
+
+#### Scenario: Admin adds a role to a user
+
+- **WHEN** an admin with `user.role.assign` adds a role to a user
+- **THEN** the user holds that role in addition to any existing roles, and HTTP
+  204 is returned
+
+#### Scenario: Admin removes one of several roles
+
+- **WHEN** an admin removes one role from a user holding multiple roles
+- **THEN** the user retains the remaining roles
+
+#### Scenario: Non-privileged caller cannot assign roles
+
+- **WHEN** a caller without `user.role.assign` attempts to add or remove a role
+- **THEN** the response is `403`
 
 #### Scenario: New role appears after token refresh
 
-- **WHEN** an admin changes a user's role and that user subsequently refreshes their access token
-- **THEN** the newly issued access token carries the new role and a `tenant_user.role_changed` event was published
+- **WHEN** an admin changes a user's role set and that user subsequently refreshes their access token
+- **THEN** the newly issued access token carries the updated roles and a `tenant_user.role_changed` event was published
 
 ### Requirement: Admins SHALL disable and re-enable tenant accounts
 
@@ -74,3 +107,72 @@ and re-enable it, emitting `tenant_user.disabled` on disable.
 
 - **WHEN** an admin re-enables a previously disabled user
 - **THEN** that user can log in again
+
+### Requirement: The tenant users listing SHALL support server-side search, filter, sort, and pagination
+
+`GET /api/v1/iam/tenants/me/users` MUST accept optional query parameters `search`,
+`role`, `status`, `page`, `page_size`, and `sort`, and MUST apply them server-side
+against the database. `search` MUST match (case-insensitive, substring) over
+`full_name`, `email`, and `username`. `role` MUST filter by role code and `status` by
+account status. `sort` MUST be validated against an allow-list of sortable columns and
+`page_size` MUST be clamped to a maximum. All parameter values MUST bind as SQL
+parameters (no string interpolation). The response MUST use the paginated envelope
+`{ "data": [ ... ], "meta": { "page", "page_size", "total" } }` where `total` is the
+count of rows matching the filters before pagination.
+
+#### Scenario: Search narrows the result set server-side
+
+- **WHEN** an admin requests `/tenants/me/users?search=budi`
+- **THEN** only users whose name, email, or username contains "budi" are returned, and `meta.total` reflects the filtered count
+
+#### Scenario: Filter by role and status
+
+- **WHEN** an admin requests `/tenants/me/users?role=teacher&status=active`
+- **THEN** only active users holding the `teacher` role are returned
+
+#### Scenario: Pagination returns the requested page with totals
+
+- **WHEN** an admin requests `/tenants/me/users?page=2&page_size=25`
+- **THEN** rows 26–50 of the filtered set are returned and `meta` reports `page=2`, `page_size=25`, and the full `total`
+
+#### Scenario: page_size is clamped and sort is validated
+
+- **WHEN** an admin requests `/tenants/me/users?page_size=100000&sort=DROP`
+- **THEN** the response clamps `page_size` to the allowed maximum and rejects or ignores the invalid sort without executing arbitrary SQL
+
+### Requirement: Admins SHALL apply enable, disable, and role-change to multiple users in one request
+
+The service MUST provide bulk operations
+(`POST /api/v1/iam/tenants/me/users/bulk/enable`,
+`/bulk/disable`, `/bulk/role`) that accept a set of user IDs (and, for role, the target
+role). Each affected user MUST be processed through the same domain path as the
+single-user operation so that authorization checks and the last-administrator guard
+still apply, and each MUST emit its own per-user `tenant_user.*` event via the outbox.
+The response MUST report per-user success or failure so a partial failure does not
+silently drop other users. Bulk hard-delete MUST NOT be provided.
+
+#### Scenario: Bulk disable emits one event per user
+
+- **WHEN** an admin bulk-disables three users
+- **THEN** all three are disabled and three separate `tenant_user.disabled` events are published
+
+#### Scenario: Partial failure is reported per user
+
+- **WHEN** a bulk role change includes the last remaining administrator
+- **THEN** the last-admin user is rejected with its reason while the other users succeed, and the response lists each user's outcome
+
+#### Scenario: No bulk delete endpoint exists
+
+- **WHEN** a client attempts a bulk hard-delete of users
+- **THEN** no such endpoint is available
+
+### Requirement: Admins SHALL export the filtered user roster as CSV
+
+The service MUST provide `GET /api/v1/iam/tenants/me/users/export` that returns the
+roster as `text/csv` using the same `search`/`role`/`status` filters as the listing
+(without pagination). The CSV MUST be openable in spreadsheet tools.
+
+#### Scenario: Export honors active filters
+
+- **WHEN** an admin requests `/tenants/me/users/export?role=teacher`
+- **THEN** the response is a CSV containing only `teacher` users matching the filter, with no pagination applied

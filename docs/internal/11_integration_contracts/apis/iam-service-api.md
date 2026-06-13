@@ -289,7 +289,11 @@ Errors: `VALIDATION_ERROR` (400), `INVALID_INVITATION_TOKEN` (401),
 
 ### `GET /tenants/me/users`
 
-Returns tenant users and roles.
+Returns tenant users and roles in a server-paginated envelope. Query params:
+`search` matches `full_name`, `email`, or `username`; `role` filters by role code;
+`status` filters by account status; `page` defaults to `1`; `page_size` defaults
+to `25` and clamps to `100`; `sort` accepts `name`, `-name`, `status`,
+`-status`, `role`, or `-role`.
 
 ```json
 {
@@ -304,9 +308,17 @@ Returns tenant users and roles.
       "roles": ["teacher", "homeroom_teacher"]
     }
   ],
-  "meta": {}
+  "meta": { "page": 1, "page_size": 25, "total": 1 }
 }
 ```
+
+Invalid sort values return `400 INVALID_SORT`.
+
+### `GET /tenants/me/users/export`
+
+Returns a CSV download (`text/csv`) for the same `search`, `role`, and `status`
+filters as the list endpoint, without pagination. The response sets
+`Content-Disposition: attachment; filename=tenant-users.csv`.
 
 ### `POST /tenants/me/users/{id}/roles/{roleId}`
 
@@ -324,13 +336,34 @@ one compatibility window; new clients should use the add/remove endpoints.
 Existing access tokens keep their old role set until expiry; refresh-token
 rotation issues a new access token with current `roles[]`/`perms[]`.
 
+### `POST /tenants/me/users/bulk/enable`
+
+Enables multiple users. Request: `{ "user_ids": ["uuid"] }`. Returns a per-user
+result list and emits one `tenant_user.enabled` event per successful user.
+
+```json
+{ "data": [{ "user_id": "uuid", "success": true, "reason": null }], "meta": {} }
+```
+
+### `POST /tenants/me/users/bulk/disable`
+
+Disables multiple users. Request: `{ "user_ids": ["uuid"] }`. Returns the same
+per-user result shape and emits one `tenant_user.disabled` event per successful
+user.
+
+### `POST /tenants/me/users/bulk/role`
+
+Changes role for multiple users through the legacy role-swap command. Request:
+`{ "user_ids": ["uuid"], "role": "teacher" }`. Returns the same per-user result
+shape. Partial failures are reported per user. There is no bulk-delete endpoint.
+
 ### `POST /tenants/me/users/{id}/disable`
 
 Disables login for the account. Returns 204 and emits `tenant_user.disabled`.
 
 ### `POST /tenants/me/users/{id}/enable`
 
-Re-enables login for the account. Returns 204.
+Re-enables login for the account. Returns 204 and emits `tenant_user.enabled`.
 
 ### `POST /tenants/me/users/{id}/reset-password`
 
