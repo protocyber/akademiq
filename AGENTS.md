@@ -50,8 +50,8 @@ The parent repo's `Makefile` is the entry point for cross-submodule work.
 
 | Target              | What it does                                                  |
 |---------------------|---------------------------------------------------------------|
-| `make dev`          | mprocs (primary): host cargo-watch for all 5 backend services + web; infra in Docker |
-| `make dev-host`     | backend host loop only (infra in Docker + cargo-watch)        |
+| `make dev`          | mprocs (primary): cargo-watch for all 5 backend services + web; infra in Docker |
+| `make dev-backend`  | backend dev loop only (`cd apps/backend && make dev`)         |
 | `make dev-tmux`     | tmux fallback (`akademiq` session, two windows)               |
 | `make dev-parallel` | `make -j2` last-resort fallback (logs interleave)             |
 | `make dev-backend`  | only the backend dev loop                                     |
@@ -68,7 +68,7 @@ The parent repo's `Makefile` is the entry point for cross-submodule work.
 
 **SLOW** targets prompt for confirmation before running (`scripts/confirm.sh`);
 they auto-skip in CI / non-TTY / with `YES=1` — so use `YES=1 make <target>` in
-scripts. The daily loop (`make dev` / `make dev-host`) is cheap and unguarded.
+scripts. The daily loop (`make dev` / `make dev-backend`) is cheap and unguarded.
 `make rebuild` was removed — use `make dev`. Full cost/usage table:
 `docs/internal/13_engineering_standards/11_devops_local_setup.md`.
 

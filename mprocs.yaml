@@ -10,7 +10,7 @@
 # Use:
 #
 #   make dev           # infra up, then this file (primary)
-#   make dev-host      # backend host loop only (apps/backend/mprocs.host.yaml)
+#   make dev-backend   # backend loop only (apps/backend/mprocs.yaml)
 #   make dev-tmux      # tmux fallback for machines without mprocs
 #   make dev-parallel  # `make -j2` last-resort fallback
 #

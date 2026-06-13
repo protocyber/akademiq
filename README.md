@@ -86,7 +86,7 @@ Alternatif `make dev`:
 
 | Perintah | Kapan dipakai | Biaya |
 |---|---|---|
-| `make dev` / `make dev-host` | Loop harian — tiap perubahan kode (cargo-watch di host, infra di Docker) | ~13 dtk/edit, 0.4 dtk no-op |
+| `make dev` | Loop harian — tiap perubahan kode (cargo-watch di host, infra di Docker) | ~13 dtk/edit, 0.4 dtk no-op |
 | `make up` / `make down` | Nyalakan/matikan Postgres + RabbitMQ | detik |
 | `make migrate` | Setelah menambah migrasi | cepat |
 | `make seed` | Sekali, untuk memuat data demo | **SLOW** — beberapa menit (cold) |
@@ -210,7 +210,7 @@ Alternatives to `make dev`:
 
 | Command | When to run | Cost |
 |---|---|---|
-| `make dev` / `make dev-host` | Daily loop — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
+| `make dev` | Daily loop — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
 | `make up` / `make down` | Start/stop Postgres + RabbitMQ | seconds |
 | `make migrate` | After adding a migration | fast |
 | `make seed` | Once, to load demo data | **SLOW** — minutes (cold) |

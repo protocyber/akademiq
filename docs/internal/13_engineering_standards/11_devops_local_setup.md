@@ -87,13 +87,13 @@ non-zero only if a *required* tool is missing; mprocs, tmux, `cargo-watch`,
 
 ## Make commands — when to run what
 
-`make dev` / `make dev-host` is the daily loop and is cheap. The build/test
+`make dev` is the daily loop and is cheap. The build/test
 targets are **SLOW** and guarded: they print a warning and ask before running,
 auto-skipping in CI / non-TTY / with `YES=1` (e.g. `YES=1 make build`).
 
 | Command | When to run | Cost |
 |---|---|---|
-| `make dev` / `make dev-host` | Daily loop — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
+| `make dev` | Daily loop — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
 | `make up` / `make down` | Start/stop Postgres + RabbitMQ | seconds |
 | `make migrate` | After adding a migration | fast |
 | `make seed` | Once, to load demo data | **SLOW** — minutes (cold) |
@@ -116,7 +116,7 @@ Each service crate under `apps/backend/services/<name>-service`:
 - Reads `DATABASE_URL`, `RABBITMQ_URL`, and its `<SERVICE>_PORT` from
   environment.
 - Runs under `cargo watch` on the host in the dev loop (a pane in
-  `mprocs.yaml` / `mprocs.host.yaml`); the deploy image runs the compiled
+  `mprocs.yaml`); the deploy image runs the compiled
   binary directly.
 - Exposes a healthcheck endpoint Compose can poll.
 

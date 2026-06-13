@@ -21,7 +21,7 @@
 #
 # Orchestrator extras:
 #
-#   make dev-host      # backend host loop only (infra in Docker + cargo-watch)
+#   make dev-backend   # just the backend dev loop
 #   make dev-tmux      # tmux fallback for machines without mprocs
 #   make dev-parallel  # `make -j2` last-resort fallback
 #   make dev-backend   # just the backend dev loop
@@ -49,7 +49,7 @@ MPROCS_CONFIG ?= mprocs.yaml
 TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
-.PHONY: help dev dev-host dev-tmux dev-parallel dev-backend dev-web submodules \
+.PHONY: help dev dev-tmux dev-parallel dev-backend dev-web submodules \
         up down build test test-e2e test-web seed migrate ps stop clean purge doctor
 
 help: ## Show this help
@@ -59,7 +59,7 @@ help: ## Show this help
 # Dev orchestration ladder: mprocs (primary) → tmux (fallback) → -j2 (last)
 # -----------------------------------------------------------------------------
 
-dev: ## Launch backend (host cargo-watch) + web together (mprocs primary)
+dev: ## Launch backend + web together (mprocs primary)
 	@if ! command -v mprocs >/dev/null; then \
 		echo ">> mprocs not found on PATH."; \
 		echo ">>   Install:  brew install mprocs   (or  cargo install mprocs)"; \
@@ -84,9 +84,6 @@ dev: ## Launch backend (host cargo-watch) + web together (mprocs primary)
 	export CARGO_BUILD_JOBS="$${CARGO_BUILD_JOBS:-4}"; \
 	set +a; \
 	mprocs --config $(MPROCS_CONFIG)
-
-dev-host: ## Run only the backend host loop (infra in Docker + cargo-watch)
-	$(MAKE) -C $(BACKEND_DIR) dev-host
 
 dev-tmux: ## Launch backend + web in a tmux session (fallback for no mprocs)
 	@if ! command -v tmux >/dev/null; then \

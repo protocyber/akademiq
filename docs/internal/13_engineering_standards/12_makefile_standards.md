@@ -21,7 +21,7 @@ Targets that take minutes or destroy artefacts — `build`, `seed`, `test`,
 `scripts/confirm.sh` auto-proceeds (no prompt) when stdin is not a TTY, when
 `CI` is set, or with `YES=1` — so CI and scripted runs never hang. Parent-repo
 targets that delegate to a submodule pass `YES=1` to the sub-make to avoid a
-double prompt. The daily targets (`dev`, `dev-host`, `up`, `down`, `migrate`)
+double prompt. The daily targets (`dev`, `up`, `down`, `migrate`)
 stay friction-free.
 
 See the "Make commands — when to run what" table in
