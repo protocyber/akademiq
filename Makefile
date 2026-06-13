@@ -80,7 +80,7 @@ dev: ## Launch backend + web together (mprocs primary)
 	export RABBITMQ_URL="amqp://$${RABBITMQ_USER:-akademiq}:$${RABBITMQ_PASSWORD:-akademiq_dev}@127.0.0.1:$${RABBITMQ_PORT:-5672}"; \
 	export IAM_BASE_URL="http://127.0.0.1:$${IAM_PORT:-8081}"; \
 	export FEATURES_TOML_PATH="features.toml"; \
-	export RUSTFLAGS="-Clink-arg=-fuse-ld=mold"; \
+	if command -v mold >/dev/null; then export RUSTFLAGS="-Clink-arg=-fuse-ld=mold"; fi; \
 	export CARGO_BUILD_JOBS="$${CARGO_BUILD_JOBS:-4}"; \
 	set +a; \
 	mprocs --config $(MPROCS_CONFIG)
