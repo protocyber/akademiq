@@ -21,6 +21,7 @@
 #
 # Orchestrator extras:
 #
+#   make dev-host      # backend host loop only (infra in Docker + cargo-watch)
 #   make dev-tmux      # tmux fallback for machines without mprocs
 #   make dev-parallel  # `make -j2` last-resort fallback
 #   make dev-backend   # just the backend dev loop
@@ -48,8 +49,8 @@ MPROCS_CONFIG ?= mprocs.yaml
 TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
-.PHONY: help dev dev-tmux dev-parallel dev-backend dev-web submodules \
-        up down restart rebuild build test test-e2e test-web seed migrate ps stop clean purge doctor
+.PHONY: help dev dev-host dev-tmux dev-parallel dev-backend dev-web submodules \
+        up down build test test-e2e test-web seed migrate ps stop clean purge doctor
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -58,7 +59,7 @@ help: ## Show this help
 # Dev orchestration ladder: mprocs (primary) → tmux (fallback) → -j2 (last)
 # -----------------------------------------------------------------------------
 
-dev: ## Launch backend + web together (mprocs primary)
+dev: ## Launch backend (host cargo-watch) + web together (mprocs primary)
 	@if ! command -v mprocs >/dev/null; then \
 		echo ">> mprocs not found on PATH."; \
 		echo ">>   Install:  brew install mprocs   (or  cargo install mprocs)"; \
@@ -67,7 +68,25 @@ dev: ## Launch backend + web together (mprocs primary)
 		echo ">>     make dev-parallel   # plain make -j2 fallback"; \
 		exit 1; \
 	fi
+	$(MAKE) -C $(BACKEND_DIR) up
+	@set -a; \
+	[ -f $(BACKEND_DIR)/.env ] && source $(BACKEND_DIR)/.env; \
+	pg="postgres://$${POSTGRES_USER:-akademiq}:$${POSTGRES_PASSWORD:-akademiq_dev}@127.0.0.1:$${POSTGRES_PORT:-5432}"; \
+	export IAM_DATABASE_URL="$$pg/iam_db"; \
+	export BILLING_DATABASE_URL="$$pg/billing_db"; \
+	export ACADEMIC_CONFIG_DATABASE_URL="$$pg/academic_config_db"; \
+	export ACADEMIC_OPS_DATABASE_URL="$$pg/academic_ops_db"; \
+	export GRADING_DATABASE_URL="$$pg/grading_db"; \
+	export RABBITMQ_URL="amqp://$${RABBITMQ_USER:-akademiq}:$${RABBITMQ_PASSWORD:-akademiq_dev}@127.0.0.1:$${RABBITMQ_PORT:-5672}"; \
+	export IAM_BASE_URL="http://127.0.0.1:$${IAM_PORT:-8081}"; \
+	export FEATURES_TOML_PATH="features.toml"; \
+	export RUSTFLAGS="-Clink-arg=-fuse-ld=mold"; \
+	export CARGO_BUILD_JOBS="$${CARGO_BUILD_JOBS:-4}"; \
+	set +a; \
 	mprocs --config $(MPROCS_CONFIG)
+
+dev-host: ## Run only the backend host loop (infra in Docker + cargo-watch)
+	$(MAKE) -C $(BACKEND_DIR) dev-host
 
 dev-tmux: ## Launch backend + web in a tmux session (fallback for no mprocs)
 	@if ! command -v tmux >/dev/null; then \
@@ -107,12 +126,6 @@ up: ## Start backend infra (Postgres + RabbitMQ) detached
 
 down: ## Stop backend infra
 	$(MAKE) -C $(BACKEND_DIR) down
-
-restart: ## Recreate backend dev containers without rebuilding (env/compose changes)
-	$(MAKE) -C $(BACKEND_DIR) restart
-
-rebuild: ## Force-rebuild backend dev images, then run
-	$(MAKE) -C $(BACKEND_DIR) rebuild
 
 build: ## Build artefacts for both submodules
 	$(MAKE) -C $(BACKEND_DIR) build

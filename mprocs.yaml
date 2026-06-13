@@ -1,11 +1,16 @@
 # =============================================================================
 # AcademiQ — Local development orchestrator (mprocs config)
 # =============================================================================
-# Spawns the submodule dev loops plus one log-only process per backend service.
-# The backend process owns Docker Compose; service panes only tail filtered logs.
+# Runs the backend service crates with cargo-watch ON THE HOST plus the web dev
+# server. Infra (Postgres + RabbitMQ) is brought up in Docker by `make dev`
+# BEFORE mprocs starts; the host env (127.0.0.1 DB/broker URLs, RUSTFLAGS=mold,
+# CARGO_BUILD_JOBS, IAM keys sourced from apps/backend/.env) is exported by the
+# `make dev` target and inherited by every pane here.
+#
 # Use:
 #
-#   make dev           # starts mprocs against this file (primary)
+#   make dev           # infra up, then this file (primary)
+#   make dev-host      # backend host loop only (apps/backend/mprocs.host.yaml)
 #   make dev-tmux      # tmux fallback for machines without mprocs
 #   make dev-parallel  # `make -j2` last-resort fallback
 #
@@ -17,39 +22,21 @@
 # =============================================================================
 
 procs:
-  backend:
-    cwd: apps/backend
-    shell: make dev
   iam-service:
     cwd: apps/backend
-    shell: |
-      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 iam-service; do
-        sleep 2
-      done
+    shell: cargo watch -x "run -p iam-service"
   billing-service:
     cwd: apps/backend
-    shell: |
-      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 billing-service; do
-        sleep 2
-      done
+    shell: cargo watch -x "run -p billing-service"
   academic-config-service:
     cwd: apps/backend
-    shell: |
-      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 academic-config-service; do
-        sleep 2
-      done
+    shell: cargo watch -x "run -p academic-config-service"
   academic-ops-service:
     cwd: apps/backend
-    shell: |
-      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 academic-ops-service; do
-        sleep 2
-      done
+    shell: cargo watch -x "run -p academic-ops-service"
   grading-service:
     cwd: apps/backend
-    shell: |
-      until docker compose --env-file .env -f docker-compose.yml -f docker-compose.dev.yml logs -f --tail=200 grading-service; do
-        sleep 2
-      done
+    shell: cargo watch -x "run -p grading-service"
   web:
     cwd: apps/web
     shell: make dev
