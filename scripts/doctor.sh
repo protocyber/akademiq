@@ -102,6 +102,13 @@ echo "Optional tooling:"
 check_optional "mprocs (primary, used by make dev)" "mprocs" "brew install mprocs   (or  cargo install mprocs)"
 check_optional "tmux (used by make dev-tmux)"       "tmux"   "brew install tmux"
 
+# Host dev loop (make dev-host): cargo-watch reruns on save; clang + mold give
+# the fast linker injected via RUSTFLAGS. Missing mold/clang only matters for
+# the host loop — CI and Docker image builds do NOT use mold.
+check_optional "cargo-watch (host dev loop)" "cargo-watch" "cargo install cargo-watch"
+check_optional "clang (host dev loop linker)" "clang" "Debian/Ubuntu: sudo apt-get install clang   |   macOS: ships with Xcode CLT"
+check_optional "mold (host dev loop linker)"  "mold"  "Debian/Ubuntu: sudo apt-get install mold    |   macOS: brew install mold"
+
 if [ -d "${WEB_DIR}/node_modules/@playwright" ]; then
   printf "  ${GREEN}✓${RESET} Playwright browsers (apps/web/node_modules/@playwright present)\n"
 else

@@ -50,17 +50,27 @@ The parent repo's `Makefile` is the entry point for cross-submodule work.
 
 | Target              | What it does                                                  |
 |---------------------|---------------------------------------------------------------|
-| `make dev`          | mprocs (primary): runs `apps/backend` and `apps/web` together |
+| `make dev`          | mprocs (primary): host cargo-watch for all 5 backend services + web; infra in Docker |
+| `make dev-host`     | backend host loop only (infra in Docker + cargo-watch)        |
 | `make dev-tmux`     | tmux fallback (`akademiq` session, two windows)               |
 | `make dev-parallel` | `make -j2` last-resort fallback (logs interleave)             |
 | `make dev-backend`  | only the backend dev loop                                     |
 | `make dev-web`      | only the web dev loop                                         |
 | `make up` / `down`  | backend infra (Postgres 18 + RabbitMQ) detached               |
-| `make build`        | build artefacts in both submodules                            |
-| `make test`         | run tests in both submodules                                  |
+| `make build`        | **SLOW** — build the release deploy images (CI builds these → GHCR) |
+| `make test`         | **SLOW** — run tests in both submodules                       |
+| `make test-e2e`     | **SLOW** — cross-service e2e suite (compose.test.yml)         |
+| `make seed`         | **SLOW** — load demo plans + tenants                          |
+| `make clean`        | **SLOW** next build — delete build artefacts                  |
 | `make migrate`      | delegates to backend                                          |
 | `make submodules`   | `git submodule update --init --recursive`                     |
 | `make doctor`       | checks required tooling and prints install hints              |
+
+**SLOW** targets prompt for confirmation before running (`scripts/confirm.sh`);
+they auto-skip in CI / non-TTY / with `YES=1` — so use `YES=1 make <target>` in
+scripts. The daily loop (`make dev` / `make dev-host`) is cheap and unguarded.
+`make rebuild` was removed — use `make dev`. Full cost/usage table:
+`docs/internal/13_engineering_standards/11_devops_local_setup.md`.
 
 Per-machine config lives in three gitignored `.env` files. Each has a
 committed `.env.example` you can copy:

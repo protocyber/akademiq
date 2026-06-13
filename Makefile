@@ -21,6 +21,7 @@
 #
 # Orchestrator extras:
 #
+#   make dev-host      # backend host loop only (infra in Docker + cargo-watch)
 #   make dev-tmux      # tmux fallback for machines without mprocs
 #   make dev-parallel  # `make -j2` last-resort fallback
 #   make dev-backend   # just the backend dev loop
@@ -48,17 +49,17 @@ MPROCS_CONFIG ?= mprocs.yaml
 TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
-.PHONY: help dev dev-tmux dev-parallel dev-backend dev-web submodules \
-        up down restart rebuild build test test-e2e test-web seed migrate ps stop clean purge doctor
+.PHONY: help dev dev-host dev-tmux dev-parallel dev-backend dev-web submodules \
+        up down build test test-e2e test-web seed migrate ps stop clean purge doctor
 
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 # -----------------------------------------------------------------------------
 # Dev orchestration ladder: mprocs (primary) → tmux (fallback) → -j2 (last)
 # -----------------------------------------------------------------------------
 
-dev: ## Launch backend + web together (mprocs primary)
+dev: ## Launch backend (host cargo-watch) + web together (mprocs primary)
 	@if ! command -v mprocs >/dev/null; then \
 		echo ">> mprocs not found on PATH."; \
 		echo ">>   Install:  brew install mprocs   (or  cargo install mprocs)"; \
@@ -83,6 +84,9 @@ dev: ## Launch backend + web together (mprocs primary)
 	export CARGO_BUILD_JOBS="$${CARGO_BUILD_JOBS:-4}"; \
 	set +a; \
 	mprocs --config $(MPROCS_CONFIG)
+
+dev-host: ## Run only the backend host loop (infra in Docker + cargo-watch)
+	$(MAKE) -C $(BACKEND_DIR) dev-host
 
 dev-tmux: ## Launch backend + web in a tmux session (fallback for no mprocs)
 	@if ! command -v tmux >/dev/null; then \
@@ -123,28 +127,27 @@ up: ## Start backend infra (Postgres + RabbitMQ) detached
 down: ## Stop backend infra
 	$(MAKE) -C $(BACKEND_DIR) down
 
-restart: ## Recreate backend dev containers without rebuilding (env/compose changes)
-	$(MAKE) -C $(BACKEND_DIR) restart
-
-rebuild: ## Force-rebuild backend dev images, then run
-	$(MAKE) -C $(BACKEND_DIR) rebuild
-
-build: ## Build artefacts for both submodules
-	$(MAKE) -C $(BACKEND_DIR) build
+build: ## Build artefacts for both submodules (SLOW)
+	@bash scripts/confirm.sh "make build" "builds the backend release Docker images (~8 min cold) AND the web bundle. For the daily loop use 'make dev'."
+	YES=1 $(MAKE) -C $(BACKEND_DIR) build
 	$(MAKE) -C $(WEB_DIR) build
 
-test: ## Run tests in both submodules
+test: ## Run tests in both submodules (SLOW)
+	@bash scripts/confirm.sh "make test" "compiles and runs the FULL backend + web test suites — several minutes. For a quick check run 'cargo test' in apps/backend."
 	$(MAKE) -C $(BACKEND_DIR) test
 	$(MAKE) -C $(WEB_DIR) test
 
-test-e2e: ## Run cross-service backend e2e suite (compose.test.yml)
-	$(MAKE) -C $(BACKEND_DIR) test-e2e
+test-e2e: ## Run cross-service backend e2e suite (compose.test.yml) (SLOW)
+	@bash scripts/confirm.sh "make test-e2e" "builds the compose.test.yml stack and runs the cross-service suite — several minutes."
+	YES=1 $(MAKE) -C $(BACKEND_DIR) test-e2e
 
-test-web: ## Run web Vitest + Playwright suites
+test-web: ## Run web Vitest + Playwright suites (SLOW)
+	@bash scripts/confirm.sh "make test-web" "runs Vitest + Playwright (may download browsers) — several minutes."
 	$(MAKE) -C $(WEB_DIR) test
 
-seed: ## Load demo data (plans + tenants) into the local stack
-	$(MAKE) -C $(BACKEND_DIR) seed
+seed: ## Load demo data (plans + tenants) into the local stack (SLOW)
+	@bash scripts/confirm.sh "make seed" "builds the seed image and starts the stack — a few minutes on a cold cache."
+	YES=1 $(MAKE) -C $(BACKEND_DIR) seed
 
 migrate: ## Run database migrations (backend only)
 	$(MAKE) -C $(BACKEND_DIR) migrate
@@ -163,9 +166,10 @@ stop: ## Kill all host-run service processes (backend + web dev server)
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) stop
 
-clean: ## Delete build artefacts in both submodules (preserves volumes and node_modules)
+clean: ## Delete build artefacts in both submodules (SLOW next build)
+	@bash scripts/confirm.sh "make clean" "deletes the ~9.5 GB backend target/ and web artefacts; the NEXT build will be a full cold rebuild."
 	@echo ">>> backend"
-	@$(MAKE) -C $(BACKEND_DIR) clean
+	@YES=1 $(MAKE) -C $(BACKEND_DIR) clean
 	@echo ""
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) clean

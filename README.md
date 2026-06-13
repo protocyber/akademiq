@@ -82,8 +82,24 @@ Alternatif `make dev`:
 - `make dev-parallel` — fallback terakhir tanpa tooling tambahan
   (`make -j2`, log digabung)
 
-Target lain: `make up` / `make down` untuk infra backend (Postgres + RabbitMQ),
-`make build` / `make test` mendelegasikan ke kedua submodule.
+### Perintah `make` — kapan dipakai
+
+| Perintah | Kapan dipakai | Biaya |
+|---|---|---|
+| `make dev` / `make dev-host` | Loop harian — tiap perubahan kode (cargo-watch di host, infra di Docker) | ~13 dtk/edit, 0.4 dtk no-op |
+| `make up` / `make down` | Nyalakan/matikan Postgres + RabbitMQ | detik |
+| `make migrate` | Setelah menambah migrasi | cepat |
+| `make seed` | Sekali, untuk memuat data demo | **SLOW** — beberapa menit (cold) |
+| `make build` | Jarang; hanya untuk menguji **image deploy** rilis (CI yang build → GHCR) | **SLOW** — ~8 mnt cold / ~75 dtk per-service |
+| `make test` | Sebelum PR (suite penuh). Cek cepat: `cargo test` di `apps/backend` | **SLOW** — menit |
+| `make test-e2e` | Sebelum PR yang menyentuh alur lintas-service | **SLOW** — menit |
+| `make test-web` | Vitest + Playwright (web) | **SLOW** — menit |
+| `make clean` | Jarang; build berikutnya jadi cold rebuild penuh | **SLOW** build berikutnya — hapus ~9.5 GB |
+| `make purge` | Hapus volume + artefak | destruktif (minta konfirmasi) |
+
+> Target **SLOW** memberi peringatan dan minta konfirmasi sebelum jalan; otomatis
+> dilewati di CI / non-TTY / dengan `YES=1` (mis. `YES=1 make build`).
+> `make rebuild` sudah dihapus — pakai `make dev`.
 
 Setiap submodule juga bisa dijalankan mandiri (`cd apps/backend && make dev`,
 `cd apps/web && make dev`) tanpa parent repo. Detail per-app ada di README
@@ -190,9 +206,24 @@ Alternatives to `make dev`:
 - `make dev-parallel` — last-resort fallback with no extra tooling
   (`make -j2`, logs interleave)
 
-Other targets: `make up` / `make down` manage the backend infra
-(Postgres + RabbitMQ); `make build` / `make test` delegate into both
-submodules.
+### Make commands — when to run what
+
+| Command | When to run | Cost |
+|---|---|---|
+| `make dev` / `make dev-host` | Daily loop — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
+| `make up` / `make down` | Start/stop Postgres + RabbitMQ | seconds |
+| `make migrate` | After adding a migration | fast |
+| `make seed` | Once, to load demo data | **SLOW** — minutes (cold) |
+| `make build` | Rarely; only to test the release **deploy images** (CI builds these → GHCR) | **SLOW** — ~8 min cold / ~75s per-service change |
+| `make test` | Before a PR (full suites). Quick check: `cargo test` in `apps/backend` | **SLOW** — minutes |
+| `make test-e2e` | Before a PR touching cross-service flows | **SLOW** — minutes |
+| `make test-web` | Web Vitest + Playwright | **SLOW** — minutes |
+| `make clean` | Rarely; forces a full cold rebuild next | **SLOW** next build — deletes ~9.5 GB |
+| `make purge` | Nuke volumes + artefacts | destructive (confirms) |
+
+> **SLOW** targets warn and ask before running; auto-skipped in CI / non-TTY /
+> with `YES=1` (e.g. `YES=1 make build`). `make rebuild` was removed — use
+> `make dev`.
 
 Each submodule is also independently runnable
 (`cd apps/backend && make dev`, `cd apps/web && make dev`) without the parent
