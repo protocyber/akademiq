@@ -127,22 +127,27 @@ up: ## Start backend infra (Postgres + RabbitMQ) detached
 down: ## Stop backend infra
 	$(MAKE) -C $(BACKEND_DIR) down
 
-build: ## Build artefacts for both submodules
-	$(MAKE) -C $(BACKEND_DIR) build
+build: ## Build artefacts for both submodules (PRICEY)
+	@bash scripts/confirm.sh "make build" "builds the backend release Docker images (~8 min cold) AND the web bundle. For the daily loop use 'make dev'."
+	YES=1 $(MAKE) -C $(BACKEND_DIR) build
 	$(MAKE) -C $(WEB_DIR) build
 
-test: ## Run tests in both submodules
+test: ## Run tests in both submodules (PRICEY)
+	@bash scripts/confirm.sh "make test" "compiles and runs the FULL backend + web test suites — several minutes. For a quick check run 'cargo test' in apps/backend."
 	$(MAKE) -C $(BACKEND_DIR) test
 	$(MAKE) -C $(WEB_DIR) test
 
-test-e2e: ## Run cross-service backend e2e suite (compose.test.yml)
-	$(MAKE) -C $(BACKEND_DIR) test-e2e
+test-e2e: ## Run cross-service backend e2e suite (compose.test.yml) (PRICEY)
+	@bash scripts/confirm.sh "make test-e2e" "builds the compose.test.yml stack and runs the cross-service suite — several minutes."
+	YES=1 $(MAKE) -C $(BACKEND_DIR) test-e2e
 
-test-web: ## Run web Vitest + Playwright suites
+test-web: ## Run web Vitest + Playwright suites (PRICEY)
+	@bash scripts/confirm.sh "make test-web" "runs Vitest + Playwright (may download browsers) — several minutes."
 	$(MAKE) -C $(WEB_DIR) test
 
-seed: ## Load demo data (plans + tenants) into the local stack
-	$(MAKE) -C $(BACKEND_DIR) seed
+seed: ## Load demo data (plans + tenants) into the local stack (PRICEY)
+	@bash scripts/confirm.sh "make seed" "builds the seed image and starts the stack — a few minutes on a cold cache."
+	YES=1 $(MAKE) -C $(BACKEND_DIR) seed
 
 migrate: ## Run database migrations (backend only)
 	$(MAKE) -C $(BACKEND_DIR) migrate
@@ -161,9 +166,10 @@ stop: ## Kill all host-run service processes (backend + web dev server)
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) stop
 
-clean: ## Delete build artefacts in both submodules (preserves volumes and node_modules)
+clean: ## Delete build artefacts in both submodules (PRICEY next build)
+	@bash scripts/confirm.sh "make clean" "deletes the ~9.5 GB backend target/ and web artefacts; the NEXT build will be a full cold rebuild."
 	@echo ">>> backend"
-	@$(MAKE) -C $(BACKEND_DIR) clean
+	@YES=1 $(MAKE) -C $(BACKEND_DIR) clean
 	@echo ""
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) clean
