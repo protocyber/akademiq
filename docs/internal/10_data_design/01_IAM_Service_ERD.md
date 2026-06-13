@@ -14,12 +14,20 @@ USER {
 
 ROLE {
   uuid role_id PK
+  uuid tenant_id "nullable; NULL = built-in"
+  string code
   string name
+  bool is_builtin
 }
 
 PERMISSION {
   uuid permission_id PK
   string code
+}
+
+ROLE_PERMISSION {
+  uuid role_id FK
+  uuid permission_id FK
 }
 
 USER_TENANT_ROLE {
@@ -38,7 +46,8 @@ REFRESH_TOKEN {
   timestamptz revoked_at "nullable"
 }
 
-ROLE ||--o{ PERMISSION : grants
+ROLE ||--o{ ROLE_PERMISSION : has
+PERMISSION ||--o{ ROLE_PERMISSION : included
 USER ||--o{ USER_TENANT_ROLE : assigned
 ROLE ||--o{ USER_TENANT_ROLE : scoped
 USER ||--o{ REFRESH_TOKEN : holds
@@ -51,9 +60,10 @@ This service handles authentication and authorization.
 | Entity | Purpose |
 |-------|---------|
 | User | Login identity. `username` is the universal key; `email`, `password_hash`, and `google_sub` are all optional, enabling email/username/Google login and passwordless accounts. `google_sub` has a partial unique index when present. |
-| Role | Group of permissions |
-| Permission | Fine-grained access control |
-| User Tenant Role | Role assignment per tenant (a user may have zero or many) |
+| Role | Group of permissions. Built-in roles have `tenant_id = NULL`; custom roles are tenant-scoped and cannot shadow built-in codes. |
+| Permission | Fixed platform-owned action vocabulary used by authorization guards. |
+| Role Permission | Many-to-many grant table between roles and permissions. |
+| User Tenant Role | Role assignment per tenant (a user may hold one or many roles in a tenant) |
 | Refresh Token | Tenant-scoped refresh credential; refreshing renews the same tenant's access token |
 
 ## 🔗 Important Relationships
@@ -61,7 +71,7 @@ Users receive roles within a tenant scope, and roles grant permissions. Identity
 and membership are separate: a user can exist with **no** tenant membership
 (public signup or Google auto-provision) and may belong to **many** tenants.
 Login resolves a user without a tenant; a tenant is selected afterward, and
-`User Tenant Role` is checked when issuing a tenant-scoped token.
+`User Tenant Role` is checked when issuing a tenant-scoped token. The access token carries both `roles[]` (role identity for display/workflows) and `perms[]` (deduplicated permission union used by guards).
 
 Google-only users have `password_hash = NULL`; password login against these rows
 returns `INVALID_CREDENTIALS` after a dummy password verification. Verified

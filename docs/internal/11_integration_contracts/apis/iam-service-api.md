@@ -19,8 +19,8 @@ Login is a **two-step exchange**:
    tenant-less routes: `GET /me`, `GET /my-tenants`, `POST /tenants/{id}/enter`,
    and invitation acceptance.
 2. **Enter a tenant** (`POST /tenants/{id}/enter`) → a **tenant-scoped token**
-   (`{ sub, tenant_id, role, typ:"access" }`, 15-min TTL) plus a tenant-scoped
-   refresh token. This is the token every other service verifies.
+   (`{ sub, tenant_id, roles, perms, typ:"access" }`, 15-min TTL) plus a
+   tenant-scoped refresh token. This is the token every other service verifies.
 
 A user may belong to zero, one, or many tenants. Refresh tokens are scoped to a
 tenant; switching tenants is a fresh `/enter`, not a refresh.
@@ -145,7 +145,7 @@ Returns the caller's memberships (empty for a 0-tenant user):
 ```json
 {
   "data": [
-    { "tenant_id": "uuid", "tenant_name": "string", "role_code": "tenant_admin" }
+    { "tenant_id": "uuid", "tenant_name": "string", "roles": ["tenant_admin"] }
   ],
   "meta": {}
 }
@@ -162,7 +162,12 @@ Verifies membership in `{id}` and issues a **tenant-scoped** token:
     "refresh_token": "<jti>.<random>",
     "expires_in": 900
   },
-  "meta": { "user_id": "uuid", "tenant_id": "uuid", "role": "tenant_admin" }
+  "meta": {
+    "user_id": "uuid",
+    "tenant_id": "uuid",
+    "roles": ["tenant_admin"],
+    "perms": ["user.invite", "user.role.assign", "role.manage"]
+  }
 }
 ```
 
@@ -186,7 +191,7 @@ tenant-scoped token. Returns the user's profile and memberships. `email` may be
     "full_name": "string",
     "status": "active|disabled|pending",
     "memberships": [
-      { "tenant_id": "uuid", "role_code": "tenant_admin" }
+      { "tenant_id": "uuid", "roles": ["tenant_admin"] }
     ]
   },
   "meta": {}
@@ -195,19 +200,20 @@ tenant-scoped token. Returns the user's profile and memberships. `email` may be
 
 ## Tenant user management endpoints
 
-All `/tenants/me/*` endpoints are authenticated and require the `tenant_admin`
-role from the JWT. The tenant scope is resolved from the JWT `tenant_id` claim;
-clients MUST NOT send `tenant_id` in these requests.
+All `/tenants/me/*` endpoints are authenticated with a tenant-scoped access
+JWT. Authorization checks use `perms[]`, not a single role name. The tenant
+scope is resolved from the JWT `tenant_id` claim; clients MUST NOT send
+`tenant_id` in these requests.
 
-Assignable roles: `teacher`, `homeroom_teacher`, `principal`, `parent`,
-`student`.
+Built-in roles are immutable templates. Tenant admins may create custom roles
+from the fixed permission palette and assign users one or more roles.
 
 ### `POST /tenants/me/invitations`
 
 Request:
 
 ```json
-{ "email": "teacher@school.test", "role": "teacher" }
+{ "email": "teacher@school.test", "roles": ["teacher", "homeroom_teacher"] }
 ```
 
 Success (201):
@@ -217,7 +223,7 @@ Success (201):
   "data": {
     "invitation_id": "uuid",
     "email": "teacher@school.test",
-    "role_code": "teacher",
+      "roles": ["teacher", "homeroom_teacher"],
     "status": "pending",
     "expires_at": "2026-06-16T12:00:00Z",
     "activation_link": "/invitations/accept?token=<token>",
@@ -246,7 +252,7 @@ Returns invitations for the current tenant.
       "invitation_id": "uuid",
       "tenant_id": "uuid",
       "email": "teacher@school.test",
-      "role_code": "teacher",
+    "roles": ["teacher", "homeroom_teacher"],
       "status": "pending",
       "expires_at": "2026-06-16T12:00:00Z",
       "invited_by": "uuid",
@@ -295,24 +301,28 @@ Returns tenant users and roles.
       "email": "teacher@school.test|null",
       "full_name": "Teacher Name",
       "status": "active",
-      "role_code": "teacher"
+      "roles": ["teacher", "homeroom_teacher"]
     }
   ],
   "meta": {}
 }
 ```
 
-### `PATCH /tenants/me/users/{id}/role`
+### `POST /tenants/me/users/{id}/roles/{roleId}`
 
-Request:
+Requires `user.role.assign`. Adds one built-in or tenant-scoped custom role to
+the user. Returns 204 and emits `tenant_user.role_assigned`.
 
-```json
-{ "role": "principal" }
-```
+### `DELETE /tenants/me/users/{id}/roles/{roleId}`
 
-Returns 204 and emits `tenant_user.role_changed`. Existing access tokens keep
-their old role until expiry; refresh-token rotation issues a new access token
-with the current role.
+Requires `user.role.assign`. Removes one role from the user. Returns 204 and
+emits `tenant_user.role_removed`. A removal that would leave zero tenant users
+holding `user.role.assign` returns `409 LAST_ADMIN`.
+
+`PATCH /tenants/me/users/{id}/role` is retained as a legacy single-role swap for
+one compatibility window; new clients should use the add/remove endpoints.
+Existing access tokens keep their old role set until expiry; refresh-token
+rotation issues a new access token with current `roles[]`/`perms[]`.
 
 ### `POST /tenants/me/users/{id}/disable`
 
@@ -329,6 +339,48 @@ Returns a temporary password for the admin to share manually.
 ```json
 { "data": { "temporary_password": "string" }, "meta": {} }
 ```
+
+## Role catalog endpoints
+
+### `GET /tenants/me/permissions`
+
+Requires `role.manage`. Returns the fixed assignable permission palette; each
+entry includes whether the current admin holds it, so clients can hide disabled
+escalation choices.
+
+```json
+{ "data": [{ "code": "user.invite", "description": "...", "held": true }], "meta": {} }
+```
+
+### `GET /tenants/me/roles`
+
+Requires `role.manage`. Returns built-in roles (`is_builtin=true`, read-only)
+and tenant custom roles.
+
+```json
+{
+  "data": [
+    { "role_id": "uuid", "code": "teacher", "name": "Subject teacher", "is_builtin": true, "permissions": ["grade.record"] }
+  ],
+  "meta": {}
+}
+```
+
+### `POST /tenants/me/roles`
+
+Requires `role.manage`. Creates a tenant-scoped custom role.
+
+```json
+{ "code": "wakil_kurikulum", "name": "Wakil Kepala Kurikulum", "permissions": ["academic.config.write"] }
+```
+
+The server rejects built-in code shadowing with `VALIDATION_ERROR` and rejects
+permissions the caller lacks with `403 PRIVILEGE_ESCALATION`.
+
+### `GET/PATCH/DELETE /tenants/me/roles/{id}`
+
+Requires `role.manage`. Built-in roles are immutable (`BUILT_IN_ROLE_IMMUTABLE`).
+Deleting a role that is still assigned returns `409 ROLE_IN_USE`.
 
 ## Internal endpoints
 
