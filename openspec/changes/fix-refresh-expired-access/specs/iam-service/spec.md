@@ -39,3 +39,31 @@ access token.
 - **WHEN** a client calls `/auth/logout` with an expired access token and a valid
   refresh token
 - **THEN** the refresh token is revoked and the response is `204`
+
+### Requirement: `/me` SHALL authenticate with either an identity or a tenant-scoped access token
+
+`GET /api/v1/iam/me` (and `GET /api/v1/iam/my-tenants`) MUST resolve the caller's
+`user_id` from **either** a valid identity token (`typ:"identity"`) **or** a valid
+tenant-scoped access token (`typ:"access"`). Requiring the identity token alone
+forced a logout once it expired: the identity token has a short TTL and is
+**non-refreshable**, whereas after tenant entry the client holds a tenant-scoped
+access token that is silently renewable via the refresh token for the full
+refresh-token lifetime. Accepting the access token lets the session survive
+identity-token expiry.
+
+#### Scenario: `/me` succeeds with a tenant-scoped access token
+
+- **WHEN** a client calls `/me` with a valid tenant-scoped access token and no
+  identity token
+- **THEN** the service returns the caller's profile with `200`
+
+#### Scenario: `/me` succeeds with an identity token (pre-tenant-entry)
+
+- **WHEN** a client calls `/me` with a valid identity token
+- **THEN** the service returns the caller's profile with `200`
+
+#### Scenario: `/me` surfaces `EXPIRED_ACCESS_TOKEN` for an expired access token
+
+- **WHEN** a client calls `/me` with an expired tenant-scoped access token
+- **THEN** the service responds `401` with code `EXPIRED_ACCESS_TOKEN` so the web
+  client recognizes it and triggers a silent refresh instead of logging out

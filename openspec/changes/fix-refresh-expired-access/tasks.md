@@ -26,4 +26,18 @@
 ## 5. Verify
 
 - [x] 5.1 `cd apps/backend && make test` (or `cargo test -p iam-service`) — all green
-- [ ] 5.2 Manual/e2e: idle past 15 min, resume activity → request silently refreshes, no forced logout (web on-401 path unchanged)
+- [ ] 5.2 Manual/e2e (user to confirm): idle past identity TTL, resume activity / refresh browser → silent refresh, no forced logout, no "Tidak bisa memuat pengaturan akademik"
+
+## 6. `/me` must not depend on the non-refreshable identity token (`iam-service` + `web`)
+
+Root cause of the *remaining* forced-logout reports: after tenant entry the web
+client still drove `useMe`/`useAuth` off the short-lived, **non-refreshable**
+identity token; once it expired (~10 min) `/me` 401'd and was never refreshed,
+so `AuthGuard`/academic pages bounced to login ("Tidak bisa memuat pengaturan
+akademik").
+
+- [x] 6.1 `common-auth`: add `AnyUserAuthContext` extractor (identity token first, fall back to access token; expired → `EXPIRED_ACCESS_TOKEN`); export from `lib.rs`
+- [x] 6.2 `iam-service/src/http.rs`: `me_handler` and `my_tenants_handler` use `AnyUserAuthContext`
+- [x] 6.3 `web/use-me.ts`: send `/me` via `authenticated:true` when a scoped access token exists (so 401 → silent refresh), else `identityAuthenticated:true`
+- [x] 6.4 Tests: `/me` 200 with access token; `/me` 200 with identity token; `/me` expired access token → 401 `EXPIRED_ACCESS_TOKEN`
+- [x] 6.5 Web `pnpm typecheck` + `pnpm lint` green

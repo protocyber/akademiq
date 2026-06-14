@@ -19,11 +19,23 @@ Login is a **two-step exchange**:
    tenant-less routes: `GET /me`, `GET /my-tenants`, `POST /tenants/{id}/enter`,
    and invitation acceptance.
 2. **Enter a tenant** (`POST /tenants/{id}/enter`) → a **tenant-scoped token**
-   (`{ sub, tenant_id, roles, perms, typ:"access" }`, 15-min TTL) plus a
-   tenant-scoped refresh token. This is the token every other service verifies.
+   (`{ sub, tenant_id, roles, perms, typ:"access" }`) plus a tenant-scoped
+   refresh token. This is the token every other service verifies.
 
 A user may belong to zero, one, or many tenants. Refresh tokens are scoped to a
 tenant; switching tenants is a fresh `/enter`, not a refresh.
+
+**Lifetimes** (defaults; all configurable via env on iam-service):
+
+| Token | Env var | Default | Refreshable |
+| --- | --- | --- | --- |
+| identity | `IDENTITY_TOKEN_TTL_SECONDS` | 600 (10 min) | no — re-login |
+| access | `ACCESS_TOKEN_TTL_SECONDS` | 900 (15 min) | yes — via refresh token |
+| refresh | — | 7 days | rotated on each refresh |
+
+Because the identity token is short-lived and non-refreshable, clients SHOULD
+switch to the tenant-scoped access token once a tenant has been entered (e.g. for
+`/me`), so an expired token triggers a silent refresh rather than a forced logout.
 
 ## Auth endpoints
 
@@ -117,7 +129,10 @@ Account resolution rules:
 
 ### `POST /auth/refresh`
 
-Authenticated via `Authorization: Bearer <expired-or-valid tenant-scoped access>`.
+Authenticated by the **refresh token alone** — no access token required. The
+handler resolves the owning user from the refresh token's embedded `jti`, so an
+expired (or absent) access token does not block refresh. Any `Authorization`
+header is ignored.
 
 Request body:
 
@@ -132,11 +147,15 @@ Errors: `INVALID_REFRESH_TOKEN` (401), `EXPIRED_REFRESH_TOKEN` (401).
 
 ### `POST /auth/logout`
 
-Authenticated. Body: `{ "refresh_token": "..." }`. Returns 204.
+Body: `{ "refresh_token": "..." }`. Revokes the refresh token by its `jti` and
+returns 204. Like refresh, it requires no live access token.
 
 ## Tenant selection endpoints
 
-Authenticated by an **identity token**.
+Authenticated by an **identity token or a tenant-scoped access token** —
+`/my-tenants` and `/me` accept either, so a user who has already entered a tenant
+(holding only an access token) can still list memberships and switch tenants.
+`POST /tenants/{id}/enter` likewise accepts either token.
 
 ### `GET /my-tenants`
 
@@ -178,8 +197,10 @@ Errors: `FORBIDDEN` (403) when the caller is not a member of `{id}`.
 ### `GET /me`
 
 Authenticated — works with an **identity token** (no tenant entered) or a
-tenant-scoped token. Returns the user's profile and memberships. `email` may be
-`null` for users without one.
+tenant-scoped access token. Returns the user's profile and memberships. `email`
+may be `null` for users without one. An expired access token returns `401`
+`EXPIRED_ACCESS_TOKEN` so the web client triggers a silent refresh instead of
+logging out.
 
 ```json
 {
@@ -469,16 +490,31 @@ escalation choices.
 ### `GET /tenants/me/roles`
 
 Requires `role.manage`. Returns built-in roles (`is_builtin=true`, read-only)
-and tenant custom roles.
+and tenant custom roles in a server-paginated envelope. Query params: `search`
+matches role name or code case-insensitively; `page` defaults to `1`;
+`page_size` defaults to `25` and clamps to `100`; `sort` accepts `name`,
+`-name`, `type`, `-type`, `users`, or `-users` (default lists built-in roles
+before custom roles, then by code). Each role view includes `user_count`: the
+number of users **in the calling tenant** holding that role (computed
+per-tenant even for built-in roles).
 
 ```json
 {
   "data": [
-    { "role_id": "uuid", "code": "teacher", "name": "Subject teacher", "is_builtin": true, "permissions": ["grade.record"] }
+    {
+      "role_id": "uuid",
+      "code": "teacher",
+      "name": "Subject teacher",
+      "is_builtin": true,
+      "permissions": ["grade.record"],
+      "user_count": 3
+    }
   ],
-  "meta": {}
+  "meta": { "page": 1, "page_size": 25, "total": 1 }
 }
 ```
+
+Invalid sort values return `400 INVALID_SORT`.
 
 ### `POST /tenants/me/roles`
 
@@ -495,6 +531,23 @@ permissions the caller lacks with `403 PRIVILEGE_ESCALATION`.
 
 Requires `role.manage`. Built-in roles are immutable (`BUILT_IN_ROLE_IMMUTABLE`).
 Deleting a role that is still assigned returns `409 ROLE_IN_USE`.
+
+### `POST /tenants/me/roles/bulk/delete`
+
+Requires `role.manage`. Deletes multiple custom roles in one all-or-nothing
+request. Request:
+
+```json
+{ "role_ids": ["uuid", "uuid"] }
+```
+
+The endpoint pre-validates **every** id before deleting anything: if any id is a
+built-in role the whole request is refused with `403 BUILT_IN_ROLE_IMMUTABLE`;
+if any id is still assigned to one or more users the whole request is refused
+with `409 ROLE_IN_USE`; any id that is not a custom role of the calling tenant
+returns `404`. Only when every id passes does it delete them all in a single
+transaction, emitting one `role.deleted` event per deleted role (the same event
+the single-role delete emits). Returns 204 on success.
 
 ## Internal endpoints
 

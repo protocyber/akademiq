@@ -29,6 +29,8 @@
 #   make ps            # show status of all services (backend + web)
 #   make stop          # kill all host-run service processes (backend + web)
 #   make clean         # delete build artefacts in both submodules (keeps volumes)
+#   make clean-storage # delete backend Cargo target/ only (SLOW next backend build)
+#   make clean-storage-incremental # delete backend Cargo incremental cache only
 #   make purge         # DESTRUCTIVE: delete volumes + all artefacts (confirmation required)
 #   make submodules    # `git submodule update --init --recursive`
 #   make doctor        # check required dev tooling, print install hints
@@ -50,7 +52,8 @@ TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
 .PHONY: help dev dev-tmux dev-parallel dev-backend dev-web submodules \
-        up down build test test-e2e test-web seed migrate ps stop clean purge doctor
+        up down build test test-e2e test-web seed migrate ps stop clean \
+        clean-storage clean-storage-incremental purge doctor
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -170,6 +173,17 @@ clean: ## Delete build artefacts in both submodules (SLOW next build)
 	@echo ""
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) clean
+
+clean-storage: ## Delete backend Cargo target/ only (SLOW next backend build)
+	@bash scripts/confirm.sh "make clean-storage" "runs 'cargo clean' in $(BACKEND_DIR); this frees Cargo build artefacts but the NEXT backend build will be a full cold rebuild."
+	@$(MAKE) -C $(BACKEND_DIR) stop
+	@cd $(BACKEND_DIR) && cargo clean
+	@echo ">> backend Cargo target/ deleted"
+
+clean-storage-incremental: ## Delete backend Cargo incremental cache only
+	@bash scripts/confirm.sh "make clean-storage-incremental" "deletes $(BACKEND_DIR)/target/debug/incremental; rebuilds may be slower, but most compiled dependencies are preserved."
+	@rm -rf $(BACKEND_DIR)/target/debug/incremental
+	@echo ">> backend Cargo incremental cache deleted"
 
 purge: ## DESTRUCTIVE: delete volumes + all build artefacts (requires confirmation)
 	@bash scripts/purge.sh

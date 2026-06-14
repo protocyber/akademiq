@@ -49,13 +49,16 @@ end
 ## Notes
 
 - **Identity token**: `{ sub, typ:"identity" }`, short-lived, non-refreshable. It
-  authorizes only tenant-less routes (`/me`, `/my-tenants`, `/tenants/{id}/enter`,
-  invitation acceptance).
-- **Tenant-scoped token**: `{ sub, tenant_id, role, typ:"access" }` — the
-  unchanged token every other service verifies. Only `POST /tenants/{id}/enter`
-  mints it, and only after checking `user_tenant_role` membership.
-- **Refresh tokens are tenant-scoped**: refreshing renews the same tenant's token;
-  switching tenants is a fresh `/enter`, not a refresh.
+  authorizes tenant-less routes. `/me` and `/my-tenants` also accept a
+  tenant-scoped access token, so a user who has entered a tenant need not retain
+  the identity token.
+- **Tenant-scoped token**: `{ sub, tenant_id, roles, perms, typ:"access" }` — the
+  token every other service verifies. Only `POST /tenants/{id}/enter` mints it,
+  and only after checking `user_tenant_role` membership. Carries `roles[]` (role
+  identity) and the deduplicated `perms[]` union (authorization).
+- **Refresh tokens are tenant-scoped**: refreshing renews the same tenant's token
+  using the refresh token alone (no live access token needed); switching tenants
+  is a fresh `/enter`, not a refresh.
 - **Identity ≠ membership**: accounts are created by public signup, by Google
   auto-provisioning, or by invitation; tenant membership is granted separately by
   accepting an invitation. An account can exist with no tenants.
