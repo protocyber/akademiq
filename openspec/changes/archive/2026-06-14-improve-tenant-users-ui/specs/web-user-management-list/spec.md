@@ -1,10 +1,4 @@
-# web-user-management-list Specification
-
-## Purpose
-
-Defines requirements for the tenant users list screen in the web app: server-driven table with search, filters, sort, and pagination, URL-synchronized view state, multi-select bulk actions, and CSV export plus user CRUD via modals (add/edit/reset-password/enable/disable/remove-from-tenant).
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: The tenant users screen SHALL be a server-driven table with search, filters, sort, and pagination
 
@@ -31,23 +25,6 @@ MUST appear below the main table rather than beside it.
 
 - **WHEN** an admin opens `settings/users`
 - **THEN** the data table renders first and the pending-invitations section appears below it
-
-### Requirement: View state SHALL be synchronized to the browser URL
-
-The active `search`, `role`, `status`, `page`, `page_size`, and `sort` MUST be
-reflected in the browser query string and MUST be restored from the query string on
-load. Refreshing, bookmarking, or sharing the URL MUST reproduce the same
-filtered/paged/sorted view. Updating view state MUST NOT spam browser history.
-
-#### Scenario: Refresh restores the same view
-
-- **WHEN** an admin applies `search=budi`, `role=teacher`, `page=3` and refreshes the browser
-- **THEN** the table reloads showing the same search term, role filter, and page
-
-#### Scenario: Shared URL reproduces the view
-
-- **WHEN** an admin copies the URL with active filters and opens it in a new tab
-- **THEN** the same filtered, paginated view is shown
 
 ### Requirement: The table SHALL support multi-select bulk actions
 

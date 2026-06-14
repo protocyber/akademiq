@@ -1,37 +1,4 @@
-# web-user-role-management Specification
-
-## Purpose
-
-Defines requirements for role-related UI in the web app: a role-management screen with permission matrix, the user list showing and editing multiple roles per user, permission-gated UI controls, and multiselect role selection in the invitation modal.
-
-## Requirements
-
-### Requirement: Admins SHALL manage a role catalog with a permission matrix
-
-The web app MUST provide a role-management screen (e.g. `settings/roles`),
-visible to users holding `role.manage`. It MUST list built-in and custom roles,
-show each role's permissions, and allow creating, editing, and deleting **custom**
-roles via a permission-matrix selector sourced from `GET /tenants/me/permissions`.
-Built-in roles MUST be presented as read-only with an option to clone into a new
-custom role. The permission selector MUST only offer permissions the current
-admin holds (no-escalation), and surface server `PRIVILEGE_ESCALATION` errors.
-
-#### Scenario: Admin views the role catalog
-
-- **WHEN** an admin opens `settings/roles`
-- **THEN** built-in roles appear read-only and custom roles appear editable, each
-  showing its permission set
-
-#### Scenario: Admin clones a built-in role
-
-- **WHEN** an admin clones `teacher` and removes `grade.record` from the clone
-- **THEN** a new custom role is created without `grade.record`, and the built-in
-  `teacher` is unchanged
-
-#### Scenario: Role screen hidden without permission
-
-- **WHEN** a user without `role.manage` is signed in
-- **THEN** the role-management entry point is not shown and the route is guarded
+## MODIFIED Requirements
 
 ### Requirement: The user list SHALL show and edit multiple roles per user
 
@@ -60,16 +27,7 @@ user is not silently un-enrolled from the tenant.
 - **THEN** the UI surfaces the `LAST_ROLE` refusal, the role is retained, and the
   user remains visible in the list
 
-### Requirement: The UI SHALL gate controls on the caller's permissions
-
-UI affordances (invite, disable, assign role, manage roles) MUST be shown/enabled
-based on the permissions in the caller's token (`perms`), not on a single role
-name.
-
-#### Scenario: Controls reflect held permissions
-
-- **WHEN** a signed-in user's `perms` lacks `user.disable`
-- **THEN** the enable/disable control is hidden or disabled for that user
+## ADDED Requirements
 
 ### Requirement: Invitation role selection SHALL use a multiselect dropdown
 

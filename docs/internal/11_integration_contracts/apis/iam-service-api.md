@@ -76,7 +76,7 @@ Success (201): same identity-token envelope as `/auth/login`. The account starts
 with `email_verified=false` and is usable immediately (verify-later).
 
 Errors: `VALIDATION_ERROR` (400), `EMAIL_ALREADY_EXISTS` (409),
-`USERNAME_ALREADY_EXISTS` (409).
+`USERNAME_TAKEN` (409).
 
 ### `GET /auth/google/start`
 
@@ -320,6 +320,83 @@ Returns a CSV download (`text/csv`) for the same `search`, `role`, and `status`
 filters as the list endpoint, without pagination. The response sets
 `Content-Disposition: attachment; filename=tenant-users.csv`.
 
+### `POST /tenants/me/users`
+
+Requires `user.invite`. Creates a brand-new user and grants one or more
+assignable roles in a single transaction. `tenant_id` is resolved from the
+access token (never the body). Request:
+
+```json
+{
+  "username": "budi_guru",
+  "full_name": "Budi Santoso",
+  "roles": ["teacher", "homeroom_teacher"],
+  "email": "budi@school.test",
+  "password": "optional-secret"
+}
+```
+
+`username` is required, must not contain `@`, must match
+`^[a-z][a-z0-9_-]{2,63}$`, and must be globally unique case-insensitively.
+`email` is optional and, when present, must be unique-if-present
+case-insensitively. `password` is optional: when omitted the account is created
+in `pending` status (reset-required, the same end state as an unaccepted
+invitation) and the admin issues an activation link via the reset-password
+endpoint. At least one assignable role is required.
+
+Create is strictly for *new* people. If the `username` or `email` already
+belongs to an existing user the request fails with a conflict
+(`409 USERNAME_TAKEN` or `409 EMAIL_ALREADY_EXISTS`) whose message directs the
+admin to the invitation flow — there is no silent upsert into membership.
+
+Success (201):
+
+```json
+{
+  "data": {
+    "user_id": "uuid",
+    "username": "budi_guru",
+    "email": "budi@school.test|null",
+    "full_name": "Budi Santoso",
+    "roles": ["teacher", "homeroom_teacher"]
+  },
+  "meta": {}
+}
+```
+
+Emits `tenant_user.created`. Errors: `VALIDATION_ERROR` (400, including a
+`username` field error when it contains `@` or is malformed), `USERNAME_TAKEN`
+(409), `EMAIL_ALREADY_EXISTS` (409), `403` for callers without `user.invite`.
+
+### `PATCH /tenants/me/users/{id}`
+
+Requires the `user.update` permission (distinct from `user.invite` because a
+changed `username` rewrites the global login key). Updates a member user's
+identity fields. Only the fields present in the body are changed:
+
+```json
+{ "username": "budi_baru", "email": "new@school.test", "full_name": "Budi S." }
+```
+
+`username` must remain globally unique case-insensitively and must not contain
+`@`; `email` must remain unique-if-present. The target must be a member of the
+caller's tenant (≥1 role) or the response is `404`. Editing `username` does NOT
+invalidate live sessions (access tokens key off `sub`, not `username`). Success
+(200) returns the updated user and emits `tenant_user.updated`, whose payload
+records which identity fields changed (consumed by the audit log). Errors:
+`VALIDATION_ERROR` (400), `USERNAME_TAKEN` (409), `404` for non-members, `403`
+for callers without `user.update`.
+
+### `DELETE /tenants/me/users/{id}`
+
+Requires `user.disable`. Explicit off-boarding: removes ALL of the user's roles
+in the caller's tenant in one transaction and un-enrolls them from the tenant.
+This is the sanctioned path to remove a member now that dropping a user's last
+role is refused with `LAST_ROLE`. Honors the last-admin guard: removing the
+tenant's only holder of `user.role.assign` returns `409 LAST_ADMIN`. Returns
+`404` when the user is not a member. Returns 204 on success and emits
+`tenant_user.removed`. The global `user` record is NOT deleted.
+
 ### `POST /tenants/me/users/{id}/roles/{roleId}`
 
 Requires `user.role.assign`. Adds one built-in or tenant-scoped custom role to
@@ -329,7 +406,11 @@ the user. Returns 204 and emits `tenant_user.role_assigned`.
 
 Requires `user.role.assign`. Removes one role from the user. Returns 204 and
 emits `tenant_user.role_removed`. A removal that would leave zero tenant users
-holding `user.role.assign` returns `409 LAST_ADMIN`.
+holding `user.role.assign` returns `409 LAST_ADMIN`. A removal that would leave
+the user with zero roles in the tenant returns `409 LAST_ROLE` (tenant
+membership is expressed solely through `user_tenant_role` rows, so dropping the
+last role would silently un-enroll the user; use an explicit tenant-removal
+action instead).
 
 `PATCH /tenants/me/users/{id}/role` is retained as a legacy single-role swap for
 one compatibility window; new clients should use the add/remove endpoints.
@@ -455,7 +536,7 @@ Errors:
 |----------------------------|------|-------|
 | `VALIDATION_ERROR`         | 400  | Field-level errors. |
 | `EMAIL_ALREADY_EXISTS`     | 409  | `email` already in `user.email` (case-insensitive). |
-| `USERNAME_ALREADY_EXISTS`  | 409  | `username` already taken (case-insensitive). |
+| `USERNAME_TAKEN`           | 409  | `username` already taken (case-insensitive). |
 | `UNAUTHORIZED_SERVICE_CALL`| 401  | Missing or wrong `X-Service-Token`. |
 
 ### `DELETE /internal/users/{id}`

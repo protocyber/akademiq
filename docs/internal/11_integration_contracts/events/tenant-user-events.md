@@ -74,3 +74,66 @@ Payload:
   "user_id": "uuid"
 }
 ```
+
+## `tenant_user.created`
+
+Routing key: `tenant_user.created`
+
+Emitted when a tenant admin creates a brand-new user directly (not via
+invitation) through `POST /tenants/me/users`. Payload:
+
+```json
+{
+  "tenant_id": "uuid",
+  "user_id": "uuid",
+  "username": "budi_guru",
+  "email": "budi@school.test|null",
+  "full_name": "Budi Santoso",
+  "roles": ["teacher", "homeroom_teacher"]
+}
+```
+
+## `tenant_user.updated`
+
+Routing key: `tenant_user.updated`
+
+Emitted when a tenant admin updates a user's identity fields through
+`PATCH /tenants/me/users/{id}`. The `changes` object records only the fields
+that actually changed, each as a `{ "from": ..., "to": ... }` pair, so the audit
+log can render a meaningful entry. Payload:
+
+```json
+{
+  "tenant_id": "uuid",
+  "user_id": "uuid",
+  "changes": {
+    "full_name": { "from": "Budi", "to": "Budi Santoso" },
+    "username": { "from": "budi", "to": "budi_guru" }
+  }
+}
+```
+
+Editing `username` rewrites the global login key but does NOT invalidate live
+sessions (access tokens key off `sub`, not `username`).
+
+## `tenant_user.removed`
+
+Routing key: `tenant_user.removed`
+
+Emitted when a tenant admin explicitly off-boards a user through
+`DELETE /tenants/me/users/{id}`, dropping ALL of the user's roles in the tenant
+in one transaction. The global `user` record is not deleted. Payload:
+
+```json
+{
+  "tenant_id": "uuid",
+  "user_id": "uuid",
+  "roles": ["teacher", "homeroom_teacher"]
+}
+```
+
+The role-set events `tenant_user.role_assigned` (add) and
+`tenant_user.role_removed` (remove) keep their existing names. The single-role
+*replace* path emits `tenant_user.role_changed` and is unchanged. Bulk
+role-change MUST be implemented via add/remove (so the `LAST_ROLE` / `LAST_ADMIN`
+guards run) and MUST NOT route through the replace path.

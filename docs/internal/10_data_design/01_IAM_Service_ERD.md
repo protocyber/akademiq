@@ -77,3 +77,19 @@ Google-only users have `password_hash = NULL`; password login against these rows
 returns `INVALID_CREDENTIALS` after a dummy password verification. Verified
 Google email auto-link sets both `google_sub` and `email_verified=true` on the
 existing row.
+
+## ⚠️ Last-role invariant
+
+Tenant membership is expressed **solely** through `User Tenant Role` rows —
+there is no separate membership table. A user belongs to a tenant only while
+they hold ≥1 role there. Because of this:
+
+- Removing a user's **last** role in a tenant is refused with `409 LAST_ROLE`
+  (it would silently un-enroll them). Use the explicit off-boarding action
+  (`DELETE /tenants/me/users/{id}`) instead, which drops all of the user's roles
+  in the tenant in one transaction and emits `tenant_user.removed`.
+- Removing the tenant's only holder of `user.role.assign` is refused with
+  `409 LAST_ADMIN`.
+
+Neither guard deletes the global `User` row; off-boarding only removes the
+tenant's `User Tenant Role` rows.
