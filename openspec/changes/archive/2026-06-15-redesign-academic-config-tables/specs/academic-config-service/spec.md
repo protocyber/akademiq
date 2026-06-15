@@ -65,7 +65,7 @@ with no deletions.
 - Class template: `PATCH /class-templates/{id}` MUST update grade level and
   default capacity; `DELETE` MUST always succeed (templates are advisory).
 
-### Cross-service usage projection
+#### Cross-service usage projection
 
 The `YEAR_IN_USE` and `SUBJECT_IN_USE` guards depend on `homeroom` and
 `teaching_assignment` data owned by the academic-ops service in a separate

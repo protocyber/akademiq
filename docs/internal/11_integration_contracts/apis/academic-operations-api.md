@@ -11,6 +11,40 @@ All responses use the standard success envelope:
 Validation errors use the standard validation envelope. Import validation uses
 HTTP 422 with row-level errors.
 
+## Lists, pagination, and sorting
+
+The list endpoints for students, teachers, homerooms, and teaching assignments
+(`GET /students`, `GET /teachers`, `GET /homerooms`, `GET /teaching-assignments`)
+all accept the same query parameters and return a paginated envelope:
+
+| Parameter   | Meaning                                                                   |
+| ----------- | ------------------------------------------------------------------------- |
+| `search`    | Case-insensitive substring match on the resource's name field (and NIS/NIP). |
+| `sort`      | A whitelisted sort key for the resource; prefix `-` for descending.        |
+| `page`      | 1-based page number (default `1`).                                        |
+| `page_size` | Rows per page, clamped to `1..100` (default `25`).                        |
+
+Per-resource `sort` whitelists:
+
+- Students: `name`, `nis`, `birth_date` (e.g. `-nis`).
+- Teachers: `name`, `nip`.
+- Homerooms: `name`, `grade_level`.
+- Teaching assignments: `created`, `teacher`, `homeroom` (default `-created`).
+
+An unknown `sort` value is rejected with `400 INVALID_SORT`. Teaching assignments
+additionally accept `academic_year_id` and `homeroom_id` filters.
+
+The response envelope is:
+
+```json
+{
+  "data": [],
+  "meta": { "page": 1, "page_size": 25, "total": 0 }
+}
+```
+
+`total` reflects the full filtered count, independent of the requested page.
+
 ## Health
 
 ### GET `/healthz`
@@ -36,7 +70,9 @@ Errors:
 
 ### GET `/students`
 
-Lists tenant-scoped students ordered by name.
+Lists tenant-scoped students. Accepts `search`, `sort`, `page`, `page_size`
+(see [Lists, pagination, and sorting](#lists-pagination-and-sorting)) and
+returns the paginated envelope.
 
 ### GET `/students/{student_id}`
 
@@ -46,6 +82,30 @@ Returns one tenant-scoped student.
 
 Updates `nis`, `full_name`, `gender`, and/or `birth_date`. Requires
 `academic_ops` entitlement.
+
+### DELETE `/students/{student_id}`
+
+Deletes one tenant-scoped student. Requires `academic_ops` entitlement.
+
+Errors:
+
+- `409 STUDENT_ENROLLED` when the student has an `active` enrollment (any academic year); the student is left unchanged.
+- `404 NOT_FOUND` when the student does not exist in the tenant.
+
+### POST `/students/bulk-delete`
+
+Bulk-deletes students in one all-or-nothing request. Every id is pre-validated
+(existence + `STUDENT_ENROLLED` guard); the first violation rejects the whole
+request with no deletions. Requires `academic_ops` entitlement.
+
+Request:
+
+```json
+{ "student_ids": ["uuid", "uuid"] }
+```
+
+Errors: `409 STUDENT_ENROLLED` (whole request rejected), `404 NOT_FOUND` on an
+unknown id. Returns `204 No Content` on success.
 
 ## Teachers
 
@@ -68,11 +128,55 @@ Errors:
 
 ### GET `/teachers`
 
-Lists tenant-scoped teachers ordered by name.
+Lists tenant-scoped teachers. Accepts `search`, `sort`, `page`, `page_size`
+(see [Lists, pagination, and sorting](#lists-pagination-and-sorting)) and
+returns the paginated envelope.
 
 ### GET `/teachers/{teacher_id}`
 
 Returns one tenant-scoped teacher.
+
+### PATCH `/teachers/{teacher_id}`
+
+Updates `nip` and `full_name` (both required). Requires `academic_ops`
+entitlement.
+
+Request:
+
+```json
+{ "nip": "T-001", "full_name": "Grace Hopper" }
+```
+
+Errors:
+
+- `409 DUPLICATE_NIP` when the tenant already has the same NIP.
+- `404 NOT_FOUND` when the teacher profile does not exist in the tenant.
+
+### DELETE `/teachers/{teacher_id}`
+
+Deletes one tenant-scoped teacher profile. The linked IAM login user (a row in
+the IAM service database) is **not** removed. Requires `academic_ops`
+entitlement.
+
+Errors:
+
+- `409 TEACHER_ASSIGNED` when a teaching assignment references the teacher; the teacher is left unchanged.
+- `404 NOT_FOUND` when the teacher profile does not exist in the tenant.
+
+### POST `/teachers/bulk-delete`
+
+Bulk-deletes teachers in one all-or-nothing request (pre-validates existence +
+`TEACHER_ASSIGNED`; linked login users are untouched). Requires `academic_ops`
+entitlement.
+
+Request:
+
+```json
+{ "teacher_ids": ["uuid", "uuid"] }
+```
+
+Errors: `409 TEACHER_ASSIGNED` (whole request rejected), `404 NOT_FOUND` on an
+unknown id. Returns `204 No Content` on success.
 
 ### PATCH `/teachers/{teacher_id}/account`
 
@@ -112,11 +216,36 @@ Errors:
 
 ### GET `/homerooms`
 
-Lists tenant-scoped homerooms.
+Lists tenant-scoped homerooms. Accepts `search`, `sort`, `page`, `page_size`
+(see [Lists, pagination, and sorting](#lists-pagination-and-sorting)) and
+returns the paginated envelope.
 
 ### GET `/homerooms/{homeroom_id}/students`
 
 Lists active roster students for a homeroom and academic year.
+
+### DELETE `/homerooms/{homeroom_id}`
+
+Deletes one tenant-scoped homeroom. Requires `academic_ops` entitlement.
+
+Errors:
+
+- `409 HOMEROOM_NOT_EMPTY` when the homeroom still has `active` enrollments; the homeroom and roster are left unchanged.
+- `404 NOT_FOUND` when the homeroom does not exist in the tenant.
+
+### POST `/homerooms/bulk-delete`
+
+Bulk-deletes homerooms in one all-or-nothing request (pre-validates existence +
+`HOMEROOM_NOT_EMPTY`). Requires `academic_ops` entitlement.
+
+Request:
+
+```json
+{ "homeroom_ids": ["uuid", "uuid"] }
+```
+
+Errors: `409 HOMEROOM_NOT_EMPTY` (whole request rejected), `404 NOT_FOUND` on an
+unknown id. Returns `204 No Content` on success.
 
 ## Enrollment
 
@@ -163,9 +292,36 @@ Errors:
 
 - `409 DUPLICATE_ASSIGNMENT` when the same tuple already exists.
 
+### GET `/teaching-assignments`
+
+Lists tenant-scoped teaching assignments. Accepts `search` (matches the
+teacher's name), `sort`, `page`, `page_size`, plus the filters `academic_year_id`
+and `homeroom_id` (see [Lists, pagination, and sorting](#lists-pagination-and-sorting)),
+and returns the paginated envelope.
+
+### DELETE `/teaching-assignments/{assignment_id}`
+
+Deletes one tenant-scoped teaching assignment. Always succeeds for an existing
+tenant-owned assignment (no referential guard). Requires `academic_ops`
+entitlement. Returns `204 No Content`; `404 NOT_FOUND` if the assignment is
+unknown.
+
+### POST `/teaching-assignments/bulk-delete`
+
+Bulk-deletes teaching assignments (always allowed for tenant-owned rows).
+Requires `academic_ops` entitlement.
+
+Request:
+
+```json
+{ "assignment_ids": ["uuid", "uuid"] }
+```
+
+Returns `204 No Content` on success.
+
 ### GET `/homerooms/{homeroom_id}/teaching-assignments`
 
-Lists teaching assignments for a homeroom.
+Lists teaching assignments for a homeroom (homeroom-scoped variant).
 
 ## Imports
 
