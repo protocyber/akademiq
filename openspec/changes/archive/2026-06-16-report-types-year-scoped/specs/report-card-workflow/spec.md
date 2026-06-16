@@ -1,12 +1,6 @@
-# report-card-workflow Specification
+# report-card-workflow (delta — report-types-year-scoped)
 
-## Purpose
-
-Defines report-card draft generation, approval, publication, parent/student
-visibility, archival, and publication events in the grading service, scoped to
-academic-year report types.
-
-## Requirements
+## ADDED Requirements
 
 ### Requirement: The service SHALL define report types scoped to an academic year
 
@@ -72,6 +66,8 @@ live score (reported as blank).
 - **WHEN** a subject's formula for a report type does not sum to 100
 - **THEN** no `subject_report_score` row is produced for that `(report_type, subject)` and the grade-entry column shows blank
 
+## MODIFIED Requirements
+
 ### Requirement: The service SHALL generate report-card drafts by aggregating grades under a grading policy
 
 The grading service MUST provide `POST /report-cards/generate` accepting
@@ -111,75 +107,25 @@ Each transition is a dedicated endpoint with one source state, one target state,
 and a required role. Illegal transitions MUST be rejected and every transition
 MUST append a `report_approval` audit row.
 
-#### Scenario: Full approval path to publication
+#### Scenario: Board lists cards scoped to a report type and homeroom
 
-- **WHEN** a teacher submits a Draft card, the homeroom teacher approves it, and the principal approves it
-- **THEN** the card moves Draft -> HomeroomReview -> PrincipalApproval -> Published, each step records an approval row, and on publication a `report_card.approved` event is emitted
-
-#### Scenario: Homeroom teacher returns a card for correction
-
-- **WHEN** a homeroom teacher returns a card in HomeroomReview
-- **THEN** the card returns to `Draft` and an approval row records the return
-
-#### Scenario: Principal rejects a card
-
-- **WHEN** a principal rejects a card in PrincipalApproval
-- **THEN** the card returns to `HomeroomReview` and an approval row records the rejection
-
-#### Scenario: Wrong role is rejected
-
-- **WHEN** a user whose role is not permitted for a transition attempts it (e.g. a subject teacher tries to principal-approve)
-- **THEN** the response is HTTP 403 `WRONG_APPROVER_ROLE` and the status is unchanged
-
-#### Scenario: Illegal transition is rejected
-
-- **WHEN** a transition is attempted from a state it is not valid for (e.g. principal-approve on a Draft card)
-- **THEN** the response is HTTP 409 `INVALID_STATE_TRANSITION` and the status is unchanged
+- **WHEN** a client GETs `/report-cards?report_type_id&homeroom_id`
+- **THEN** only that report type's cards for that homeroom are returned, grouped by status
 
 #### Scenario: Workflow runs per card within a report type
 
 - **WHEN** cards in a report type are at different stages
 - **THEN** each card transitions independently under its role gates, exactly as before, and the board shows each card under its own status tab
 
-#### Scenario: Board lists cards scoped to a report type and homeroom
+## REMOVED Requirements
 
-- **WHEN** a client GETs `/report-cards?report_type_id&homeroom_id`
-- **THEN** only that report type's cards for that homeroom are returned, grouped by status
+### Requirement: The service SHALL compute frozen per-subject scores from formulas and evaluation grades
 
-### Requirement: Published report cards SHALL be visible to the student and parent; in-progress cards SHALL NOT
+**Reason**: The explicit `[Hitung Nilai]` compute step is replaced by live
+`subject_report_score` recomputation on grade save plus a snapshot taken at
+`[Generate Draft]`. There is no longer a standalone compute action.
 
-The service MUST expose `GET /students/{id}/report-card?academic_year_id=` that
-returns a report card to the student and their parent only when its status is
-`Published` or `Archived`. A pre-publish card MUST NOT be revealed to
-student/parent callers.
-
-#### Scenario: Parent sees a published card
-
-- **WHEN** a parent GETs their child's report card for a year whose card is `Published`
-- **THEN** the response is HTTP 200 with the published report card (read-only)
-
-#### Scenario: Parent cannot see an in-progress card
-
-- **WHEN** a parent GETs their child's report card for a year whose card is still in `Draft`, `HomeroomReview`, or `PrincipalApproval`
-- **THEN** the response is HTTP 404 (existence not revealed)
-
-### Requirement: Closing an academic year SHALL archive its published report cards
-
-The service MUST consume the academic-year `Closed`/`Archived` signal and
-transition that year's `Published` report cards to `Archived` (read-only),
-without affecting cards still in the workflow.
-
-#### Scenario: Year close archives published cards
-
-- **WHEN** an academic year transitions to `Closed`
-- **THEN** every `Published` report card for that year becomes `Archived` and is read-only, and cards not yet `Published` are left unchanged
-
-### Requirement: The service SHALL emit `report_card.approved` on publication
-
-On principal approval the service MUST emit `report_card.approved` consistent
-with `docs/internal/11_integration_contracts/events/report-card-approved.md`.
-
-#### Scenario: Publication emits the event
-
-- **WHEN** a principal approves a report card and it becomes `Published`
-- **THEN** a `report_card.approved` event carrying `{ tenant_id, student_id, academic_year_id, report_card_id }` is published to RabbitMQ
+**Migration**: Remove `POST /report-batches/{id}/compute` and all
+`/report-batches` routes. Per-subject scores are now produced live (see "maintain
+live per-subject report scores") and frozen by generation (see the modified
+generate requirement).

@@ -139,7 +139,7 @@ subject/homeroom/year are derived from the referenced evaluation.
 - `400 VALIDATION_ERROR` with `fields.score` when score is outside `0..100`.
 - `403 FEATURE_NOT_AVAILABLE` when the tenant is not entitled to grading.
 - `403 NOT_ASSIGNED` when the teacher is not assigned to the evaluation's scope.
-- `409 GRADES_LOCKED` when a report card for the student/year has left `Draft`.
+- `409 GRADES_LOCKED` when any report card for the student/year has left `Draft`.
 - `409 TEACHER_ACCOUNT_NOT_LINKED` when a teaching assignment exists but is not linked to a teacher user account.
 - `422 STUDENT_NOT_ENROLLED` when the student is not actively enrolled in the evaluation's homeroom for the year.
 
@@ -182,15 +182,216 @@ joined via the evaluation table to filter by year.
 }
 ```
 
-## POST /report-cards/generate
+---
 
-Generate or refresh Draft report cards for every active student in a homeroom.
-Cards already past `Draft` are skipped and reported in the response.
+## Report Types
+
+A report type is a named report run scoped to an **academic year** (not a
+homeroom) — for example "Rapor Tengah Semester" (`code` "Rapor UTS") or "Rapor
+Akhir" (`code` "Rapor UAS"). The `code` doubles as the grade-entry column title.
+Every report card belongs to exactly one report type; a card is unique per
+`(report_type_id, student_id)`. Report types are NOT scoped to a homeroom.
+
+## GET /report-types?academic_year_id=
+
+List all report types for an academic year in `position` order. No entitlement
+check.
+
+**Response 200**
+
+```json
+{
+  "data": [
+    {
+      "report_type_id": "uuid",
+      "tenant_id": "uuid",
+      "academic_year_id": "uuid",
+      "code": "Rapor UTS",
+      "name": "Rapor Tengah Semester",
+      "position": 0,
+      "created_at": "2026-06-10T00:00:00Z",
+      "updated_at": "2026-06-10T00:00:00Z"
+    }
+  ],
+  "meta": {}
+}
+```
+
+## POST /report-types
+
+Create a report type. Requires `grading` entitlement and `tenant_admin` role.
+`position` is assigned automatically (appended after existing types for the year).
 
 **Request**
 
 ```json
-{ "homeroom_id": "uuid", "academic_year_id": "uuid" }
+{
+  "academic_year_id": "uuid",
+  "code": "Rapor UTS",
+  "name": "Rapor Tengah Semester"
+}
+```
+
+**Response 201** — report type shape (see GET above).
+
+**Errors**
+
+- `400 VALIDATION_ERROR` with `fields.code` / `fields.name` when either is empty.
+- `403 WRONG_APPROVER_ROLE` when caller is not a tenant admin.
+- `409 DUPLICATE_REPORT_TYPE_CODE` when `code` already exists for the academic year.
+
+## PATCH /report-types/{id}
+
+Update a report type's `code`, `name`, and/or `position`. Omitted fields are left
+unchanged. Requires `grading` entitlement and `tenant_admin` role.
+
+**Request**
+
+```json
+{ "code": "Rapor UTS", "name": "Rapor Tengah Semester", "position": 1 }
+```
+
+**Response 200** — updated report type shape.
+
+**Errors**
+
+- `403 WRONG_APPROVER_ROLE`
+- `404` when the report type is not found.
+- `409 DUPLICATE_REPORT_TYPE_CODE`
+
+## DELETE /report-types/{id}
+
+Delete a report type and cascade-delete its report cards, formulas, and scores.
+Requires `grading` entitlement and `tenant_admin` role.
+
+**Response 204** (no body).
+
+**Errors**
+
+- `403 WRONG_APPROVER_ROLE`
+- `404` when the report type is not found.
+
+---
+
+## Report Formulas
+
+A formula stores each evaluation's percentage weight for one subject within a
+report type (the `(report_type × evaluation)` many-to-many). Because an
+evaluation is scoped to `(homeroom, subject, year)`, a weight inherits its
+subject. The same evaluation may contribute to several report types with
+different weights. A subject's formula within a report type is **valid only when
+its evaluation weights sum to exactly 100**; otherwise the subject is treated as
+not-configured (no live report score, blank in the grade-entry grid).
+
+## GET /report-types/{id}/formulas
+
+List all `(report_type, evaluation)` weight rows for a report type (joined to
+evaluation so they are returned in subject then position order). No entitlement
+check.
+
+**Response 200**
+
+```json
+{
+  "data": [
+    {
+      "report_type_id": "uuid",
+      "evaluation_id": "uuid",
+      "weight": 25,
+      "updated_at": "2026-06-10T00:00:00Z"
+    }
+  ],
+  "meta": {}
+}
+```
+
+## PUT /report-types/{id}/formulas/{subject_id}
+
+Upsert the `(report_type, subject)` formula as a batch of evaluation weights —
+replaces the existing weights for that subject under the report type. All
+`evaluation_id` keys must belong to the given subject. Requires `grading`
+entitlement.
+
+**Request**
+
+```json
+{ "weights": { "<evaluation_id>": 25, "<evaluation_id>": 75 } }
+```
+
+**Response 204** (no body).
+
+**Errors**
+
+- `400 VALIDATION_ERROR` when a weight key is not an evaluation id or a value is not a number.
+- `400 INVALID_WEIGHTS` when the subject's percentages do not sum to exactly 100.
+- `404` when the report type is not found.
+
+---
+
+## Subject Report Scores (live)
+
+`subject_report_score` is the live "Nilai Rapor" per `(report_type, subject,
+student)`, recomputed automatically whenever a grade is saved. For every report
+type whose `(report_type, subject)` formula includes the saved evaluation and is
+valid (Σ = 100), the service recomputes the student's score as
+`Σ score(evaluation) × weight / 100` (missing evaluation score = 0). A subject
+whose formula is not valid has no live score (blank).
+
+## GET /subject-report-scores?report_type_id=&homeroom_id=&subject_id=
+
+Return the live report-score column for a `(report_type, homeroom, subject)` —
+one row per student, used to render the read-only grade-entry grid columns. No
+entitlement check.
+
+**Response 200**
+
+```json
+{
+  "data": [
+    {
+      "tenant_id": "uuid",
+      "academic_year_id": "uuid",
+      "homeroom_id": "uuid",
+      "subject_id": "uuid",
+      "student_id": "uuid",
+      "report_type_id": "uuid",
+      "score": 82.5,
+      "updated_at": "2026-06-10T00:00:00Z"
+    }
+  ],
+  "meta": {}
+}
+```
+
+> The explicit `[Hitung Nilai]` compute action has been removed. Per-subject
+> scores are produced live on grade save (above) and frozen at draft generation
+> (see `POST /report-cards/generate`). There is no `POST /report-batches/{id}/compute`
+> and no `/report-batches` routes.
+
+---
+
+## Report Cards
+
+## POST /report-cards/generate
+
+Generate or refresh report cards for a `(report_type, homeroom)`. For every
+actively-enrolled student it upserts an empty `Draft` card if absent, then — for
+cards still in `Draft` — **freezes a snapshot**: copies the current live
+`subject_report_score` rows for that `(report_type, student)` into
+`report_subject_score` (`computed_at` stamped), writes the report type's valid
+weights into `report_card.weights_snapshot` (`{ subject_id: { evaluation_id: weight } }`),
+and derives `summary` pass/fail from the frozen scores versus the year's
+`minimum_passing_score`. Cards past `Draft` are skipped and reported. Generation
+is idempotent per `(report_type_id, student_id)` and refreshes only `Draft`
+cards; editing grades after generation does not change a card's frozen scores
+until generation is re-run.
+
+Requires `grading` entitlement and `report.generate` permission.
+
+**Request**
+
+```json
+{ "report_type_id": "uuid", "homeroom_id": "uuid" }
 ```
 
 **Response 201**
@@ -204,19 +405,59 @@ Cards already past `Draft` are skipped and reported in the response.
         "student_id": "uuid",
         "academic_year_id": "uuid",
         "homeroom_id": "uuid",
+        "report_type_id": "uuid",
         "status": "Draft",
         "summary": {
-          "evaluations": [
-            { "evaluation_id": "uuid", "score": 88, "passed": true }
-          ],
-          "average_score": 88,
-          "pass_count": 1,
-          "total_evaluations": 1,
-          "incomplete": false
+          "subjects": [],
+          "average_score": null,
+          "pass_count": 0,
+          "total_subjects": 0,
+          "incomplete": true
+        },
+        "weights_snapshot": {
+          "<subject_id>": { "<evaluation_id>": 25, "<evaluation_id>": 75 }
         }
       }
     ],
     "skipped": ["student_uuid"]
+  },
+  "meta": {}
+}
+```
+
+**Errors**
+
+- `403 WRONG_APPROVER_ROLE` when caller lacks `report.generate`.
+- `404` when the report type is not found.
+- `409 GRADING_POLICY_NOT_CONFIGURED` when the year has no minimum passing score.
+
+## GET /report-cards?report_type_id=&homeroom_id=
+
+Return the staff workflow board for a `(report_type, homeroom)`. Cards are
+ordered by status then student.
+
+**Response 200** — array of report card objects (see generate shape above).
+
+## GET /report-cards/{id}
+
+Return report-card detail including raw evaluation grades, frozen subject scores,
+and approval history.
+
+**Response 200**
+
+```json
+{
+  "data": {
+    "report_card": {
+      "report_card_id": "uuid",
+      "report_type_id": "uuid",
+      "status": "HomeroomReview"
+    },
+    "grades": [{ "evaluation_id": "uuid", "score": 88 }],
+    "subject_scores": [
+      { "subject_id": "uuid", "final_score": 82.5, "computed_at": "2026-06-10T00:00:00Z" }
+    ],
+    "approvals": [{ "action": "submit", "role": "subject_teacher" }]
   },
   "meta": {}
 }
@@ -259,28 +500,9 @@ transition appends a `report_approval` audit row.
 - `403 WRONG_APPROVER_ROLE` when the caller role/scope cannot perform the transition.
 - `409 INVALID_STATE_TRANSITION` when the card status is not valid for the action.
 
-## GET /report-cards?homeroom_id=&academic_year_id=
-
-Return the staff workflow board for a homeroom/year.
-
-## GET /report-cards/{id}
-
-Return report-card detail, raw grades, and approval history.
-
-**Response 200**
-
-```json
-{
-  "data": {
-    "report_card": { "report_card_id": "uuid", "status": "HomeroomReview" },
-    "grades": [{ "evaluation_id": "uuid", "score": 88 }],
-    "approvals": [{ "action": "submit", "role": "subject_teacher" }]
-  },
-  "meta": {}
-}
-```
-
 ## GET /students/{id}/report-card?academic_year_id=
 
-Return a report card to student/parent callers only when the card is `Published`
-or `Archived`. Pre-publish cards return `404` to avoid revealing existence.
+Return the most-recently published report card for a student in a year.
+Returns `404` for pre-publish cards to avoid revealing existence.
+
+**Response 200** — same shape as `GET /report-cards/{id}`.
