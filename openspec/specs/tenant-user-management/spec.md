@@ -167,7 +167,9 @@ account status. `sort` MUST be validated against an allow-list of sortable colum
 `page_size` MUST be clamped to a maximum. All parameter values MUST bind as SQL
 parameters (no string interpolation). The response MUST use the paginated envelope
 `{ "data": [ ... ], "meta": { "page", "page_size", "total" } }` where `total` is the
-count of rows matching the filters before pagination.
+count of rows matching the filters before pagination. Each row in `data` MUST include
+the user's `email_verified` boolean so clients can show verification status without an
+extra request.
 
 #### Scenario: Search narrows the result set server-side
 
@@ -188,6 +190,11 @@ count of rows matching the filters before pagination.
 
 - **WHEN** an admin requests `/tenants/me/users?page_size=100000&sort=DROP`
 - **THEN** the response clamps `page_size` to the allowed maximum and rejects or ignores the invalid sort without executing arbitrary SQL
+
+#### Scenario: Each row reports email verification status
+
+- **WHEN** an admin requests `/tenants/me/users`
+- **THEN** every row in `data` includes an `email_verified` boolean reflecting that user's stored verification state
 
 ### Requirement: Admins SHALL apply enable, disable, and role-change to multiple users in one request
 
@@ -337,3 +344,27 @@ regardless of whether a password has been set.
 
 - **WHEN** the invited user later completes the set-password flow
 - **THEN** password login becomes available for their account
+
+### Requirement: Email verification status SHALL be visible wherever a user email is shown
+
+The UI MUST show a verification indicator derived from `email_verified` wherever a
+user's email is displayed prominently: at minimum the signed-in user's own
+profile/account view (driven by `useMe`) and the tenant user-management edit-user
+view (driven by the tenant-users list). The indicator MUST be a check when the
+email is verified and an alert/attention indicator when it is not, and MUST carry
+an accessible label so the state is not conveyed by color or icon shape alone.
+
+#### Scenario: Verified email shows a check
+
+- **WHEN** a view renders an email whose `email_verified` is true
+- **THEN** a check indicator with an accessible "verified" label appears next to the email
+
+#### Scenario: Unverified email shows an alert
+
+- **WHEN** a view renders an email whose `email_verified` is false
+- **THEN** an alert indicator with an accessible "not verified" label appears next to the email
+
+#### Scenario: State is not conveyed by color alone
+
+- **WHEN** the verification indicator is rendered in either state
+- **THEN** an accessible text label or title communicates the state independently of color
