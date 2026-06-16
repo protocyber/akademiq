@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: The app shell SHALL present user identity and logout in a top-right avatar dropdown
 
