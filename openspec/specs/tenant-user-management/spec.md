@@ -38,33 +38,31 @@ invitee every invited role within one transaction.
 
 ### Requirement: Invitations SHALL grant membership to an account that may already exist
 
-Accepting a tenant invitation MUST attach a `user_tenant_role` membership to an
-account rather than being the sole means of account creation. When the invited
-email already matches an existing account, acceptance MUST add the membership to
-that account. When no account matches, IAM MUST create the account and the
-membership in the same transaction. Account existence is no longer coupled to
-invitations — an account may exist with zero memberships (via public signup) and
-later gain memberships through invitations.
+Accepting an invitation MUST grant the invited roles and tenant membership. When
+the invited email already has an account, acceptance attaches the membership to
+that account without requiring a password. When the invited email has **no**
+account, acceptance MUST create a new account and attach membership; creating
+that account MUST NOT require the invitee to choose a password at accept time.
+The invitee MUST be signed in (scoped token pair) upon acceptance in both cases.
 
-#### Scenario: Invitation accepted by an existing account
+#### Scenario: Existing account accepts without a password
 
-- **WHEN** a user who already has an account (e.g. via public signup) accepts an
-  invitation sent to their email
-- **THEN** IAM adds a `user_tenant_role` row linking that existing account to the
-  inviting tenant, without creating a duplicate account
+- **WHEN** the invited email already has an account and the invitation is accepted
+- **THEN** the membership and roles are attached and a scoped session is issued,
+  with no password input required
 
-#### Scenario: Invitation accepted by a new user
+#### Scenario: New account is created without a password
 
-- **WHEN** an invitation is accepted for an email that matches no existing account
-- **THEN** IAM creates the account and the tenant membership in one transaction,
-  as before
+- **WHEN** the invited email has no account and the invitation is accepted with
+  only the token
+- **THEN** a new account is created in a no-password state, membership and roles
+  are granted, and a scoped session is issued
 
-#### Scenario: Email-less user invited by an admin
+#### Scenario: Name falls back when not provided
 
-- **WHEN** a tenant admin creates an account for a user without an email and
-  assigns a tenant role
-- **THEN** the account is created with a generated username and a
-  `user_tenant_role` membership, and the user can log in by username + password
+- **WHEN** a new account is created from a button-only accept with no name input
+- **THEN** the account's name is taken from the invitation record (or a
+  placeholder the user can edit later), and acceptance still succeeds
 
 ### Requirement: Invitation tokens SHALL be single-use and time-bound
 
@@ -321,3 +319,21 @@ record.
 
 - **WHEN** an admin DELETEs a user who has no role in the caller's tenant
 - **THEN** the response is HTTP 404
+
+### Requirement: Accepting an invitation SHALL NOT require choosing a password up front
+
+A user accepting a tenant invitation MUST be able to do so without choosing a
+password at accept time. The invited user MAY set a password later via the
+self-service set-password flow. Roles and membership are granted on acceptance
+regardless of whether a password has been set.
+
+#### Scenario: Invitee joins with a single action
+
+- **WHEN** an invited user accepts the invitation
+- **THEN** they gain their tenant membership and a session without being required
+  to enter a password during acceptance
+
+#### Scenario: Password set later
+
+- **WHEN** the invited user later completes the set-password flow
+- **THEN** password login becomes available for their account
