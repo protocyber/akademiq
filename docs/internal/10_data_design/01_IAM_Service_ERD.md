@@ -46,11 +46,21 @@ REFRESH_TOKEN {
   timestamptz revoked_at "nullable"
 }
 
+SET_PASSWORD_TOKEN {
+  uuid set_password_token_id PK
+  uuid user_id FK
+  string token_hash "Argon2 hash of the raw token"
+  timestamptz expires_at
+  timestamptz consumed_at "nullable; single-use"
+  timestamptz created_at
+}
+
 ROLE ||--o{ ROLE_PERMISSION : has
 PERMISSION ||--o{ ROLE_PERMISSION : included
 USER ||--o{ USER_TENANT_ROLE : assigned
 ROLE ||--o{ USER_TENANT_ROLE : scoped
 USER ||--o{ REFRESH_TOKEN : holds
+USER ||--o{ SET_PASSWORD_TOKEN : owns
 ```
 
 ## 🧠 What This Database Owns
@@ -65,6 +75,7 @@ This service handles authentication and authorization.
 | Role Permission | Many-to-many grant table between roles and permissions. |
 | User Tenant Role | Role assignment per tenant (a user may hold one or many roles in a tenant) |
 | Refresh Token | Tenant-scoped refresh credential; refreshing renews the same tenant's access token |
+| Set Password Token | Single-use, time-bound token issued when a passwordless account is created (via invite accept). Consumed on first use; rejected after expiry. Enables self-service password set without a live session. |
 
 ## 🔗 Important Relationships
 Users receive roles within a tenant scope, and roles grant permissions. Identity
@@ -73,10 +84,10 @@ and membership are separate: a user can exist with **no** tenant membership
 Login resolves a user without a tenant; a tenant is selected afterward, and
 `User Tenant Role` is checked when issuing a tenant-scoped token. The access token carries both `roles[]` (role identity for display/workflows) and `perms[]` (deduplicated permission union used by guards).
 
-Google-only users have `password_hash = NULL`; password login against these rows
-returns `INVALID_CREDENTIALS` after a dummy password verification. Verified
-Google email auto-link sets both `google_sub` and `email_verified=true` on the
-existing row.
+Google-only users and passwordless invite accept both have `password_hash = NULL`; password login
+against these rows returns `PASSWORD_NOT_SET` (distinct from `INVALID_CREDENTIALS`) so the client
+can route the user to the set-password flow. Verified Google email auto-link sets both `google_sub`
+and `email_verified=true` on the existing row.
 
 ## ⚠️ Last-role invariant
 

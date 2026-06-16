@@ -70,7 +70,8 @@ Errors:
 | Code                  | HTTP | Cause |
 |-----------------------|------|-------|
 | `VALIDATION_ERROR`    | 400  | Missing or malformed fields. |
-| `INVALID_CREDENTIALS` | 401  | Identifier unknown or password mismatch (or account has no password). Identical body and timing for every case. |
+| `INVALID_CREDENTIALS` | 401  | Identifier unknown or password mismatch. Identical body and timing for every case. |
+| `PASSWORD_NOT_SET`    | 401  | Account exists but has no password set (passwordless invite accept or Google-only). Route the user to set-password. |
 | `USER_INACTIVE`       | 403  | User exists but `status != 'active'`. |
 
 ### `POST /auth/register`
@@ -211,6 +212,7 @@ logging out.
     "email_verified": false,
     "full_name": "string",
     "status": "active|disabled|pending",
+    "password_set": true,
     "memberships": [
       { "tenant_id": "uuid", "roles": ["tenant_admin"] }
     ]
@@ -296,17 +298,74 @@ Public endpoint.
 Request:
 
 ```json
-{ "token": "<token>", "password": "password123!", "full_name": "Teacher Name", "username": "teacher_one?" }
+{ "token": "<token>", "password": "password123?", "full_name": "Teacher Name?", "username": "teacher_one?" }
 ```
 
-Success (201): same token envelope as `/auth/login`. IAM creates the user with a
-unique username (auto-generated when omitted), keeps the invitation email as the
-optional contact address, and creates the tenant role in the same transaction
+`password` and `full_name` are **optional** on the new-account path:
+
+- **Without `password`** (button-only): the account is created with a NULL
+  `password_hash`. Password login is blocked (`PASSWORD_NOT_SET`) until the
+  user completes the set-password flow. The response includes a
+  `set_password_token` for this purpose.
+- **With `password`** (legacy/explicit): the account is created with the
+  password set and password login works immediately.
+
+`full_name`, when omitted on the passwordless path, falls back to the
+invitation email local-part (editable later via profile).
+
+Success (201) — returns a tenant-scoped token envelope with an extra
+`password_set` flag. When `password_set` is `false`, a `set_password_token`
+(single-use, time-bound) is also returned:
+
+```json
+{
+  "data": {
+    "access_token": "<RS256 JWT, typ=access>",
+    "refresh_token": "<jti>.<random>",
+    "expires_in": 900,
+    "password_set": false,
+    "set_password_token": "<single-use token>"
+  },
+  "meta": { "user_id": "uuid", "tenant_id": "uuid", "roles": ["teacher"], "perms": [] }
+}
+```
+
+If the invited email already has an account, the membership is attached to
+that account (no password change). IAM creates the user with a unique username
+(auto-generated when omitted), creates the tenant role in the same transaction
 that marks the invitation `accepted`, then emits `tenant_user.activated`.
 
 Errors: `VALIDATION_ERROR` (400), `INVALID_INVITATION_TOKEN` (401),
 `INVITATION_ALREADY_USED` (409), `INVITATION_REVOKED` (409),
 `INVITATION_EXPIRED` (410), `EMAIL_ALREADY_EXISTS` (409).
+
+### `POST /auth/set-password`
+
+Public endpoint (no `Authorization` required when a token is supplied).
+Self-service password set for accounts created without one. Accepts either:
+
+1. A single-use **set-password token** (from the passwordless accept
+   response), **or**
+2. An **authenticated no-password session** (send the access token in the
+   `Authorization: Bearer` header with no `token` in the body).
+
+Request:
+
+```json
+{ "password": "newpassword123!", "token": "<set-password token>?" }
+```
+
+On success, the password is hashed and persisted, and the token is consumed
+(single-use). Password login works immediately after. Returns 204 (no content).
+
+Errors:
+
+| Code                          | HTTP | Cause |
+|-------------------------------|------|-------|
+| `VALIDATION_ERROR`            | 400  | Password shorter than 8 chars. |
+| `INVALID_SET_PASSWORD_TOKEN`  | 401  | No token or session, token already used, or token not found. |
+| `SET_PASSWORD_TOKEN_EXPIRED`  | 410  | Token recognized but past its expiry. |
+| `NOT_FOUND`                   | 404  | Token's user no longer exists. |
 
 ### `GET /tenants/me/users`
 
