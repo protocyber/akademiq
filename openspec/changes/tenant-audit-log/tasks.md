@@ -47,3 +47,23 @@
 
 - [ ] 7.1 Tests: route/entry-point hidden without `audit.view`; URL sync restores view
 - [ ] 7.2 Run web lint/typecheck and `make test` for web
+
+## 8. Backend — academic-config event payload extensions
+
+- [ ] 8.1 Extend `academic_year.status_changed` payload with `actor_user_id` (additive) in `academic-config-service/src/commands.rs`. Update payload struct and outbox enqueue call.
+- [ ] 8.2 Extend `academic_term.status_changed` payload with `actor_user_id` (additive). Same file, same pattern.
+- [ ] 8.3 Extend `academic_year.created` and `academic_term.created` payloads with `actor_user_id` where available from JWT context; fall back to null (system).
+- [ ] 8.4 Update event docs: `docs/internal/11_integration_contracts/events/academic-year-created.md`, `academic-year-status-changed.md`, `academic-term-created.md`, `academic-term-status-changed.md` — add `actor_user_id` field to payload table.
+
+## 9. Backend — multi-source consumer & schema (iam-service)
+
+- [ ] 9.1 Update `audit_log` schema in migration (task 1.1): replace `target_user_id` with `target_kind VARCHAR(32) NOT NULL CHECK (target_kind IN ('tenant_user','academic_year','academic_term'))` and `target_id UUID NOT NULL`; add index `(tenant_id, target_kind, target_id)`.
+- [ ] 9.2 Wire consumer to also bind `academic_year.*` and `academic_term.*` routing keys on `akademiq.events` (alongside existing `tenant_user.*` binding in task 3.1).
+- [ ] 9.3 Map each event family to its `target_kind`/`target_id`: `tenant_user.*` → kind `tenant_user`, target = `user_id`; `academic_year.*` → kind `academic_year`, target = `academic_year_id`; `academic_term.*` → kind `academic_term`, target = `term_id`.
+- [ ] 9.4 Update read query (task 4.1) to accept optional `target_kind` and `target_id` filters (server-side, allow-listed against CHECK values).
+- [ ] 9.5 Tests: each event family writes the expected row with correct `target_kind`/`target_id`; idempotency on `event_id`; missing `actor_user_id` recorded as null.
+
+## 10. Web — audit UI accommodation
+
+- [ ] 10.1 Update read query hook (task 6.1) to forward optional `target_kind` and `target_id` params.
+- [ ] 10.2 Audit-log table (task 6.2): add `target_kind` column with localized labels (`tenant_user` → Pengguna, `academic_year` → Tahun Ajaran, `academic_term` → Semester); expandable row detail shows the `details` JSONB payload.

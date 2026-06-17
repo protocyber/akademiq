@@ -4,7 +4,10 @@
 transactional outbox: `tenant_user.invited`, `tenant_user.activated`,
 `tenant_user.role_changed`, and `tenant_user.disabled` land on the `akademiq.events`
 topic exchange (see `docs/internal/11_integration_contracts/events/tenant-user-events.md`).
-Today nothing persists these for audit; there is no record of who changed what.
+`academic-config-service` similarly publishes `academic_year.created`,
+`academic_year.status_changed`, `academic_term.created`, and
+`academic_term.status_changed` to the same exchange.
+Today nothing persists these for audit; there is no consolidated record of who changed what.
 
 This change adds an audit trail by **consuming** those events into an append-only
 `audit_log` store and exposing a tenant-scoped read API + admin UI. It depends on the
@@ -20,17 +23,17 @@ consumer's context) must surface the acting admin.
 ## Goals / Non-Goals
 
 **Goals:**
-- An immutable, tenant-scoped, queryable record of user-management activity.
+- An immutable, tenant-scoped, queryable record of user-management and academic-config activity.
 - Reuse existing events — no new emission plumbing for the actions already published.
 - Idempotent consumption so redelivery never duplicates rows.
 - A read API consistent with the user-list change (same filter/paginate/URL-sync shape).
 - Gate read access on a dedicated `audit.view` permission.
 
 **Non-Goals:**
-- Auditing actions outside user management (billing, academic config, grading).
+- Auditing billing and grading actions.
 - Retention/archival/rotation policy for audit rows.
 - Exporting the audit log (possible follow-up).
-- A generic platform-wide audit framework — this is scoped to IAM user-management.
+- A generic platform-wide audit framework — this is scoped to IAM user-management and academic-config lifecycle events.
 
 ## Decisions
 
@@ -62,20 +65,31 @@ authenticated admin who performed the action), and the consumer records it as
 `audit_log.actor_user_id`. Where an action is self-service (e.g. `activated` by the
 invitee), the actor is the user themselves.
 
+The same pattern applies to academic-config events: `academic_year.status_changed` and
+`academic_term.status_changed` payloads are extended with `actor_user_id` (additive,
+backward-compatible). `academic_year.created` and `academic_term.created` already carry
+`actor_user_id` if added at creation time; if absent the consumer records system.
+
 - **Why:** "who did it" is a primary audit question; a trail without the actor is of
   limited value.
 - **Alternative rejected:** infer actor later — not recoverable after the fact.
 - **Cross-change note:** payload additions are backward-compatible (additive fields);
-  the events doc is updated.
+  the events docs are updated.
 
-### D4: `audit_log` schema — append-only, tenant-scoped
+### D4: `audit_log` schema — append-only, tenant-scoped, discriminator-based
 
 Columns: `audit_id` (PK), `event_id` (unique, idempotency), `tenant_id`, `event_type`,
-`actor_user_id` (nullable for system), `target_user_id` (nullable), `occurred_at`,
-`details JSONB` (the event payload for forensic detail), `recorded_at`. Indexed on
-`(tenant_id, occurred_at)` and `(tenant_id, event_type)` for the read filters. The
-application never `UPDATE`s or `DELETE`s rows.
+`target_kind VARCHAR(32) NOT NULL` (CHECK in `('tenant_user','academic_year','academic_term')`),
+`target_id UUID NOT NULL`, `actor_user_id` (nullable for system), `occurred_at`,
+`details JSONB` (the full event payload for forensic detail), `recorded_at`.
+Indexed on `(tenant_id, occurred_at)`, `(tenant_id, event_type)`, and
+`(tenant_id, target_kind, target_id)` for point lookups ("what happened to this year/term?").
+The application never `UPDATE`s or `DELETE`s rows.
 
+- **Why `target_kind`/`target_id` over per-domain columns:** a single polymorphic column
+  pair replaces three sparse nullable UUID columns (`target_user_id`, `target_year_id`,
+  `target_term_id`). One index pattern covers all point lookups; adding a new event
+  family only requires a new CHECK value, not a new column.
 - **Why JSONB details:** keeps full payload without a column per event variant.
 
 ### D5: Read API mirrors the user-list conventions
@@ -98,6 +112,26 @@ Added to the `rbac-custom-roles-multirole` permission seed and mapped to the
   code lets tenants grant read-only audit access (e.g. a compliance role) without role
   management rights.
 
+### D7: Multi-source consumer
+
+One consumer in `iam-service` binds to `tenant_user.*`, `academic_year.*`, and
+`academic_term.*` on the `akademiq.events` exchange and writes to the single `audit_log`
+table. `target_kind` is derived from the routing key prefix.
+
+- **Why:** one table + one service that owns audit persistence; avoids fan-out to
+  per-domain consumers and keeps the read API in one place.
+- **Alternative rejected:** a separate consumer per service domain — duplicates the
+  schema and the read API; iam-service would need to query external DBs.
+
+### D8: Read API filter on `target_kind`
+
+The read API accepts optional `target_kind` and `target_id` filters alongside the
+existing `event_type`, `actor`, `from`/`to` filters. Both are server-side with
+`target_kind` validated against the allow-list `('tenant_user','academic_year','academic_term')`.
+
+- **Why:** allows the audit screen to scope to e.g. "all events on this term" without
+  a full table scan.
+
 ## Risks / Trade-offs
 
 - **Consumer lag / eventual consistency** → acceptable for an audit trail; the UI can
@@ -115,9 +149,11 @@ Added to the `rbac-custom-roles-multirole` permission seed and mapped to the
 
 1. Apply `rbac-custom-roles-multirole` (permission layer) — add `audit.view` to its
    seed + `role_permission` mapping (or a follow-up migration if already archived).
-2. Backend: migration for `audit_log`; wire the `tenant_user.*` consumer; add the
+2. Backend: migration for `audit_log` with `target_kind`/`target_id` discriminator schema;
+   wire the consumer for `tenant_user.*`, `academic_year.*`, `academic_term.*`; add the
    read query + handler gated on `audit.view`; extend `tenant_user.*` payloads with
-   `actor_user_id` and update the events doc + IAM ERD.
+   `actor_user_id` and extend `academic_year.status_changed` + `academic_term.status_changed`
+   with `actor_user_id` (additive); update the events docs and IAM ERD.
 3. Web: add `settings/audit-log` page + query hook reusing the paginated/URL-sync
    pattern; guard the route on `audit.view`.
 4. Rollback: stop/remove the consumer and drop the read route; the `audit_log` table

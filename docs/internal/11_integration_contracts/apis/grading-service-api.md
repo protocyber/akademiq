@@ -15,9 +15,9 @@ Health check. Verifies database and RabbitMQ connectivity.
 { "data": { "status": "ok" }, "meta": {} }
 ```
 
-## GET /evaluations?homeroom_id=&subject_id=&academic_year_id=
+## GET /evaluations?homeroom_id=&subject_id=&academic_year_id=[&term_id=]
 
-List evaluations for a class+subject+year in column order (`position` asc).
+List evaluations for a class+subject+year in column order (`position` asc). Optional `term_id` filters to a specific term.
 No entitlement check — any authenticated user can read.
 
 **Response 200**
@@ -31,6 +31,7 @@ No entitlement check — any authenticated user can read.
       "homeroom_id": "uuid",
       "subject_id": "uuid",
       "academic_year_id": "uuid",
+      "term_id": "uuid",
       "code": "UH1",
       "name": "Ulangan Harian 1",
       "position": 1,
@@ -44,9 +45,9 @@ No entitlement check — any authenticated user can read.
 
 ## POST /evaluations
 
-Create an evaluation column for a class+subject+year. Requires the `grading`
+Create an evaluation column for a class+subject+year+term. Requires the `grading`
 entitlement. The caller must be assigned to the subject+homeroom+year or be a
-tenant admin.
+tenant admin. The referenced term must be `Draft` or `Active`.
 
 **Request**
 
@@ -55,6 +56,7 @@ tenant admin.
   "homeroom_id": "uuid",
   "subject_id": "uuid",
   "academic_year_id": "uuid",
+  "term_id": "uuid",
   "code": "UH1",
   "name": "Ulangan Harian 1",
   "position": 1
@@ -66,7 +68,8 @@ tenant admin.
 **Errors**
 
 - `403 NOT_ASSIGNED` when caller is not assigned to this scope.
-- `409 DUPLICATE_EVALUATION_CODE` when `code` already exists for this class+subject+year.
+- `409 DUPLICATE_EVALUATION_CODE` when `code` already exists for this class+subject+year+term.
+- `409 TERM_NOT_EDITABLE` when the referenced term is not `Draft` or `Active`.
 
 ## PATCH /evaluations/{id}
 
@@ -140,6 +143,8 @@ subject/homeroom/year are derived from the referenced evaluation.
 - `403 FEATURE_NOT_AVAILABLE` when the tenant is not entitled to grading.
 - `403 NOT_ASSIGNED` when the teacher is not assigned to the evaluation's scope.
 - `409 GRADES_LOCKED` when any report card for the student/year has left `Draft`.
+- `409 YEAR_NOT_ACTIVE` when the evaluation's academic year is not `Active`.
+- `409 TERM_NOT_ACTIVE` when the evaluation's term is not `Active`.
 - `409 TEACHER_ACCOUNT_NOT_LINKED` when a teaching assignment exists but is not linked to a teacher user account.
 - `422 STUDENT_NOT_ENROLLED` when the student is not actively enrolled in the evaluation's homeroom for the year.
 
@@ -186,16 +191,11 @@ joined via the evaluation table to filter by year.
 
 ## Report Types
 
-A report type is a named report run scoped to an **academic year** (not a
-homeroom) — for example "Rapor Tengah Semester" (`code` "Rapor UTS") or "Rapor
-Akhir" (`code` "Rapor UAS"). The `code` doubles as the grade-entry column title.
-Every report card belongs to exactly one report type; a card is unique per
-`(report_type_id, student_id)`. Report types are NOT scoped to a homeroom.
+A report type is a named report run scoped to an **academic year and term** — for example "Rapor Tengah Semester" (`code` "Rapor UTS"). The `code` doubles as the grade-entry column title. Every report card belongs to exactly one report type; a card is unique per `(report_type_id, student_id)`. Report types are NOT scoped to a homeroom. A report formula may only reference evaluations from the same term as the report type (`EVALUATION_TERM_MISMATCH`).
 
-## GET /report-types?academic_year_id=
+## GET /report-types?academic_year_id=[&term_id=]
 
-List all report types for an academic year in `position` order. No entitlement
-check.
+List all report types for an academic year in `position` order. Optional `term_id` filters to a specific term. No entitlement check.
 
 **Response 200**
 
@@ -206,6 +206,7 @@ check.
       "report_type_id": "uuid",
       "tenant_id": "uuid",
       "academic_year_id": "uuid",
+      "term_id": "uuid",
       "code": "Rapor UTS",
       "name": "Rapor Tengah Semester",
       "position": 0,
@@ -216,6 +217,14 @@ check.
   "meta": {}
 }
 ```
+
+## Term-related error codes
+
+| Code | HTTP | Trigger |
+|------|------|---------|
+| `TERM_NOT_EDITABLE` | 409 | Create/edit evaluation when term is not `Draft` or `Active` |
+| `TERM_NOT_ACTIVE` | 409 | Record grade when term is not `Active` |
+| `EVALUATION_TERM_MISMATCH` | 409 | Add report formula linking evaluation from a different term than the report type |
 
 ## POST /report-types
 

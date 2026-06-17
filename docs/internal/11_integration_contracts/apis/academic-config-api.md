@@ -143,9 +143,145 @@ Errors:
 |------|------|-------|
 | `INVALID_STATE_TRANSITION` | 409 | Requested status is not a legal lifecycle state transition. |
 | `ACTIVE_YEAR_EXISTS` | 409 | Tenant already has another `Active` year. |
+| `TERM_STILL_ACTIVE` | 409 | Year cannot transition to `Closed` while a child term is `Active`. |
 | `VALIDATION_ERROR` | 400 | The `reason` is missing, empty, or less than 10 characters. |
 | `FEATURE_NOT_AVAILABLE` | 403 | Caller cannot write academic config. |
 | `NOT_FOUND` | 404 | Academic year is missing or belongs to another tenant. |
+
+## Academic Terms
+
+Terms are child periods within an academic year (e.g. "Semester 1", "Semester 2"). A default term (`"Semester 1"`) is auto-created when a year is created. All term endpoints are gated on `academic.config.read` (GETs) and `academic.config.write` (writes).
+
+### `POST /academic-years/{academic_year_id}/terms`
+
+Request:
+
+```json
+{
+  "name": "Semester 2",
+  "start_date": "2027-01-01",
+  "end_date": "2027-06-30"
+}
+```
+
+Success (201):
+
+```json
+{
+  "data": {
+    "term_id": "uuid",
+    "academic_year_id": "uuid",
+    "tenant_id": "uuid",
+    "name": "Semester 2",
+    "start_date": "2027-01-01",
+    "end_date": "2027-06-30",
+    "status": "Draft"
+  },
+  "meta": {}
+}
+```
+
+Errors:
+
+| Code | HTTP | Cause |
+|------|------|-------|
+| `TERM_OVERLAP` | 409 | Date range overlaps with an existing term in the year. |
+| `TERM_NAME_EXISTS` | 409 | A term with the same name already exists in the year. |
+| `VALIDATION_ERROR` | 400 | Field validation failed (name, dates). |
+| `NOT_FOUND` | 404 | Parent academic year not found. |
+
+Creates an `academic_term.created` outbox event on success.
+
+### `GET /academic-years/{academic_year_id}/terms`
+
+Returns terms for the selected academic year as a paginated list.
+
+Query parameters: `sort` (`start_date`, `-start_date`, `name`, `-name`), `page`, `page_size`.
+
+```json
+{
+  "data": [
+    {
+      "term_id": "uuid",
+      "academic_year_id": "uuid",
+      "tenant_id": "uuid",
+      "name": "Semester 1",
+      "start_date": "2026-07-01",
+      "end_date": "2026-12-31",
+      "status": "Active"
+    }
+  ],
+  "meta": { "page": 1, "page_size": 25, "total": 2 }
+}
+```
+
+### `GET /academic-terms/{term_id}`
+
+Returns one tenant-scoped academic term.
+
+Errors: `NOT_FOUND` (404).
+
+### `PATCH /academic-terms/{term_id}`
+
+Updates `name`, `start_date`, and `end_date`. Rejected when the term is `Archived`.
+
+```json
+{
+  "name": "Semester 1",
+  "start_date": "2026-07-01",
+  "end_date": "2026-12-31"
+}
+```
+
+Success (200): the updated term envelope.
+
+Errors:
+
+| Code | HTTP | Cause |
+|------|------|-------|
+| `TERM_OVERLAP` | 409 | Updated range overlaps with another term in the year. |
+| `TERM_NAME_EXISTS` | 409 | Name already used by another term in the year. |
+| `VALIDATION_ERROR` | 400 | Field validation failed. |
+| `NOT_FOUND` | 404 | Term not found. |
+
+### `DELETE /academic-terms/{term_id}`
+
+Deletes a term. Rejected when the term is `Active` or `Archived`.
+
+Errors:
+
+| Code | HTTP | Cause |
+|------|------|-------|
+| `TERM_NOT_DELETABLE` | 409 | Term status is `Active` or `Archived`. |
+| `NOT_FOUND` | 404 | Term not found. |
+
+Success: `204 No Content`.
+
+### `PATCH /academic-terms/{term_id}/status`
+
+Request:
+
+```json
+{
+  "status": "Active",
+  "reason": "Semester dimulai resmi hari ini"
+}
+```
+
+Valid lifecycle transitions: `Draft` ↔ `Active`, `Active` ↔ `Closed`, `Closed` → `Archived`. Every transition requires a `reason` of at least 10 characters.
+
+Success (200): the updated term envelope.
+
+Errors:
+
+| Code | HTTP | Cause |
+|------|------|-------|
+| `INVALID_STATE_TRANSITION` | 409 | Transition is not legal. |
+| `ACTIVE_TERM_EXISTS` | 409 | Another term in the year is already `Active`. |
+| `VALIDATION_ERROR` | 400 | `reason` is missing or less than 10 characters. |
+| `NOT_FOUND` | 404 | Term not found. |
+
+Creates an `academic_term.status_changed` outbox event on success.
 
 ## Curriculum Versions
 
