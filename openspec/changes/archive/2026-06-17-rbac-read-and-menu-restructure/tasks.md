@@ -14,7 +14,7 @@
 - [x] 3.1 iam-service: gate `list_tenant_users` on `user.read`; gate `list_roles`/`get_role` on `role.read`; leave `list_permissions` and `/me` open
 - [x] 3.2 academic-config-service: gate year/curriculum/subject/policy/class-template GET handlers on `academic.config.read` (in addition to feature)
 - [x] 3.3 grading-service: gate grade/evaluation/formula/score GET handlers on `grade.read`; gate report-type/report-card GET handlers on `report.read`
-- [ ] 3.4 Per-service integration tests: assert each built-in role still reads its areas (no regression) and that a role lacking the read gets 403
+- [x] 3.4 Per-service integration tests: assert each built-in role still reads its areas (no regression) and that a role lacking the read gets 403
 
 ## 4. Web: grouped sidebar model
 
@@ -27,10 +27,10 @@
 - [x] 5.1 Add a `useMenuVisibility()` (or pure helper) combining `useTenantMe().modules` (enabled) and `useTenantPermissions()` (held) per the spec mapping
 - [x] 5.2 Apply the mapping: Pengguna→user.read; Role & Izin→role.read; Akademik(settings)→academic_config+academic.config.read; Nilai→grading+grade.read; Rapor→grading+report.read; Operasional→academic_ops module only; Modul Aktif→billing.view; Dashboard→always
 - [x] 5.3 Hide a group entirely when it has no visible children; handle loading state (avoid flicker) gracefully
-- [ ] 5.4 Add a test asserting items hide/show correctly for representative role sets (admin, teacher, parent, ops-only)
+- [x] 5.4 Add a test asserting items hide/show correctly for representative role sets (admin, teacher, parent, ops-only)
 
 ## 6. Integration & validation
 
-- [ ] 6.1 Confirm `secure-published-report-card` is merged (or coordinate) so `report.read` portal enforcement has the ownership check
+- [x] 6.1 Confirm `secure-published-report-card` is merged (or coordinate) so `report.read` portal enforcement has the ownership check
 - [x] 6.2 Confirm the `academic_ops` feature_code value used by `useTenantMe().modules` matches the Operasional gate
-- [ ] 6.3 Run `make test` across both submodules; run web lint/typecheck
+- [x] 6.3 Run `make test` across both submodules; run web lint/typecheck
