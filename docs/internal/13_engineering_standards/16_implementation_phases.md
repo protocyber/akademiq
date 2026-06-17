@@ -80,7 +80,7 @@ phase that satisfies the demo, not as a flag-day mega-PR.
 **Demo flows:**
 
 1. **Create academic year** — a tenant admin creates a new academic
-   year, sets start/end dates and status (draft → active).
+   year, sets start/end dates and status (Draft → Active).
 2. **Configure curriculum + subjects** — the admin selects a
    curriculum version for the year and adds subjects with passing
    grades.
@@ -184,7 +184,7 @@ phase that satisfies the demo, not as a flag-day mega-PR.
 - `grading-service` report-card workflow extending phase 4: `report_card` + `report_approval` tables, `grading_policy_projection` table (fed by `grading_policy.configured` event from academic-config-service), and `outbox` table for reliable event publishing.
 - State-machine enforcement for `Draft`, `HomeroomReview`, `PrincipalApproval`, `Published`, and `Archived` report cards.
 - Grade edit-lock: grades are locked once a report card leaves `Draft`; returning the card to `Draft` re-opens editing.
-- Year-close archival: consuming `academic_year.status_changed` with `Closed`/`Archived` transitions all `Published` cards for that year to `Archived`.
+- Year-close archival: consuming `academic_year.status_changed` with status `Archived` transitions all `Published` cards for that year to `Archived`.
 - Event emitted: `report_card.approved` (via transactional outbox).
 - Web workflow board (`/grading/report-cards`), detail page (`/grading/report-cards/{id}`), and parent/student read-only portal (`/portal/report-card`).
 

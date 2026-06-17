@@ -33,7 +33,7 @@ Success (201):
     "name": "2026/2027",
     "start_date": "2026-07-01",
     "end_date": "2027-06-30",
-    "status": "Planning"
+    "status": "Draft"
   },
   "meta": {}
 }
@@ -72,7 +72,7 @@ Success (200):
       "name": "2026/2027",
       "start_date": "2026-07-01",
       "end_date": "2027-06-30",
-      "status": "Planning"
+      "status": "Draft"
     }
   ],
   "meta": { "page": 1, "page_size": 25, "total": 3 }
@@ -122,11 +122,18 @@ Success: `204 No Content`.
 Request:
 
 ```json
-{ "status": "Configuration" }
+{
+  "status": "Active",
+  "reason": "Alasan transisi ke aktif yang sah"
+}
 ```
 
-Valid lifecycle: `Planning` → `Configuration` → `Active` → `Locked` →
-`Finalizing` → `Closed` → `Archived`.
+Valid lifecycle transitions:
+- `Draft` ↔ `Active`
+- `Active` ↔ `Closed`
+- `Closed` → `Archived`
+
+Any transition out of `Archived` is illegal. Every transition requires a non-empty `reason` parameter of at least 10 characters for audit tracking.
 
 Success (200): returns the updated academic year envelope.
 
@@ -134,8 +141,9 @@ Errors:
 
 | Code | HTTP | Cause |
 |------|------|-------|
-| `INVALID_STATE_TRANSITION` | 409 | Requested status is not the next legal lifecycle state. |
+| `INVALID_STATE_TRANSITION` | 409 | Requested status is not a legal lifecycle state transition. |
 | `ACTIVE_YEAR_EXISTS` | 409 | Tenant already has another `Active` year. |
+| `VALIDATION_ERROR` | 400 | The `reason` is missing, empty, or less than 10 characters. |
 | `FEATURE_NOT_AVAILABLE` | 403 | Caller cannot write academic config. |
 | `NOT_FOUND` | 404 | Academic year is missing or belongs to another tenant. |
 

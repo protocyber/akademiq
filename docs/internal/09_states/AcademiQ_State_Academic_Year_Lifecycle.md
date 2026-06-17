@@ -3,85 +3,54 @@
 ```mermaid
 stateDiagram-v2
 
-[*] --> Planning
+[*] --> Draft
 
-Planning --> Configuration : Academic structure being prepared
-Configuration --> Active : School year officially starts
+Draft --> Active : Activated (Start of teaching period)
+Active --> Draft : Reverted to Draft (Undo activation)
 
-Active --> Locked : End of teaching period
-Locked --> Finalizing : Grade submission & report approvals
+Active --> Closed : Closed (End of teaching period)
+Closed --> Active : Reopened (Undo closing)
 
-Finalizing --> Closed : All academic processes completed
-Closed --> Archived : Historical storage
+Closed --> Archived : Archived (Historical storage, irreversible)
 
 Archived --> [*]
 ```
+
 🧠 What This State Diagram Defines
 
-This models how an Academic Year entity transitions from planning to archival.
+This models how an Academic Year entity transitions from creation to archival. To ensure accountability, every status change requires a minimum 10-character explanation (`reason`), which is written to the `academic_year_status_transition` table as an audit log.
 
-🟡 Planning
+🟡 Draft
 
-The year is created but not yet configured.
-School is preparing high-level setup.
-
-⚙️ Configuration
-
-Admins are setting up:
-
-Curriculum version
-
-Subjects
-
-Passing grades
-
-Class structure
-
-Academic operations are not yet allowed.
+- The year is created but not yet finalized.
+- Admins configure the curriculum version, subjects, passing grades, and class structures.
+- Academic operations (e.g., grading, attendance recording) are not yet allowed.
 
 🟢 Active
 
-The academic year is officially running:
-
-Attendance recording
-
-Grading
-
-Enrollment changes
-All operational modules reference this year.
-
-🔒 Locked
-
-Teaching period has ended.
-New grades or attendance entries are no longer allowed, but report processing continues.
-
-📝 Finalizing
-
-Administrative closing phase:
-
-Final grade submissions
-
-Report card approvals
-
-Promotion decisions
+- The academic year is officially running.
+- Operational modules reference this year for attendance recording, grading, and enrollment.
+- Only one academic year can be `Active` per tenant at any given time.
 
 ✅ Closed
 
-All academic processes for the year are complete.
-Data becomes read-only.
+- The teaching period has ended, and all academic processes are completed.
+- Data becomes read-only.
+- New grades and class edits are locked.
+- The year can be reopened back to `Active` (which checks for active year conflicts).
 
 📦 Archived
 
-The year moves into long-term historical storage.
-Used only for reporting and audits.
+- The year moves into long-term historical storage.
+- Used only for reporting and audits.
+- **Irreversible**: Once archived, it cannot transition back to any other state.
+- Transitioning to this state triggers the archival of all report cards for this year.
 
 🎯 Why This Matters
 
 This lifecycle controls:
+✔ When grades can be entered (only in `Active`)
+✔ When schedules are editable (only in `Draft` or `Active`)
+✔ When data becomes read-only (in `Closed` or `Archived`)
+✔ When audit logs are recorded for accountability (every transition requires a `reason`)
 
-✔ When grades can be entered
-✔ When schedules are editable
-✔ When promotions can run
-✔ When data becomes read-only
-
-It becomes a global rule provider for other services.
