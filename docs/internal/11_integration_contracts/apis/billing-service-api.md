@@ -124,6 +124,99 @@ Errors:
 | `FEATURE_NOT_AVAILABLE` | 403  | The current plan does not include `feature_code`. |
 | `SUBSCRIPTION_EXPIRED`  | 403  | Tenant has no active subscription. |
 
+## School profile
+
+All require `Authorization: Bearer <access_token>` and the `billing.manage`
+permission. `tenant_id` is resolved from the JWT; body-supplied `tenant_id` is
+ignored. The profile does **not** include kepala sekolah / head-teacher linkage.
+
+### `GET /tenants/me/school-profile`
+
+Returns the complete school profile for the current tenant.
+
+```json
+{
+  "data": {
+    "tenant_id": "uuid",
+    "school_name": "SMA Negeri 1",
+    "phone_number": "031-123456",
+    "email": "info@sman1.sch.id",
+    "website": "https://sman1.sch.id",
+    "npsn": "20512345",
+    "logo_media_id": "uuid|null",
+    "school_level": "sma|smp|sd|mi|mts|ma|slb",
+    "school_status": "negeri|swasta",
+    "accreditation": "a|b|c|belum_terakreditasi",
+    "address_line": "Jl. Pendidikan No. 1",
+    "village": "Kelurahan Sehat",
+    "subdistrict": "Kecamatan Maju",
+    "city_regency": "Kota Surabaya",
+    "province": "Jawa Timur",
+    "postal_code": "60111"
+  },
+  "meta": {}
+}
+```
+
+### `PATCH /tenants/me/school-profile`
+
+Updates one or more school profile fields for the current tenant. All fields are
+optional; only supplied fields are updated.
+
+Request (partial):
+
+```json
+{
+  "school_name": "SMA Negeri 1 Surabaya",
+  "phone_number": "031-654321",
+  "school_level": "sma",
+  "school_status": "negeri",
+  "accreditation": "a",
+  "address_line": "Jl. Pendidikan No. 1",
+  "province": "Jawa Timur"
+}
+```
+
+Success (200): the updated school profile (same shape as `GET`).
+
+Errors:
+
+| Code              | HTTP | Cause |
+|-------------------|------|-------|
+| `VALIDATION_ERROR`| 400  | Per-field errors (`school_level`, `school_status`, `accreditation`, `email`, etc.). |
+| `FORBIDDEN`       | 403  | Caller lacks `billing.manage`. |
+
+## School profile media
+
+### `GET /tenants/me/school-profile/media`
+
+Returns the media history for the school logo (active first, then previous assets).
+
+```json
+{
+  "data": [
+    {
+      "media_id": "uuid",
+      "owner_type": "school",
+      "owner_id": "uuid",
+      "file_url": "string",
+      "content_type": "image/jpeg",
+      "size_bytes": 51200,
+      "is_active": true,
+      "uploaded_at": "2026-06-19T00:00:00Z"
+    }
+  ],
+  "meta": {}
+}
+```
+
+### `POST /tenants/me/school-profile/media`
+
+Uploads a new school logo (multipart `file`). Validates JPG/PNG/WebP up to 2MB.
+The new asset becomes active and previous assets remain visible in history.
+
+Errors: `400 VALIDATION_ERROR` (`file` field) for invalid type/size.
+
 ## Health
 
 ### `GET /healthz`

@@ -55,18 +55,41 @@ Returns service, database, and RabbitMQ health.
 
 ### POST `/students`
 
-Creates a student. Requires `academic_ops` entitlement.
+Creates a student. Requires `academic_ops` entitlement. Supports complete Indonesian
+school biodata. Accepts an optional `initial_placement` object; when placement fails the
+student profile is still created and the response includes `placement: "not_placed"`.
 
 Request:
 
 ```json
-{ "nis": "S-001", "full_name": "Ada Lovelace", "gender": "female", "birth_date": "2012-01-31" }
+{
+  "nis": "S-001",
+  "nisn": "0012345678",
+  "nik": "3578010101900001",
+  "full_name": "Budi Santoso",
+  "gender": "male",
+  "birth_date": "2012-01-31",
+  "birth_place": "Surabaya",
+  "address_line": "Jl. Merdeka No. 10",
+  "phone_number": "081234567890",
+  "religion": "islam",
+  "nationality": "Indonesia",
+  "child_order": 1,
+  "sibling_count": 2,
+  "entry_date": "2024-07-15",
+  "origin_school": "SDN Sukamaju",
+  "user_id": "uuid|null",
+  "initial_placement": { "academic_year_id": "uuid", "homeroom_id": "uuid" }
+}
 ```
+
+Success (201): the created student profile (rich shape, see GET detail).
 
 Errors:
 
-- `409 DUPLICATE_NIS` when the tenant already has the same NIS.
+- `409 DUPLICATE_NIS` when the tenant already has the same NIS (among non-deleted students).
 - `403 FEATURE_NOT_AVAILABLE` when the tenant is not entitled to `academic_ops`.
+- `400 VALIDATION_ERROR` for invalid field values (`gender`, `religion`, etc.).
 
 ### GET `/students`
 
@@ -76,12 +99,49 @@ returns the paginated envelope.
 
 ### GET `/students/{student_id}`
 
-Returns one tenant-scoped student.
+Returns one tenant-scoped student with complete biodata:
+
+```json
+{
+  "data": {
+    "student_id": "uuid",
+    "tenant_id": "uuid",
+    "user_id": "uuid|null",
+    "nis": "S-001",
+    "nisn": "0012345678",
+    "nik": "3578010101900001",
+    "full_name": "Budi Santoso",
+    "gender": "male",
+    "birth_date": "2012-01-31",
+    "birth_place": "Surabaya",
+    "address_line": "Jl. Merdeka No. 10",
+    "phone_number": "081234567890",
+    "photo_media_id": "uuid|null",
+    "religion": "islam",
+    "nationality": "Indonesia",
+    "child_order": 1,
+    "sibling_count": 2,
+    "entry_date": "2024-07-15",
+    "origin_school": "SDN Sukamaju",
+    "status": "aktif",
+    "archive_reason": null,
+    "created_at": "...",
+    "updated_at": "..."
+  },
+  "meta": {}
+}
+```
+
+Soft-deleted students are hidden from detail endpoints (404).
 
 ### PATCH `/students/{student_id}`
 
-Updates `nis`, `full_name`, `gender`, and/or `birth_date`. Requires
-`academic_ops` entitlement.
+Updates any of the rich student profile fields. Requires `academic_ops` entitlement.
+
+### POST `/students/{student_id}/archive`
+
+Archives a student. Body: `{ "reason": "lulus|pindah|keluar|meninggal|nonaktif_sementara|lainnya" }`.
+Sets status to `arsip`, stores the reason, leaves enrollment history intact.
 
 ### DELETE `/students/{student_id}`
 
@@ -111,12 +171,31 @@ unknown id. Returns `204 No Content` on success.
 
 ### POST `/teachers`
 
-Creates a teacher. Requires `academic_ops` entitlement.
+Creates a teacher. Requires `academic_ops` entitlement. Supports complete biodata +
+employment fields.
 
 Request:
 
 ```json
-{ "nip": "T-001", "full_name": "Grace Hopper" }
+{
+  "nip": "198501012010011001",
+  "nik": "357801010119850001",
+  "full_name": "Siti Aminah, S.Pd",
+  "education_level": "s1",
+  "gender": "female",
+  "birth_date": "1985-01-01",
+  "birth_place": "Surabaya",
+  "address_line": "Jl. Pahlawan No. 5",
+  "phone_number": "081234567890",
+  "email": "siti.aminah@sman1.sch.id",
+  "employment_status": "pns",
+  "role_position": "guru_matematika",
+  "start_date": "2010-07-01",
+  "primary_subject_area": "matematika",
+  "nuptk": "123456786123456",
+  "certification_number": "cert-001",
+  "user_id": "uuid|null"
+}
 ```
 
 Response includes `user_id` when the teacher profile has been linked to an IAM
@@ -351,3 +430,120 @@ Import validation failure:
   "rows": [{ "row": 2, "errors": { "nis": ["duplicate in file"] } }]
 }
 ```
+
+## Family profiles
+
+All require `academic_ops` entitlement. Family profiles are reusable biodata records,
+optionally linked to an IAM user. Creating/linking a family profile does **not** grant
+portal access (use the guardian endpoints for that).
+
+### POST `/family-profiles`
+
+Creates a family profile. The response includes a `duplicate_warning` array when the
+NIK, phone, or identifying details match existing profiles — creation is not blocked.
+
+Request:
+
+```json
+{
+  "full_name": "Bapak Santoso",
+  "nik": "3578010101960001",
+  "birth_place": "Surabaya",
+  "birth_date": "1960-05-10",
+  "address_line": "Jl. Merdeka No. 10",
+  "phone_number": "081234567890",
+  "email": "santoso@example.com",
+  "occupation": "Wiraswasta",
+  "income_range": "5_10_juta",
+  "life_status": "hidup",
+  "marital_status": "kawin",
+  "nationality": "Indonesia",
+  "religion": "islam",
+  "education_level": "sma",
+  "user_id": "uuid|null"
+}
+```
+
+Response (201):
+
+```json
+{
+  "data": { "family_id": "uuid", "status": "aktif", "...": "..." },
+  "meta": { "duplicate_warning": [{ "family_id": "uuid", "match": "nik" }] }
+}
+```
+
+### GET `/family-profiles`
+
+Lists/searches tenant-scoped family profiles. Accepts `search`, `sort`, `page`,
+`page_size` and returns the paginated envelope. Soft-deleted and archived-by-default
+profiles follow the standard sort/list semantics.
+
+### GET `/family-profiles/{family_id}`
+
+Returns one family profile.
+
+### PATCH `/family-profiles/{family_id}`
+
+Updates family profile fields.
+
+### POST `/family-profiles/{family_id}/archive`
+
+Archives a family profile. Body: `{ "reason": "tidak_aktif|meninggal|putus_hubungan|duplikat|lainnya" }`.
+
+### DELETE `/family-profiles/{family_id}`
+
+Soft-deletes a family profile.
+
+## Student-family links
+
+### POST `/students/{student_id}/family-links`
+
+Links a family profile to a student with relationship attributes. One family profile
+can link to multiple students; one student can have multiple family profiles.
+
+Request:
+
+```json
+{
+  "family_id": "uuid",
+  "relationship_type": "ayah|ibu|wali|kakek|nenek|saudara|lainnya",
+  "primary_contact": true,
+  "emergency_contact": true,
+  "lives_with_student": true,
+  "financial_responsible": true
+}
+```
+
+### GET `/students/{student_id}/family-links`
+
+Lists all family links for a student (used by the student detail Keluarga tab).
+
+### PATCH `/students/{student_id}/family-links/{link_id}`
+
+Updates link attributes (relationship type, flags). Body subset of the create shape.
+
+### POST `/students/{student_id}/family-links/{link_id}/inactivate`
+
+Marks a link inactive without archiving the family profile.
+
+### DELETE `/students/{student_id}/family-links/{link_id}`
+
+Removes a student-family link. Does **not** remove any guardian portal access link.
+
+## Profile media
+
+All require `academic_ops` entitlement. Media assets are tenant + owner scoped.
+
+### POST `/media/{owner_type}/{owner_id}`
+
+Uploads a photo for a `teacher`, `student`, or `family` owner (multipart `file`).
+Validates JPG/PNG/WebP up to 2MB. The new asset becomes active; previous assets remain
+visible in history.
+
+### GET `/media/{owner_type}/{owner_id}`
+
+Returns media history for the owner (active first, then previous assets). Only assets
+for the given owner in the current tenant are returned.
+
+Errors: `400 VALIDATION_ERROR` (`file`) for invalid type/size.

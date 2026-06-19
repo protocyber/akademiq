@@ -39,9 +39,19 @@ CURRICULUM_VERSION {
   string description
 }
 
+SUBJECT_GROUP {
+  uuid subject_group_id PK
+  uuid curriculum_version_id FK
+  uuid tenant_id
+  string name
+  string code
+  int position
+}
+
 SUBJECT {
   uuid subject_id PK
   uuid curriculum_version_id FK
+  uuid subject_group_id FK
   string name
   int passing_grade
 }
@@ -63,7 +73,8 @@ CLASS_TEMPLATE {
 ACADEMIC_YEAR ||--o{ ACADEMIC_TERM : "has terms"
 ACADEMIC_TERM ||--o{ ACADEMIC_TERM_STATUS_TRANSITION : "records transitions"
 ACADEMIC_YEAR ||--o{ CURRICULUM_VERSION : defines
-CURRICULUM_VERSION ||--o{ SUBJECT : includes
+CURRICULUM_VERSION ||--o{ SUBJECT_GROUP : "groups subjects"
+SUBJECT_GROUP ||--o{ SUBJECT : contains
 ACADEMIC_YEAR ||--o{ GRADING_POLICY : applies
 ACADEMIC_YEAR ||--o{ CLASS_TEMPLATE : provides
 ```
@@ -78,12 +89,13 @@ This service stores year-based academic structure and rules. It defines how the 
 | Academic Term | A child period within a year (e.g. Semester 1, Semester 2) |
 | Academic Term Status Transition | Audit log for term lifecycle changes |
 | Curriculum Version | Snapshot of curriculum used that year |
+| Subject Group | Tenant-defined kelompok above subjects, for report-card presentation |
 | Subject | Subjects taught under that curriculum |
 | Grading Policy | Rules for scoring and passing |
 | Class Template | Default class structure for yearly setup |
 
 ## 🔗 Important Relationships
-Academic years define curriculum versions and grading policies. Each academic year has at least one term (auto-seeded on creation). Subjects belong to a curriculum version. Class templates help initialize homerooms for the year.
+Academic years define curriculum versions and grading policies. Each academic year has at least one term (auto-seeded on creation). Curriculum versions contain subject groups, and each subject belongs to exactly one group. Class templates help initialize homerooms for the year.
 
 ## Invariants
 - Every `academic_year` always has ≥ 1 `academic_term` (default `"Semester 1"` is seeded on creation).
@@ -91,3 +103,7 @@ Academic years define curriculum versions and grading policies. Each academic ye
 - Term `start_date`/`end_date` must fall within the parent year's range (app-layer).
 - Terms within a year must not overlap (app-layer).
 - A year cannot transition to `Closed` while any of its terms is `Active` (`TERM_STILL_ACTIVE`).
+- Every `curriculum_version` has ≥ 1 `subject_group` (default `"Umum"` at position 1 is auto-created on curriculum-version creation; the name is the `DEFAULT_SUBJECT_GROUP_NAME` constant).
+- Every `subject` belongs to exactly one `subject_group` (`subject.subject_group_id` is `NOT NULL`, FK `ON DELETE RESTRICT`).
+- `subject_group` `code`, when present, is unique per `(tenant_id, curriculum_version_id, code)`.
+- Deleting a `subject_group` that still has subjects is rejected (`SUBJECT_GROUP_IN_USE`); the `ON DELETE RESTRICT` FK prevents silent cascade.
