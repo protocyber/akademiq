@@ -240,6 +240,54 @@ from_status, to_status, reason, actor_user_id, occurred_at`). When
 `tenant-audit-log` lands, the write target moves to the audit log without
 changing the transition command contract — identical to the year's stated plan.
 
+### Decision 10: Term/report-type management UI restructure
+
+The interim UI bundles everything into one `YearFormModal` with **fake tabs**
+(`setActiveTab` + styled `<Button>`s) holding five sections: Info, Kebijakan
+Nilai, Versi Kurikulum, Semester, Jenis Rapor (`years/page.tsx`). This is
+restructured so management surfaces match where each entity actually lives:
+
+- **Form edit tahun ajaran** → real shadcn `Tabs` (state-driven), three tabs:
+  `Info`, `Kebijakan Nilai`, `Versi Kurikulum`, plus an explicit **Simpan**
+  button (currently missing). The `Semester` and `Jenis Rapor` sections leave
+  this modal.
+- **New page `/academic/terms`** holds term management (the `Semester` list,
+  create/edit/delete/transition). It joins the `academic-settings.tsx` shell as
+  a sibling tab alongside Tahun Ajaran / Mata Pelajaran / Template Kelas.
+- **Form edit semester** → real shadcn `Tabs`, two tabs: `Info`, `Jenis Rapor`.
+  `ReportTypesSection` (already `term_id`-scoped in data —
+  `disabled={!canManage || !termId}`) moves here from the year modal. This is a
+  UI relocation only; the data contract is unchanged.
+
+This also resolves the "Belum ada jenis rapor untuk tahun ini. Tambahkan dari
+Pengaturan → Tahun Ajaran." copy, which is doubly wrong: report types are
+term-scoped (not year-scoped), and they will be managed from the semester form,
+not the year form.
+
+**Scope note / spec tension:** `web-academic-config-management` describes term
+management as "a section/sub-page of the **year** management area." A standalone
+`/academic/terms` page within the academic-config shell satisfies the intent
+("year management area" = the Pengaturan → Akademik group, not the year modal),
+but the spec wording should be reconciled when this lands.
+
+**Tab-component strategy (applies across the app, not just terms):** there are
+three distinct "tab-like" patterns and they do not all map to a vanilla
+state-driven `<Tabs>`:
+
+| Pattern | Where | Maps to |
+|---|---|---|
+| Route-driven nav (1 tab = 1 page + URL) | `academic-settings.tsx`, `academic-ops-page.tsx` | `Tabs value={pathname}` with `TabsTrigger asChild` wrapping `<Link>`, **no `TabsContent`** (content is the routed page) |
+| Modal form sections (local, no URL) | year edit, semester edit | canonical `Tabs value/onValueChange` |
+| In-place state filter (local, no URL) | report-card status approval (`classroom/[classroomId]/page.tsx`) | canonical `Tabs`, count badge in each `TabsTrigger` |
+
+The route-driven pattern must keep per-view URLs (deep-link, back button,
+refresh), so it uses `TabsList`/`TabsTrigger` for appearance and active-state
+only. *A11y caveat:* `asChild` makes the `<Link>` inherit `role="tab"`, which is
+semantically weaker than `nav` + `aria-current="page"` for navigation; accepted
+tradeoff to match the shadcn look. The route-driven and status-filter surfaces
+reach beyond the term feature; they may land as a separate UI change rather than
+inside `add-academic-term`.
+
 ## Risks / Trade-offs
 
 - **[Risk] Report annual aggregation not supported** → Model A makes
@@ -268,6 +316,28 @@ changing the transition command contract — identical to the year's stated plan
 - **[Coordination risk] `tenant-audit-log` lands with a different audit shape**
   → *Mitigation:* the interim store is isolated behind the command; only the
   write target changes when the audit log is ready.
+- **[Bug, observed] `term_id` divergence between academic-config and grading**
+  → The two backfills chose `term_id` independently: academic-config
+  `V4__academic_term.sql` seeds the default term with `gen_random_uuid()` (the
+  source of truth), while grading `V7__term_rework.sql` /
+  `V8__valid_term_projection.sql` derive it as `md5(academic_year_id)::uuid`.
+  For any year created **before** this feature (the backfill path), the two IDs
+  never match. Verified in dev tenant `146b77b9…`: academic-config term
+  `091a02f2…` (Active) vs grading `valid_term`/`evaluation`/`report_type` all
+  carrying the ghost `9aa7758f…` (= `md5(year)`). Symptoms:
+  - the web sends the **real** academic-config `term_id`; grading's `valid_term`
+    lookup returns `None` → `TERM_NOT_EDITABLE` on a genuinely Active term;
+  - report types exist but are stamped with the ghost `term_id`, so a query by
+    the real term returns zero → the "Belum ada jenis rapor untuk tahun ini"
+    message appears even though report types exist;
+  - historical evaluations/grades point at a phantom term and become invisible
+    once queried by the real `term_id`.
+  Grading is internally consistent (everything is `md5(year)`), so the bug only
+  surfaces once a real `term_id` crosses the service boundary. Terms created
+  **via the API** are unaffected because `academic_term.created` carries the
+  real ID. *Root cause:* grading **fabricates** a `term_id` instead of treating
+  it as data owned by academic-config and delivered via the event/projection.
+  *Mitigation:* see "Term ID reconciliation" in the Migration Plan.
 
 ## Migration Plan
 
@@ -292,12 +362,54 @@ changing the transition command contract — identical to the year's stated plan
    table/columns. Backfilled `term_id` values are valid and harmless to the old
    code, which ignores them.
 
+### Term ID reconciliation (existing data heal)
+
+The original plan let academic-config (`gen_random_uuid()`) and grading
+(`md5(year)`) pick `term_id` independently, which diverges for backfilled years
+(see the "term_id divergence" risk). The fix has two parts:
+
+1. **Forward fix (permanent):** grading MUST stop fabricating `term_id`.
+   - Remove every `md5(academic_year_id)::uuid` derivation from grading
+     (`V7`/`V8` backfill and the `commands.rs`/`queries.rs` fallback
+     `SELECT … FROM valid_term … LIMIT 1` → `unwrap_or_else(Uuid::new_v4)`).
+   - A `term_id` enters grading **only** through the `academic_term.created` /
+     `academic_term.status_changed` projection. The fallback when the client
+     omits `term_id` MUST resolve a real projected term (deterministic
+     selection, see open question) rather than invent one.
+2. **One-time heal (existing rows):** a coordinated, ordered operation — **not**
+   a startup migration (refinery runs before the RabbitMQ replay finishes, so a
+   migration-time remap would silently no-op):
+   - **A.** academic-config republishes `academic_term.created` for all existing
+     terms (re-enqueue to the outbox; one-shot CLI/startup task).
+   - **B.** grading consumes them → `valid_term` gains rows with the **real**
+     `term_id` (the upsert is `ON CONFLICT (term_id)`, so the ghost
+     `md5(year)` rows are left untouched alongside the new real rows).
+   - **C.** a grading reconcile step (CLI `akademiq`, run **after** replay)
+     remaps using the real `valid_term` as the `year → real term_id` map:
+     `UPDATE evaluation/report_type SET term_id = real WHERE term_id = md5(year)`
+     and `DELETE FROM valid_term WHERE term_id = md5(year)` to drop the ghosts.
+     Must be idempotent and exit non-zero when nothing changed.
+
+   This respects the projection-based boundary (grading never queries
+   `academic_config_db`; the real ID arrives via event) and avoids the
+   refinery-vs-RabbitMQ race.
+
 ## Open Questions
+
+- **Reconcile tie-break for multi-term years.** Step C maps `year → real
+  term_id` from `valid_term`, which is unambiguous only when a year has exactly
+  one term (the seeded default). Once a year has multiple terms, mapping a
+  legacy `md5(year)` row to a single real term needs an explicit rule (e.g.
+  "the default term named `Semester 1`" or "the oldest term"). Current data is
+  1-term-per-year so it is safe today; pick a rule before any year gains a
+  second term. Same rule applies to the omitted-`term_id` fallback in grading.
 
 - Should `academic-ops-service` get a `known_academic_term` projection now, or
   defer until a UI actually needs it? Current lean: add the table + consumer
   (cheap, consistent) but no UI.
-- Should the term management live as a sub-page of the year edit form, or as a
-  sibling page? Current lean: sub-page/section under the year (matches where
-  report types are managed today).
+- ~~Should the term management live as a sub-page of the year edit form, or as a
+  sibling page?~~ **Resolved (Decision 10):** standalone `/academic/terms` page
+  in the academic-config shell; report types move to the semester edit form.
+  Reconcile the `web-academic-config-management` spec wording ("sub-page of the
+  year area") with this when the change lands.
 - Promote `DEFAULT_TERM_NAME` to a per-tenant setting in a later change? Defer.
