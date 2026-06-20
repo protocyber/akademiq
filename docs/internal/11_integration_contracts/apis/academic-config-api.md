@@ -285,6 +285,11 @@ Creates an `academic_term.status_changed` outbox event on success.
 
 ## Curriculum Versions
 
+Creating a curriculum version auto-creates one default subject group named by
+the `DEFAULT_SUBJECT_GROUP_NAME` constant (`"Umum"`) at `position 1` in the
+same transaction. The constant is the single source of truth shared by the
+application code and the data migration.
+
 ### `POST /academic-years/{academic_year_id}/curriculum-versions`
 
 Request:
@@ -347,7 +352,94 @@ Errors: `CURRICULUM_IN_USE` (409), `NOT_FOUND` (404). Success: `204`.
 All-or-nothing bulk delete. Request: `{ "ids": ["uuid"] }`.
 Errors: `CURRICULUM_IN_USE` (409), `NOT_FOUND` (404). Success: `204`.
 
+## Subject Groups
+
+Subject groups (kelompok) are tenant-defined per curriculum version and exist
+purely for report-card presentation. A default group named by the
+`DEFAULT_SUBJECT_GROUP_NAME` constant (`"Umum"`) at `position 1` is
+auto-created whenever a curriculum version is created. All subject-group
+endpoints are gated on `academic.config.read` (GETs) and `academic.config.write`
+(writes).
+
+### `POST /curriculum-versions/{curriculum_version_id}/subject-groups`
+
+Request:
+
+```json
+{
+  "name": "Kelompok A",
+  "code": "A",
+  "position": 2
+}
+```
+
+`code` is optional. `position` is an integer ≥ 1 controlling report-card
+ordering.
+
+Success (201):
+
+```json
+{
+  "data": {
+    "subject_group_id": "uuid",
+    "tenant_id": "uuid",
+    "curriculum_version_id": "uuid",
+    "name": "Kelompok A",
+    "code": "A",
+    "position": 2,
+    "created_at": "2026-06-19T00:00:00Z",
+    "updated_at": "2026-06-19T00:00:00Z"
+  },
+  "meta": {}
+}
+```
+
+Errors: `VALIDATION_ERROR` (400), `NOT_FOUND` (404) when the curriculum
+version does not exist for the tenant.
+
+### `GET /curriculum-versions/{curriculum_version_id}/subject-groups`
+
+Returns subject groups under the selected curriculum version as a paginated
+list. Query parameters: `search` (substring on `name` or `code`), `sort`
+(`name`, `-name`, `position`, `-position`, `created_at`, `-created_at`),
+`page`, `page_size`. Unknown `sort` → `INVALID_SORT`.
+
+```json
+{
+  "data": [{ "subject_group_id": "uuid", "...": "..." }],
+  "meta": { "page": 1, "page_size": 25, "total": 2 }
+}
+```
+
+### `PATCH /subject-groups/{subject_group_id}`
+
+Updates `name`, `code`, and `position`.
+
+```json
+{ "name": "Kelompok A2", "code": "A2", "position": 3 }
+```
+
+Success (200): the updated group envelope.
+Errors: `VALIDATION_ERROR` (400), `NOT_FOUND` (404).
+
+### `DELETE /subject-groups/{subject_group_id}`
+
+Deletes a subject group. Rejects groups that still have subjects.
+
+Errors: `SUBJECT_GROUP_IN_USE` (409), `NOT_FOUND` (404). Success: `204`.
+
+### `POST /subject-groups/bulk/delete`
+
+All-or-nothing bulk delete. Request: `{ "ids": ["uuid"] }`.
+Errors: `SUBJECT_GROUP_IN_USE` (409), `NOT_FOUND` (404). Success: `204`.
+
 ## Subjects
+
+> **BREAKING.** `POST /subjects` and `PATCH /subjects/{id}` now require
+> `subject_group_id`. Existing clients sending the old shape (without the id)
+> are rejected with `VALIDATION_ERROR` and a `subject_group_id` field error.
+> Subject responses now include `subject_group_id` and a `subject_group`
+> summary so clients can group without a second round-trip.
 
 ### `POST /curriculum-versions/{curriculum_version_id}/subjects`
 
@@ -357,9 +449,14 @@ Request:
 {
   "name": "Matematika",
   "code": "MTK",
-  "passing_grade": 75
+  "passing_grade": 75,
+  "subject_group_id": "uuid"
 }
 ```
+
+The `subject_group_id` must belong to the same curriculum version and tenant;
+otherwise the response is `VALIDATION_ERROR` with a `subject_group_id` field
+error.
 
 Success (201):
 
@@ -369,39 +466,50 @@ Success (201):
     "subject_id": "uuid",
     "tenant_id": "uuid",
     "curriculum_version_id": "uuid",
+    "subject_group_id": "uuid",
     "name": "Matematika",
     "code": "MTK",
-    "passing_grade": 75
+    "passing_grade": 75,
+    "subject_group": {
+      "subject_group_id": "uuid",
+      "name": "Kelompok A",
+      "code": "A",
+      "position": 2
+    }
   },
   "meta": {}
 }
 ```
 
-Errors: `VALIDATION_ERROR` (400) when `passing_grade` is outside `[0, 100]`.
+Errors: `VALIDATION_ERROR` (400) when `passing_grade` is outside `[0, 100]` or
+`subject_group_id` is missing/invalid, `NOT_FOUND` (404) when the curriculum
+version does not exist.
 
 ### `GET /curriculum-versions/{curriculum_version_id}/subjects`
 
 Returns subjects under the selected curriculum version as a paginated list.
+Each subject includes `subject_group_id` and a `subject_group` summary.
 Query parameters: `search` (substring on `name` or `code`), `sort` (`name`,
 `-name`, `code`, `-code`, `passing_grade`, `-passing_grade`), `page`,
 `page_size`. Unknown `sort` → `INVALID_SORT`.
 
 ```json
 {
-  "data": [{ "subject_id": "uuid", "...": "..." }],
+  "data": [{ "subject_id": "uuid", "subject_group_id": "uuid", "subject_group": { "...": "..." } }],
   "meta": { "page": 1, "page_size": 25, "total": 5 }
 }
 ```
 
 ### `PATCH /subjects/{subject_id}`
 
-Updates `name`, `code`, and `passing_grade`.
+Updates `name`, `code`, `passing_grade`, and `subject_group_id`. The group
+must belong to the same curriculum version as the subject.
 
 ```json
-{ "name": "Matematika", "code": "MTK", "passing_grade": 70 }
+{ "name": "Matematika", "code": "MTK", "passing_grade": 70, "subject_group_id": "uuid" }
 ```
 
-Success (200): the updated subject envelope.
+Success (200): the updated subject envelope (with group summary).
 Errors: `VALIDATION_ERROR` (400), `NOT_FOUND` (404).
 
 ### `DELETE /subjects/{subject_id}`

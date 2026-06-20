@@ -27,3 +27,4 @@ These standards ensure:
 | `14_validation_contract.md` | Validation error contract (must align with frontend Zod) |
 | `15_feature_entitlement.md` | Feature entitlement (plan-based access) |
 | `16_implementation_phases.md` | Phased build order: foundation → academic config → academic ops → tenant users |
+| `17_enum_catalog.md` | Canonical enumerated values for profiles, statuses, relationships, and media |
