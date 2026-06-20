@@ -53,51 +53,51 @@ Depends on `ui-foundations-polish` shipping the shared `ui/tabs` component first
 
 ## 6. Terms page → server-driven DataTable (rework)
 
-- [ ] 6.1 Replace the terms page cards/inline create form with the
+- [x] 6.1 Replace the terms page cards/inline create form with the
       `DataTable`-based layout used by `/settings/academic/years`: search input,
       create button top-right, pagination + sort controls.
-- [ ] 6.2 Add `src/lib/schemas/academic-terms-params.ts` (URL params
+- [x] 6.2 Add `src/lib/schemas/academic-terms-params.ts` (URL params
       `search`/`page`/`page_size`/`sort`; default sort `start_date`, page size 10)
       and a `useTermsTable(yearId, params)` query hook returning `{ data, meta }`.
-- [ ] 6.3 Row actions: visible `Edit` button (left) + icon-only `⋮` dropdown
+- [x] 6.3 Row actions: visible `Edit` button (left) + icon-only `⋮` dropdown
       with `Delete` only.
-- [ ] 6.4 Remove client-side sorting; rely on backend `sort`.
+- [x] 6.4 Remove client-side sorting; rely on backend `sort`.
 
 ## 7. TermFormModal (create + edit, tabs Info + Rapor)
 
-- [ ] 7.1 Build a single `TermFormModal` with `mode="create"|"edit"`. Create
+- [x] 7.1 Build a single `TermFormModal` with `mode="create"|"edit"`. Create
       mode renders only the Info tab; edit mode renders `Info` + `Rapor` tabs.
-- [ ] 7.2 Info tab edit mode: persist name/dates via update + run status
+- [x] 7.2 Info tab edit mode: persist name/dates via update + run status
       transition if the status changed; show error + refetch on partial failure.
-- [ ] 7.3 Rename the report-type tab label from "Jenis Rapor" to "Rapor".
-- [ ] 7.4 After a successful create, reopen the modal in edit mode on the
+- [x] 7.3 Rename the report-type tab label from "Jenis Rapor" to "Rapor".
+- [x] 7.4 After a successful create, reopen the modal in edit mode on the
       `Rapor` tab for the newly created term.
-- [ ] 7.5 Retire the legacy `TermEditDialog` once `TermFormModal` covers it.
+- [x] 7.5 Retire the legacy `TermEditDialog` once `TermFormModal` covers it.
 
 ## 8. Backend: report-type copy endpoint
 
-- [ ] 8.1 Add `POST /api/v1/grading/report-types/copy` to grading-service
+- [x] 8.1 Add `POST /api/v1/grading/report-types/copy` to grading-service
       (`commands::copy_report_types`): tenant-scoped, admin-only, validates both
       terms in the same academic year + tenant, rejects `source == target`.
-- [ ] 8.2 Copy report-type definitions only (`code`, `name`, relative
+- [x] 8.2 Copy report-type definitions only (`code`, `name`, relative
       `position`); skip duplicate codes already present in the target term.
-- [ ] 8.3 Run the inserts in a single transaction; return
+- [x] 8.3 Run the inserts in a single transaction; return
       `{ copied: N, skipped: M }`.
-- [ ] 8.4 Reject `overwrite=true` with 422 until there is a product need.
-- [ ] 8.5 Backend tests for happy path, duplicate-skip, cross-year rejection,
+- [x] 8.4 Reject `overwrite=true` with 422 until there is a product need.
+- [x] 8.5 Backend tests for happy path, duplicate-skip, cross-year rejection,
       and `source == target` rejection.
 
 ## 9. Frontend copy report-types integration
 
-- [ ] 9.1 Add `ReportType` field `term_id`; add `useCopyReportTypes` mutation
+- [x] 9.1 Add `ReportType` field `term_id`; add `useCopyReportTypes` mutation
       and `copyReportTypes` Zod schema.
-- [ ] 9.2 Fix `useCreateReportType`/`useUpdateReportType`/`useDeleteReportType`
+- [x] 9.2 Fix `useCreateReportType`/`useUpdateReportType`/`useDeleteReportType`
       invalidation to include `termId` (use the full
       `reportTypesQueryKey(yearId, termId)`).
-- [ ] 9.3 Create flow: optional "Salin daftar rapor dari semester lain"
+- [x] 9.3 Create flow: optional "Salin daftar rapor dari semester lain"
       checkbox + source-term selector (same year, exclude target); disabled when
       no source term has report types; calls copy endpoint after create.
-- [ ] 9.4 Rapor tab: "Salin dari semester lain" button → small dialog to pick a
+- [x] 9.4 Rapor tab: "Salin dari semester lain" button → small dialog to pick a
       source term; on success toast `X disalin, Y dilewati` and refetch.
 - [ ] 9.5 Playwright smoke: search table, open create, open edit tabs, copy
       dialog visible.
