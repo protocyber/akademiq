@@ -71,7 +71,7 @@ By default, GCP VM external IPs are ephemeral. To reserve a static IP:
 3. Click the three dots next to it and select **Promote to static IP address**.
 4. Give it a name (e.g., `akademiq-backend-static-ip`).
 5. **Free Tier Rule**: GCP only charges for static IP addresses if they are **unused** (unattached). As long as your static IP is attached to a running VM, it is covered under the Free Tier. (Remember to release it if you ever delete the VM).
-6. Point your API address (e.g., `<YOUR_VM_IP>.nip.io`) to this static IP.
+6. Point your API address (e.g., `<YOUR_VM_IP_WITH_DASHES>.sslip.io`) to this static IP.
 
 ---
 
@@ -301,12 +301,12 @@ volumes:
 ```
 
 ### B. `Caddyfile`
-Caddy handles automatic HTTPS provisioning (using the free `nip.io` resolver since you do not have a custom domain) and clean proxy routing:
+Caddy handles automatic HTTPS provisioning (using the free `sslip.io` resolver since you do not have a custom domain) and clean proxy routing:
 ```caddy
-# Replace <YOUR_VM_IP> with the actual static external IP of your VM (e.g., 35.240.12.34.nip.io).
+# Replace <YOUR_VM_IP_WITH_DASHES> with the actual static external IP of your VM with dashes (e.g., 34-172-74-19.sslip.io).
 # Caddy will automatically fetch a Let's Encrypt SSL certificate for this domain.
 # Alternatively, if you want to use plain HTTP, you can write `:80` instead.
-<YOUR_VM_IP>.nip.io {
+<YOUR_VM_IP_WITH_DASHES>.sslip.io {
     # Route API paths to respective internal backend services
     reverse_proxy /api/v1/iam/* iam-service:8081
     reverse_proxy /api/v1/billing/* billing-service:8082
@@ -361,7 +361,7 @@ IAM_INTERNAL_SERVICE_TOKEN="<your-generated-token>"
 # Google OAuth Setup
 GOOGLE_CLIENT_ID="<your-client-id>"
 GOOGLE_CLIENT_SECRET="<your-client-secret>"
-GOOGLE_REDIRECT_URI="https://<YOUR_VM_IP>.nip.io/api/v1/iam/auth/google/callback"
+GOOGLE_REDIRECT_URI="https://<YOUR_VM_IP_WITH_DASHES>.sslip.io/api/v1/iam/auth/google/callback"
 
 # Web Origin and Email Setup
 PUBLIC_WEB_BASE_URL="https://your-frontend-domain.app"
