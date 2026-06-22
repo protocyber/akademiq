@@ -25,3 +25,5 @@ When a tenant successfully links a student profile to an IAM user account.
 ## Notes
 
 The grading service consumes this event to maintain the `student_authz` projection mapping the owner to their student profile with relation `self`.
+
+The counterpart event `student.account_unlinked` is emitted when the link is removed via `DELETE /api/v1/academic-ops/students/:student_id/account`.

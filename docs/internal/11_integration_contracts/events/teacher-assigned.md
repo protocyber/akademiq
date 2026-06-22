@@ -39,3 +39,8 @@ The academic-config service also consumes this event (keyed by `assignment_id`)
 to maintain a local usage projection that powers the `YEAR_IN_USE` and
 `SUBJECT_IN_USE` referential delete guards — it cannot read the ops tables
 directly because they live in a separate database.
+
+`teacher_user_id` is also refreshed by the `teacher.account_linked` and
+`teacher.account_unlinked` events, which fire when the teacher's IAM account is
+linked or unlinked independently of the assignment. See those event contracts
+for details.
