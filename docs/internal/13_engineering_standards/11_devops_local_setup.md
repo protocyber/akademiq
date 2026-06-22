@@ -93,7 +93,8 @@ auto-skipping in CI / non-TTY / with `YES=1` (e.g. `YES=1 make build`).
 
 | Command | When to run | Cost |
 |---|---|---|
-| `make dev` | Daily loop — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
+| `make dev` | Daily loop with local DB — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
+| `make dev-supabase` | Daily loop with dev Supabase DB (`apps/backend/.env.dev-supabase`) + local RabbitMQ | ~13s/edit, 0.4s no-op |
 | `make up` / `make down` | Start/stop Postgres + RabbitMQ | seconds |
 | `make migrate` | After adding a migration | fast |
 | `make seed` | Once, to load demo data | **SLOW** — minutes (cold) |
@@ -153,3 +154,138 @@ akademiq fragment (`infra/traefik/akademiq.dynamic.yaml`) and keeps the shared
 `PathPrefix(/api/v1/<name>)` router at `priority: 100` plus a matching service
 entry) to `infra/traefik/akademiq.dynamic.yaml`, in lockstep with the
 docker-compose entry and the `<SERVICE>_PORT` in `apps/backend/.env.example`.
+
+## Switching database context (local ↔ dev Supabase)
+
+The backend supports two database contexts during development:
+
+| Context | Database | Connection string host |
+|---|---|---|
+| `local` | Local Postgres (one-db-per-service) | `127.0.0.1:5432` |
+| `dev-supabase` | Dev Supabase (schema-per-service) | `*.pooler.supabase.com:5432` |
+
+RabbitMQ always stays local regardless of DB context.
+
+### Why you must purge RabbitMQ on every switch
+
+AkademiQ uses a **transactional outbox** pattern. The outbox publisher polls
+`outbox` rows from the current DB and drains them into local RabbitMQ durable
+queues (`grading.projections`, `academic-ops.projections`,
+`academic-config.projections`). Projection consumers apply these messages by
+upserting into projection tables with **no `event_id` dedup check**.
+
+If you switch `*_DATABASE_URL` without purging the broker, messages published
+from DB-A will be consumed and applied to DB-B's projection tables — silently
+inserting orphan UUIDs that do not exist in the new DB. The only safe guard is
+wiping the broker before starting services with a new DB context.
+
+### One-time setup (dev Supabase)
+
+1. Create the five schemas in your Supabase dev project SQL Editor:
+
+   ```sql
+   CREATE SCHEMA IF NOT EXISTS iam;
+   CREATE SCHEMA IF NOT EXISTS billing;
+   CREATE SCHEMA IF NOT EXISTS academic_config;
+   CREATE SCHEMA IF NOT EXISTS academic_ops;
+   CREATE SCHEMA IF NOT EXISTS grading;
+   ```
+
+2. Decide which connection mode `supabase-sync.sh` will use for `pg_dump` /
+   `pg_restore`:
+
+   - **Preferred:** direct connection (`db.<project-ref>.supabase.co:5432`).
+     Direct hosts use IPv6 by default; IPv4 direct access requires Supabase's
+     paid Dedicated IPv4 add-on.
+   - **Fallback:** session pooler (`*.pooler.supabase.com:5432`) if your network
+     is IPv4-only and you do not use the IPv4 add-on.
+
+   Copy the exact URL from the Supabase dashboard. Do not use transaction pooler
+   port `6543`.
+
+3. Create the dev env file and fill in credentials:
+
+   ```bash
+   cd apps/backend
+   cp .env.dev-supabase.example .env.dev-supabase
+   # edit .env.dev-supabase — replace <dev-project-ref> and PASSWORD
+   ```
+
+4. Populate dev DB from prod (run once, repeat whenever you want a fresh copy):
+
+   ```bash
+   # Preferred: direct connection (requires IPv6 or paid Dedicated IPv4 add-on)
+   PROD_DB_URL=postgres://postgres.<prod-ref>:PASS@db.<prod-ref>.supabase.co:5432/postgres \
+   DEV_DB_URL=postgres://postgres.<dev-ref>:PASS@db.<dev-ref>.supabase.co:5432/postgres \
+   make supabase-sync
+
+   # Fallback for IPv4-only networks: session pooler :5432 (copy from dashboard)
+   PROD_DB_URL=postgres://postgres.<prod-ref>:PASS@aws-1-<region>.pooler.supabase.com:5432/postgres \
+   DEV_DB_URL=postgres://postgres.<dev-ref>:PASS@aws-1-<region>.pooler.supabase.com:5432/postgres \
+   make supabase-sync
+   ```
+
+   `supabase-sync.sh` renames the existing dev schema to
+   `<schema>_backup_<timestamp>` before restoring, so you can roll back manually
+   if something goes wrong. Old backup schemas are never auto-dropped — clean
+   them up manually once you are satisfied:
+
+   ```sql
+   DROP SCHEMA iam_backup_20260622_143000 CASCADE;
+   -- repeat for each schema
+   ```
+
+### Switching context
+
+Use `make db-switch TARGET=<context>`. This single command:
+
+1. Kills all running host-side service binaries (all 5 services)
+2. Runs `make up` to ensure Postgres + RabbitMQ are running
+3. Full-resets RabbitMQ (`rabbitmqctl reset`) — wipes all queues and messages
+4. Prints the exact commands to start services with the new env
+
+```bash
+# Switch to dev Supabase
+make db-switch TARGET=dev-supabase
+
+# Switch back to local Postgres
+make db-switch TARGET=local
+```
+
+After the command completes, follow the printed instructions from the repo root:
+
+```bash
+# For dev Supabase
+make dev-supabase
+
+# For local Postgres
+make dev
+```
+
+`make dev-supabase` sources `apps/backend/.env.dev-supabase` and does **not**
+override the service database URLs back to local Postgres. Do not use plain
+`make dev` for the dev Supabase context — it intentionally exports local
+`*_DATABASE_URL` values.
+
+Services re-declare the RabbitMQ exchange and queues automatically on boot —
+no manual topology setup needed after a purge.
+
+To purge the broker without switching context (e.g. after a crash):
+
+```bash
+make rabbitmq-purge
+```
+
+### Connection string conventions
+
+| Usage | Recommended | Fallback | Never use |
+|---|---|---|---|
+| Backend services (`*_DATABASE_URL`) | Session pooler `*.pooler.supabase.com:5432` | none | Transaction pooler `:6543` |
+| `pg_dump` / `pg_restore` (`PROD_DB_URL`, `DEV_DB_URL`) | Direct host `db.<ref>.supabase.co:5432` | Session pooler `*.pooler.supabase.com:5432` if direct is unreachable from IPv4-only networks | Transaction pooler `:6543` |
+
+Direct hosts use IPv6 by default. If your network cannot reach IPv6, either
+enable Supabase's paid Dedicated IPv4 add-on or use the session pooler fallback
+for `supabase-sync.sh`. Never use port `6543` (transaction mode) with SQLx or
+backup/restore workflows — named prepared statements collide across backends and
+billing-service will crash at boot. See `.env.prod.example` for the full SQLx
+rationale.

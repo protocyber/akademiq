@@ -21,6 +21,7 @@
 #
 # Orchestrator extras:
 #
+#   make dev-supabase  # launch backend + web with backend DB URLs from apps/backend/.env.dev-supabase
 #   make dev-backend   # just the backend dev loop
 #   make dev-tmux      # tmux fallback for machines without mprocs
 #   make dev-parallel  # `make -j2` last-resort fallback
@@ -34,6 +35,9 @@
 #   make purge         # DESTRUCTIVE: delete volumes + all artefacts (confirmation required)
 #   make submodules    # `git submodule update --init --recursive`
 #   make doctor        # check required dev tooling, print install hints
+#   make supabase-sync # copy prod→dev Supabase DB (schema-per-service)
+#   make db-switch     # switch DB context (local ↔ dev-supabase) + purge broker
+#   make rabbitmq-purge # full reset RabbitMQ local (wipe all data)
 #   make help          # this help screen
 #
 # Per-machine config lives in `.env` (root, gitignored). Per-app config
@@ -51,9 +55,10 @@ MPROCS_CONFIG ?= mprocs.yaml
 TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
-.PHONY: help dev dev-tmux dev-parallel dev-backend dev-web submodules \
+.PHONY: help dev dev-supabase dev-tmux dev-parallel dev-backend dev-web submodules \
         up down build test test-e2e test-web seed migrate ps stop clean \
-        clean-storage clean-storage-incremental purge doctor
+        clean-storage clean-storage-incremental purge doctor supabase-sync \
+        rabbitmq-purge db-switch
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -83,6 +88,27 @@ dev: ## Launch backend + web together (mprocs primary)
 	export RABBITMQ_URL="amqp://$${RABBITMQ_USER:-akademiq}:$${RABBITMQ_PASSWORD:-akademiq_dev}@127.0.0.1:$${RABBITMQ_PORT:-5672}"; \
 	export IAM_BASE_URL="http://127.0.0.1:$${IAM_PORT:-8081}"; \
 	export FEATURES_TOML_PATH="features.toml"; \
+	if command -v mold >/dev/null; then export RUSTFLAGS="-Clink-arg=-fuse-ld=mold"; fi; \
+	export CARGO_BUILD_JOBS="$${CARGO_BUILD_JOBS:-4}"; \
+	set +a; \
+	mprocs --config $(MPROCS_CONFIG)
+
+dev-supabase: ## Launch backend + web with backend DB URLs from apps/backend/.env.dev-supabase
+	@if ! command -v mprocs >/dev/null; then \
+		echo ">> mprocs not found on PATH."; \
+		echo ">>   Install:  brew install mprocs   (or  cargo install mprocs)"; \
+		exit 1; \
+	fi
+	@if [ ! -f $(BACKEND_DIR)/.env.dev-supabase ]; then \
+		echo ">> $(BACKEND_DIR)/.env.dev-supabase not found."; \
+		echo ">>   Create it with:"; \
+		echo ">>     cp $(BACKEND_DIR)/.env.dev-supabase.example $(BACKEND_DIR)/.env.dev-supabase"; \
+		echo ">>   Then fill in your dev Supabase project-ref + password."; \
+		exit 1; \
+	fi
+	@cd $(BACKEND_DIR) && docker compose --env-file .env up -d rabbitmq
+	@set -a; \
+	source $(BACKEND_DIR)/.env.dev-supabase; \
 	if command -v mold >/dev/null; then export RUSTFLAGS="-Clink-arg=-fuse-ld=mold"; fi; \
 	export CARGO_BUILD_JOBS="$${CARGO_BUILD_JOBS:-4}"; \
 	set +a; \
@@ -190,3 +216,44 @@ purge: ## DESTRUCTIVE: delete volumes + all build artefacts (requires confirmati
 
 doctor: ## Check required dev tooling, print install hints
 	@bash scripts/doctor.sh
+
+supabase-sync: ## Copy prod→dev Supabase DB (schema-per-service). Needs PROD_DB_URL + DEV_DB_URL.
+	@if [ -z "$${PROD_DB_URL:-}" ] || [ -z "$${DEV_DB_URL:-}" ]; then \
+		echo ">> Usage:"; \
+		echo "   # Preferred: direct connection (IPv6 or paid IPv4 add-on)"; \
+		echo "   PROD_DB_URL=postgres://...@db.<prod-ref>.supabase.co:5432/postgres \\"; \
+		echo "   DEV_DB_URL=postgres://...@db.<dev-ref>.supabase.co:5432/postgres \\"; \
+		echo "   make supabase-sync"; \
+		echo ""; \
+		echo "   # Fallback: session pooler :5432 for IPv4-only networks"; \
+		echo "   PROD_DB_URL=postgres://postgres.<prod-ref>:PASS@aws-1-<region>.pooler.supabase.com:5432/postgres \\"; \
+		echo "   DEV_DB_URL=postgres://postgres.<dev-ref>:PASS@aws-1-<region>.pooler.supabase.com:5432/postgres \\"; \
+		echo "   make supabase-sync"; \
+		echo ""; \
+		echo "   Never use transaction pooler port 6543."; \
+		echo ""; \
+		echo ">> Flags (append after the target or pass via make --):"; \
+		echo "   -- --dry-run       preview only"; \
+		echo "   -- --schema=iam    sync a single schema"; \
+		echo "   -- --skip-verify   skip row-count check"; \
+		echo "   -- --keep-dumps    keep .dump files"; \
+		exit 1; \
+	fi
+	@bash scripts/supabase-sync.sh $(filter-out $@,$(MAKECMDGOALS))
+
+rabbitmq-purge: ## Full reset RabbitMQ local (wipe all data). Run on DB switch.
+	@bash scripts/rabbitmq-purge.sh
+
+db-switch: ## Switch DB context (local|dev-supabase). Stops services + purges broker.
+	@if [ -z "$(TARGET)" ]; then \
+		echo ">> Usage: make db-switch TARGET=<local|dev-supabase>"; \
+		echo ">> Targets:"; \
+		echo "   local          apps/backend/.env (local Postgres)"; \
+		echo "   dev-supabase   apps/backend/.env.dev-supabase (dev Supabase)"; \
+		echo ""; \
+		echo ">> Effect: stop services → make up → purge RabbitMQ → print start command."; \
+		echo ">> Pass --yes via the script to skip the prompt:"; \
+		echo "   bash scripts/db-switch.sh dev-supabase --yes"; \
+		exit 1; \
+	fi
+	@bash scripts/db-switch.sh $(TARGET)

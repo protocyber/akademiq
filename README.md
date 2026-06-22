@@ -86,7 +86,8 @@ Alternatif `make dev`:
 
 | Perintah | Kapan dipakai | Biaya |
 |---|---|---|
-| `make dev` | Loop harian — tiap perubahan kode (cargo-watch di host, infra di Docker) | ~13 dtk/edit, 0.4 dtk no-op |
+| `make dev` | Loop harian dengan DB local — tiap perubahan kode (cargo-watch di host, infra di Docker) | ~13 dtk/edit, 0.4 dtk no-op |
+| `make dev-supabase` | Loop harian dengan DB dev Supabase (`apps/backend/.env.dev-supabase`) + RabbitMQ local | ~13 dtk/edit, 0.4 dtk no-op |
 | `make up` / `make down` | Nyalakan/matikan Postgres + RabbitMQ | detik |
 | `make migrate` | Setelah menambah migrasi | cepat |
 | `make seed` | Sekali, untuk memuat data demo | **SLOW** — beberapa menit (cold) |
@@ -100,6 +101,40 @@ Alternatif `make dev`:
 > Target **SLOW** memberi peringatan dan minta konfirmasi sebelum jalan; otomatis
 > dilewati di CI / non-TTY / dengan `YES=1` (mis. `YES=1 make build`).
 > `make rebuild` sudah dihapus — pakai `make dev`.
+
+### Pindah konteks database (local ↔ dev Supabase)
+
+Saat mengembangkan dengan data prod yang disalin ke dev Supabase, gunakan:
+
+```bash
+# Pindah ke dev Supabase (stop service → purge broker → cetak perintah start)
+make db-switch TARGET=dev-supabase
+make dev-supabase
+
+# Kembali ke local Postgres
+make db-switch TARGET=local
+
+# Reset broker saja (misal setelah crash di tengah switch)
+make rabbitmq-purge
+
+# Salin data prod → dev Supabase
+# Preferred: direct connection (butuh IPv6 atau paid Dedicated IPv4 add-on)
+PROD_DB_URL=postgres://...@db.<prod-ref>.supabase.co:5432/postgres \
+DEV_DB_URL=postgres://...@db.<dev-ref>.supabase.co:5432/postgres \
+make supabase-sync
+
+# Fallback jika jaringan IPv4-only: session pooler :5432 (copy dari dashboard)
+PROD_DB_URL=postgres://postgres.<prod-ref>:PASS@aws-1-<region>.pooler.supabase.com:5432/postgres \
+DEV_DB_URL=postgres://postgres.<dev-ref>:PASS@aws-1-<region>.pooler.supabase.com:5432/postgres \
+make supabase-sync
+```
+
+> Broker RabbitMQ **wajib di-purge** setiap ganti konteks DB — event stale di
+> queue durable dapat teraplikasi ke DB yang salah tanpa error. `make db-switch`
+> menangani ini secara otomatis. Untuk `supabase-sync`, direct connection adalah
+> pilihan utama, tetapi session pooler `:5432` boleh dipakai sebagai fallback IPv4.
+> Jangan gunakan transaction pooler `:6543`.
+> Detail lengkap: [`docs/internal/13_engineering_standards/11_devops_local_setup.md § Switching database context`](docs/internal/13_engineering_standards/11_devops_local_setup.md#switching-database-context-local--dev-supabase)
 
 Setiap submodule juga bisa dijalankan mandiri (`cd apps/backend && make dev`,
 `cd apps/web && make dev`) tanpa parent repo. Detail per-app ada di README
@@ -210,7 +245,8 @@ Alternatives to `make dev`:
 
 | Command | When to run | Cost |
 |---|---|---|
-| `make dev` | Daily loop — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
+| `make dev` | Daily loop with local DB — every code change (host cargo-watch, infra in Docker) | ~13s/edit, 0.4s no-op |
+| `make dev-supabase` | Daily loop with dev Supabase DB (`apps/backend/.env.dev-supabase`) + local RabbitMQ | ~13s/edit, 0.4s no-op |
 | `make up` / `make down` | Start/stop Postgres + RabbitMQ | seconds |
 | `make migrate` | After adding a migration | fast |
 | `make seed` | Once, to load demo data | **SLOW** — minutes (cold) |
@@ -224,6 +260,40 @@ Alternatives to `make dev`:
 > **SLOW** targets warn and ask before running; auto-skipped in CI / non-TTY /
 > with `YES=1` (e.g. `YES=1 make build`). `make rebuild` was removed — use
 > `make dev`.
+
+### Switching database context (local ↔ dev Supabase)
+
+When developing against a copy of prod data on dev Supabase:
+
+```bash
+# Switch to dev Supabase (stops services → purges broker → prints start command)
+make db-switch TARGET=dev-supabase
+make dev-supabase
+
+# Switch back to local Postgres
+make db-switch TARGET=local
+
+# Reset the broker only (e.g. after a crash mid-switch)
+make rabbitmq-purge
+
+# Copy prod data → dev Supabase
+# Preferred: direct connection (requires IPv6 or paid Dedicated IPv4 add-on)
+PROD_DB_URL=postgres://...@db.<prod-ref>.supabase.co:5432/postgres \
+DEV_DB_URL=postgres://...@db.<dev-ref>.supabase.co:5432/postgres \
+make supabase-sync
+
+# Fallback for IPv4-only networks: session pooler :5432 (copy from dashboard)
+PROD_DB_URL=postgres://postgres.<prod-ref>:PASS@aws-1-<region>.pooler.supabase.com:5432/postgres \
+DEV_DB_URL=postgres://postgres.<dev-ref>:PASS@aws-1-<region>.pooler.supabase.com:5432/postgres \
+make supabase-sync
+```
+
+> The RabbitMQ broker **must be purged** on every DB context switch — stale
+> messages in durable queues will be applied to the wrong database's projection
+> tables without any error. `make db-switch` handles this automatically. For
+> `supabase-sync`, direct connection is preferred, but session pooler `:5432` is
+> acceptable as an IPv4 fallback. Never use transaction pooler `:6543`.
+> Full details: [`docs/internal/13_engineering_standards/11_devops_local_setup.md § Switching database context`](docs/internal/13_engineering_standards/11_devops_local_setup.md#switching-database-context-local--dev-supabase)
 
 Each submodule is also independently runnable
 (`cd apps/backend && make dev`, `cd apps/web && make dev`) without the parent
