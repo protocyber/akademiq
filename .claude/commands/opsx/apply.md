@@ -67,6 +67,10 @@ Implement tasks from an OpenSpec change.
 
    For each pending task:
    - Show which task is being worked on
+   - If the task is a backend test/check task, skip executing it, leave its checkbox unchecked, append a short skip note to that task, and add/update a `## Manual Backend Tests` section in the same `tasks.md` with the exact command the user can run manually
+   - Treat a task as a backend test/check task when section, path, command, or service keywords indicate backend testing, including `Backend`, `apps/backend`, `cd apps/backend`, `cargo test`, backend service names such as `iam-service` or `grading-service`, or mixed `make test` tasks described as backend + web
+   - For skipped backend test commands, use the command from the task text when present; otherwise use `cd apps/backend && make test`
+   - If a mixed backend + web verification task is skipped for backend testing, preserve or create a separate web-only verification task when web checks are still relevant
    - Make the code changes required
    - Keep changes minimal and focused
    - Mark task complete in the tasks file: `- [ ]` → `- [x]`

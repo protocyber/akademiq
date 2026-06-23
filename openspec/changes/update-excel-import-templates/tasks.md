@@ -40,8 +40,17 @@ Backend submodule `apps/backend`, web submodule `apps/web`.
 
 ## 4. Verification
 
-- [ ] 4.1 `make test` (backend + web) green.
+- [ ] 4.1 `make test` (backend + web) green — backend portion skipped by apply; run manually using the command below.
+- [ ] 4.1a Web checks: `cd apps/web && bun run lint && bun run typecheck` green.
 - [ ] 4.2 Download template → fill "Data" sheet with Indonesian gender
       labels → upload → import succeeds.
 - [ ] 4.3 Verify the "Petunjuk" sheet renders correctly in Excel/LibreOffice.
+
+## Manual Backend Tests
+
+Run this manually after implementation (skipped by `/opsx-apply`):
+
+```sh
+cd apps/backend && make test
+```
 

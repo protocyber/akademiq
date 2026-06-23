@@ -104,6 +104,20 @@ Depends on `ui-foundations-polish` shipping the shared `ui/tabs` component first
 
 ## 10. Final verification
 
-- [ ] 10.1 `cd apps/backend && make test` green (grading-service).
+- [ ] 10.1 `cd apps/backend && make test` green (grading-service) — skipped by apply; run manually using the command below.
 - [ ] 10.2 `cd apps/web && bun run lint && bun run typecheck` green.
 - [ ] 10.3 `cd apps/web && bun run test` green.
+
+## Manual Backend Tests
+
+Run this manually after implementation (skipped by `/opsx-apply`):
+
+```sh
+cd apps/backend && make test
+```
+
+For the grading-service crate only:
+
+```sh
+cd apps/backend && cargo test -p grading-service
+```

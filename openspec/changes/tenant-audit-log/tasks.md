@@ -33,7 +33,7 @@
 - [ ] 5.2 Tests: idempotency on duplicate `event_id`
 - [ ] 5.3 Tests: read API filter/paginate correctness, `audit.view` gate (403 without), tenant isolation
 - [ ] 5.4 Update IAM ERD in `docs/internal/10_data_design/` for `audit_log`
-- [ ] 5.5 Run backend `make test` for iam-service
+- [ ] 5.5 Run backend `make test` for iam-service — skipped by apply; run manually using the command below.
 
 ## 6. Web — audit-log screen (apps/web)
 
@@ -67,3 +67,17 @@
 
 - [ ] 10.1 Update read query hook (task 6.1) to forward optional `target_kind` and `target_id` params.
 - [ ] 10.2 Audit-log table (task 6.2): add `target_kind` column with localized labels (`tenant_user` → Pengguna, `academic_year` → Tahun Ajaran, `academic_term` → Semester); expandable row detail shows the `details` JSONB payload.
+
+## Manual Backend Tests
+
+Run these manually after implementation (skipped by `/opsx-apply`):
+
+```sh
+cd apps/backend && make test
+```
+
+For the iam-service crate only:
+
+```sh
+cd apps/backend && cargo test -p iam-service
+```

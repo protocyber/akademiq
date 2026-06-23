@@ -82,9 +82,18 @@ Backend submodule `apps/backend`, web submodule `apps/web`.
 
 ## 7. Verification
 
-- [ ] 7.1 `make test` (backend + web) green.
+- [ ] 7.1 `make test` (backend + web) green — backend portion skipped by apply; run manually using the command below.
+- [ ] 7.1a Web checks: `cd apps/web && bun run lint && bun run typecheck` green.
 - [ ] 7.2 End-to-end manual pass: create year → create term → activate year →
       activate term → edit term (status preserved) → edit year (status
       preserved) → forward transition (no reason) → backward transition
       (reason required) → UI refreshes at each step.
+
+## Manual Backend Tests
+
+Run this manually after implementation (skipped by `/opsx-apply`):
+
+```sh
+cd apps/backend && make test
+```
 
