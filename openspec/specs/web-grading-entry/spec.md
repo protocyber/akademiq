@@ -1,63 +1,51 @@
-## ADDED Requirements
+# web-grading-entry Specification
 
-### Requirement: The grade-entry screen SHALL present grades as an evaluation-column grid
+## Purpose
 
-The `/grading/entry` screen MUST let the user pick Tahun, Kelas, and Mapel, then
-render a grid whose rows are the class roster and whose columns are the
-evaluations defined for that class+subject+year, in `position` order. Each cell
-holds one student's score for one evaluation.
+Defines the grade-entry screen contract for teacher identity resolution, unmaterialized-assignment nudges, and weight-drift warnings.
 
-#### Scenario: Columns reflect the class+subject evaluations
+## Requirements
 
-- **WHEN** the user has selected a year, class, and subject that has evaluations UH1, UH2, UTS
-- **THEN** the grid shows one column per evaluation in order, and each roster row shows that student's score per column (blank when unrecorded)
+### Requirement: The grade-entry screen SHALL resolve teacher identity without admin IAM endpoints
 
-#### Scenario: No evaluations yet
+The `/grading/entry` screen MUST resolve the assigned teacher's display name and account-link status from the academic-ops teachers data it already loads, and MUST NOT call any tenant-admin-gated IAM endpoint (e.g. `GET /iam/tenants/me/users`). Linked account email/username MUST come from an academic-ops linked-user projection of the IAM user, not from the teacher biodata `teacher.email` field. Non-admin teachers MUST be able to use the screen without receiving a 403 from a user-directory lookup.
 
-- **WHEN** the selected class+subject has no evaluations defined
-- **THEN** the grid shows an empty-columns hint prompting the user to add an evaluation, and no score cells are editable
+#### Scenario: Teacher info shows without an admin lookup
 
-### Requirement: Grade cells SHALL auto-save inline without an Update button
+- **WHEN** a non-admin teacher opens `/grading/entry`
+- **THEN** the assigned teacher's name and account status are shown from academic-ops data and no request is made to `/iam/tenants/me/users`
 
-Each score cell MUST save on its own — on blur or debounced change — when the
-value is valid (0–100) and differs from the stored value. There MUST be no
-per-row or per-cell Update button. Each cell MUST show its own status: idle,
-saving, saved, or error. On error the entered value is retained with a retry
-affordance; invalid input is shown inline and does not trigger a save.
+#### Scenario: No 403 for a non-admin
 
-#### Scenario: Editing a cell saves automatically
+- **WHEN** a teacher who does not hold `user.read` loads the screen
+- **THEN** no admin IAM request is issued and the screen loads without a permission error
 
-- **WHEN** the user types a valid score into a cell and moves focus away
-- **THEN** the cell shows a saving then saved status and the grade is persisted for that `(student, evaluation)` without any button press
+#### Scenario: Linked teacher identity is shown from projected IAM data
 
-#### Scenario: Invalid score is not saved
+- **WHEN** the grade-entry screen displays an assigned teacher with `user_id`
+- **THEN** the account label uses `linked_user.email` or `linked_user.username`
+- **AND** it does not use the teacher biodata `email` field to decide linked status
 
-- **WHEN** the user enters a value outside 0–100 or non-numeric
-- **THEN** the cell shows an inline validation state and no save request is sent
+#### Scenario: Linked teacher without projected identity uses fallback label
 
-#### Scenario: Save failure is recoverable
+- **WHEN** the grade-entry screen displays an assigned teacher with `user_id` but no `linked_user`
+- **THEN** it shows a linked-account fallback label rather than `(akun belum terhubung)`
 
-- **WHEN** a cell's save request fails
-- **THEN** the cell shows an error status, keeps the entered value, and offers a retry
+#### Scenario: Unlinked teacher shows unlinked label
 
-### Requirement: The screen SHALL manage evaluations via a modal gated on class+subject selection
+- **WHEN** the grade-entry screen displays an assigned teacher with no `user_id`
+- **THEN** it shows `(akun belum terhubung)`
 
-A **[Kelola Evaluasi]** control MUST appear only after both a class and a
-subject are selected. It MUST open a modal that lists the evaluations for that
-class+subject+year in a small table and supports add, edit, delete, and reorder.
-Changes MUST be reflected in the grid columns on close.
+### Requirement: The grade-entry screen SHALL surface unmaterialized-assignment and weight warnings
 
-#### Scenario: Manage button is hidden until class and subject are chosen
+The screen MUST show a nudge when teaching assignments in the active term lack evaluations, using the grading service's unmaterialized-assignment count. The screen MUST show a non-blocking warning when a report type's subject weights no longer total 100% (e.g. after a teacher added an evaluation outside the template) or when no report type exists for the term. Neither condition blocks grade entry.
 
-- **WHEN** the user has not yet selected both a class and a subject
-- **THEN** the [Kelola Evaluasi] control is not shown
+#### Scenario: Nudge appears when assignments lack evaluations
 
-#### Scenario: Adding an evaluation adds a grid column
+- **WHEN** the active term reports N assignments without evaluations
+- **THEN** the screen shows a banner indicating N assignments have no evaluations
 
-- **WHEN** the user adds an evaluation in the modal and closes it
-- **THEN** the grid shows a new column for that evaluation in its `position` order
+#### Scenario: Weight drift is warned, not blocked
 
-#### Scenario: Deleting an evaluation warns about grade loss
-
-- **WHEN** the user deletes an evaluation that has recorded grades
-- **THEN** the modal confirms the deletion will remove those grades before proceeding
+- **WHEN** a report type's subject weights total other than 100%
+- **THEN** the screen shows a warning and still allows grade entry

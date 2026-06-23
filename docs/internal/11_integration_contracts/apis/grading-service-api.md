@@ -102,6 +102,116 @@ authorization as POST.
 - `403 NOT_ASSIGNED`
 - `404` when the evaluation is not found.
 
+## GET /evaluation-templates?term_id=
+
+List template evaluations for a term in `position` order.
+
+**Response 200**
+
+```json
+{
+  "data": [
+    {
+      "template_id": "uuid",
+      "tenant_id": "uuid",
+      "term_id": "uuid",
+      "code": "UH1",
+      "name": "Ulangan Harian 1",
+      "position": 1,
+      "created_at": "2026-06-10T00:00:00Z",
+      "updated_at": "2026-06-10T00:00:00Z"
+    }
+  ],
+  "meta": {}
+}
+```
+
+## POST /evaluation-templates
+
+Create a term template evaluation. Requires `academic.config.write`; `tenant_id` is resolved from the projected term.
+
+```json
+{ "term_id": "uuid", "code": "UH1", "name": "Ulangan Harian 1", "position": 1 }
+```
+
+**Response 201** — same shape as list item.
+
+**Errors**
+
+- `403 FORBIDDEN` when the caller lacks `academic.config.write` or term tenant mismatches.
+- `409 DUPLICATE_EVALUATION_CODE` when `code` already exists for the term.
+
+## PATCH /evaluation-templates/{id}
+
+Update `code`, `name`, and/or `position`. Requires `academic.config.write`.
+
+```json
+{ "code": "UH1", "name": "Ulangan Harian 1", "position": 1 }
+```
+
+**Response 200** — updated template.
+
+## DELETE /evaluation-templates/{id}
+
+Delete a template evaluation and its template weights. Concrete evaluations already materialized are not deleted.
+
+**Response 204**
+
+## GET /report-types/{id}/formula-templates
+
+List weight template rows for a report type.
+
+```json
+{
+  "data": [
+    {
+      "report_type_id": "uuid",
+      "evaluation_template_id": "uuid",
+      "weight": 25,
+      "created_at": "2026-06-10T00:00:00Z",
+      "updated_at": "2026-06-10T00:00:00Z"
+    }
+  ],
+  "meta": {}
+}
+```
+
+## PUT /report-types/{id}/formula-templates
+
+Replace the report type's template weights. Requires `academic.config.write`; referenced template evaluations must belong to the same term and weights must total 100.
+
+```json
+{ "weights": { "evaluation-template-uuid": 25, "other-template-uuid": 75 } }
+```
+
+**Response 204**
+
+**Errors**
+
+- `400 VALIDATION_ERROR` when weights are invalid, not numeric, cross-term, or do not total 100.
+
+## POST /evaluation-templates/apply
+
+Backfill concrete evaluations and weights for assignments in a term that have no evaluations yet. Idempotent. Requires `academic.config.write`.
+
+```json
+{ "term_id": "uuid" }
+```
+
+**Response 200**
+
+```json
+{ "data": { "evaluations_created": 12, "weights_created": 24 }, "meta": {} }
+```
+
+## GET /evaluation-templates/unmaterialized-count?term_id=
+
+Return the count of projected teaching assignments in a term that have zero concrete evaluations.
+
+```json
+{ "data": { "count": 3 }, "meta": {} }
+```
+
 ## POST /grades
 
 Record or update a grade for an enrolled student keyed by evaluation. Idempotent

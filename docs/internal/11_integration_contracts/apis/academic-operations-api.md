@@ -199,7 +199,11 @@ Request:
 ```
 
 Response includes `user_id` when the teacher profile has been linked to an IAM
-tenant user account; otherwise `user_id` is `null`.
+tenant user account; otherwise `user_id` is `null`. When academic-ops has the IAM
+identity projection for that linked account, response also includes
+`linked_user: { "user_id": "uuid", "username": "string", "email": "string|null" }`.
+If `user_id` is present but the projection has not arrived yet, `linked_user` is
+`null`; clients MUST still treat the teacher profile as linked.
 
 Errors:
 

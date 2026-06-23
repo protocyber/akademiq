@@ -1,25 +1,4 @@
-# web-navigation-access-control Specification
-
-## Purpose
-Specifies sidebar navigation grouping, permission-based menu visibility, and page-level redirect guards for admin-only screens in the web console.
-## Requirements
-### Requirement: The sidebar SHALL present a grouped navigation structure
-
-The web console sidebar SHALL render the following grouped structure:
-
-- `Dashboard`
-- `Pengaturan` (group): `Modul Aktif`, `Pengguna`, `Role & Izin`, `Akademik`
-  (the `Akademik` entry routes to the academic settings, which itself presents
-  `Tahun Ajaran`, `Mata Pelajaran`, `Template Kelas` as tabs)
-- `Operasional` (group): `Siswa`, `Guru`, `Kelas`, `Penugasan`
-- `Akademik` (group): `Nilai`, `Rapor`
-
-Groups SHALL visually distinguish their child items from top-level items.
-
-#### Scenario: Grouped items render under their headings
-
-- **WHEN** a fully-privileged user opens the console
-- **THEN** the sidebar shows `Dashboard`, a `Pengaturan` group, an `Operasional` group, and an `Akademik` group with the listed children
+## MODIFIED Requirements
 
 ### Requirement: Menu items SHALL be hidden when the user lacks access
 
@@ -36,7 +15,11 @@ relevant permission being held (from `useTenantPermissions()`), per this mapping
 - `Modul Aktif` → `billing.view`
 - `Dashboard` → always visible
 
-A group with no visible children SHALL be hidden entirely.
+A group with no visible children SHALL be hidden entirely. The change from
+prior behavior is that the `Operasional` items now require the admin-only
+`academic.ops.manage` permission (not module-only), and the `Akademik` settings
+entry now requires `academic.config.write` (admin-only) rather than
+`academic.config.read` (which non-admins retain for scope selectors).
 
 #### Scenario: A user without grade access sees no Nilai item
 
@@ -57,6 +40,8 @@ A group with no visible children SHALL be hidden entirely.
 
 - **WHEN** a teacher holds `academic.config.read` but not `academic.config.write`
 - **THEN** the `Akademik` settings menu item is not rendered
+
+## ADDED Requirements
 
 ### Requirement: Admin-only pages SHALL redirect non-admins at the page level
 
@@ -80,4 +65,3 @@ typing the URL.
 
 - **WHEN** a tenant admin holding the gating permission navigates to any guarded page
 - **THEN** the page renders normally
-

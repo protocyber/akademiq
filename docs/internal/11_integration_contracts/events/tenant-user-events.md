@@ -41,8 +41,10 @@ Payload:
   "tenant_id": "uuid",
   "invitation_id": "uuid",
   "user_id": "uuid",
+  "username": "teacher_one",
   "email": "teacher@school.test",
-  "role": "teacher"
+  "full_name": "Teacher One",
+  "roles": ["teacher"]
 }
 ```
 
@@ -106,6 +108,9 @@ log can render a meaningful entry. Payload:
 {
   "tenant_id": "uuid",
   "user_id": "uuid",
+  "username": "budi_guru",
+  "email": "budi@school.test|null",
+  "full_name": "Budi Santoso",
   "changes": {
     "full_name": { "from": "Budi", "to": "Budi Santoso" },
     "username": { "from": "budi", "to": "budi_guru" }
