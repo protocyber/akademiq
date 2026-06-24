@@ -155,6 +155,18 @@ akademiq fragment (`infra/traefik/akademiq.dynamic.yaml`) and keeps the shared
 entry) to `infra/traefik/akademiq.dynamic.yaml`, in lockstep with the
 docker-compose entry and the `<SERVICE>_PORT` in `apps/backend/.env.example`.
 
+## Grading duplicate-evaluation cleanup
+
+Use the backend `akademiq` CLI to inspect and repair duplicate concrete evaluations that can split report formulas:
+
+```bash
+cd apps/backend
+cargo run -p akademiq-cli -- grading cleanup-evaluations --tenant-id <tenant-id> [--term-id <term-id>] [--homeroom-id <homeroom-id> --subject-id <subject-id>]
+cargo run -p akademiq-cli -- grading cleanup-evaluations --tenant-id <tenant-id> [--term-id <term-id>] [--homeroom-id <homeroom-id> --subject-id <subject-id>] --execute
+```
+
+The command defaults to report-only. `--execute` deletes gradeless duplicates when exactly one evaluation in the assignment has grades. If all duplicates are gradeless and exactly one code is `SAS`, it keeps `SAS` and deletes the other duplicate evaluations. Other ambiguous assignments are printed for manual review. After cleanup, re-run Generate Draft for affected report-card classes.
+
 ## Switching database context (local ↔ dev Supabase)
 
 The backend supports two database contexts during development:

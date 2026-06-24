@@ -28,3 +28,4 @@ These standards ensure:
 | `15_feature_entitlement.md` | Feature entitlement (plan-based access) |
 | `16_implementation_phases.md` | Phased build order: foundation → academic config → academic ops → tenant users |
 | `17_enum_catalog.md` | Canonical enumerated values for profiles, statuses, relationships, and media |
+| `18_media_storage.md` | Media storage strategy: shared `common-media` lib vs `storage-service`, and migration triggers |
