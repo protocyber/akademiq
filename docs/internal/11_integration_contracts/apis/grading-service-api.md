@@ -281,6 +281,25 @@ The client can index the result by `(student_id, evaluation_id)`.
 }
 ```
 
+## GET /homerooms/{homeroom_id}/roster?academic_year_id=
+
+Return active students for one homeroom and academic year from grading-service's `enrolled_student` projection. Requires `grade.read`.
+
+**Response 200**
+
+```json
+{
+  "data": [
+    {
+      "student_id": "uuid",
+      "full_name": "Student One",
+      "nis": "S-001"
+    }
+  ],
+  "meta": {}
+}
+```
+
 ## GET /students/{id}/grades?academic_year_id=
 
 Return every evaluation grade for a student in an academic year. Grades are

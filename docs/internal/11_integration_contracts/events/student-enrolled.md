@@ -14,7 +14,10 @@ When a student is successfully enrolled into a homeroom for an academic year.
   "tenant_id": "uuid",
   "student_id": "uuid",
   "homeroom_id": "uuid",
-  "academic_year_id": "uuid"
+  "academic_year_id": "uuid",
+  "enrollment_id": "uuid",
+  "full_name": "string",
+  "nis": "string"
 }
 ```
 

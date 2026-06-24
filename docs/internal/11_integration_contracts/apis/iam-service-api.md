@@ -70,9 +70,14 @@ Errors:
 | Code                  | HTTP | Cause |
 |-----------------------|------|-------|
 | `VALIDATION_ERROR`    | 400  | Missing or malformed fields. |
-| `INVALID_CREDENTIALS` | 401  | Identifier unknown or password mismatch. Identical body and timing for every case. |
-| `PASSWORD_NOT_SET`    | 401  | Account exists but has no password set (passwordless invite accept or Google-only). Route the user to set-password. |
+| `INVALID_CREDENTIALS` | 401  | Identifier unknown, password mismatch, **or the account has no password set** (passwordless invite accept or Google-only). Identical body and timing for every case; a no-password account is never distinguishable. Route no-password detection off `GET /me`'s `password_set` flag, not the login error. |
 | `USER_INACTIVE`       | 403  | User exists but `status != 'active'`. |
+
+> **BREAKING:** the distinct `PASSWORD_NOT_SET` code was removed from login.
+> A no-password account now returns `INVALID_CREDENTIALS`, exactly like a
+> wrong password, to eliminate account enumeration. Clients that branched on
+> `PASSWORD_NOT_SET` (the web `login` page) must route off `password_set`
+> from `GET /me` instead.
 
 ### `POST /auth/register`
 
@@ -304,9 +309,9 @@ Request:
 `password` and `full_name` are **optional** on the new-account path:
 
 - **Without `password`** (button-only): the account is created with a NULL
-  `password_hash`. Password login is blocked (`PASSWORD_NOT_SET`) until the
-  user completes the set-password flow. The response includes a
-  `set_password_token` for this purpose.
+  `password_hash`. Password login returns the standard `INVALID_CREDENTIALS`
+  response until the user completes the set-password flow. The response includes
+  a `set_password_token` for this purpose.
 - **With `password`** (legacy/explicit): the account is created with the
   password set and password login works immediately.
 
@@ -355,8 +360,10 @@ Request:
 { "password": "newpassword123!", "token": "<set-password token>?" }
 ```
 
-On success, the password is hashed and persisted, and the token is consumed
-(single-use). Password login works immediately after. Returns 204 (no content).
+On success, the password is hashed and persisted, the token is consumed
+(single-use), and **all refresh tokens for the user are revoked**. The client
+must clear stored scoped tokens and send the user back to login. Returns 204
+(no content).
 
 Errors:
 
@@ -366,6 +373,39 @@ Errors:
 | `INVALID_SET_PASSWORD_TOKEN`  | 401  | No token or session, token already used, or token not found. |
 | `SET_PASSWORD_TOKEN_EXPIRED`  | 410  | Token recognized but past its expiry. |
 | `NOT_FOUND`                   | 404  | Token's user no longer exists. |
+
+### `POST /auth/set-password/resend`
+
+Public endpoint with optional `Authorization`. Re-issues a fresh single-use
+set-password token for a no-password account and consumes prior unconsumed
+set-password tokens for that user. The caller can identify the account either
+by sending a bearer token (identity or scoped access token) or by posting an
+identifier.
+
+Request:
+
+```json
+{ "identifier": "teacher@school.test or teacher_username" }
+```
+
+Success (200) always uses a generic success-like shape to avoid account
+enumeration. For local/dev delivery the raw token may be present for a
+no-password account; for an existing account that already has a password or an
+unknown identifier it is `null`.
+
+```json
+{
+  "data": {
+    "accepted": true,
+    "set_password_token": "<single-use token or null>"
+  },
+  "meta": {}
+}
+```
+
+The endpoint must not return a distinguishable error for unknown identifiers or
+accounts that already have a password. It is rate-limited per identifier and per
+source address where the deployment's auth limiter is configured.
 
 ### `GET /tenants/me/users`
 
