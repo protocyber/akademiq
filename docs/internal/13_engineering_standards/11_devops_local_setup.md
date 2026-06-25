@@ -23,10 +23,16 @@ convenience wrappers.
 
 Backend infra runs in containers from `apps/backend/docker-compose.yml`:
 
-- **PostgreSQL** — image `postgres:18-alpine`, healthchecked. Each
-  microservice will own its own database
-  (`<service>_db`) created via that service's
-  refinery migrations.
+- **PostgreSQL** — image `postgres:18-alpine`, healthchecked. The local stack
+  uses a **single database** (`akademiq`) with **one schema per service**
+  (`iam`, `billing`, `academic_config`, `academic_ops`, `grading`). Each
+  service connects to the same database but selects its schema via the
+  `options=-c search_path=<schema>` query param on its `*_DATABASE_URL`.
+  Provisioning is handled idempotently by `compose/postgres-init.sql` (first
+  boot) and `scripts/bootstrap-db.sh` (called by `make up`); the per-service
+  tables themselves are created by that service's refinery migrations, which
+  land in the selected schema. This matches the Supabase (dev/prod)
+  schema-per-service layout, so the two contexts are structurally identical.
 - **RabbitMQ** — image `rabbitmq:3-management-alpine`, AMQP + management
   UI, healthchecked.
 
@@ -173,7 +179,7 @@ The backend supports two database contexts during development:
 
 | Context | Database | Connection string host |
 |---|---|---|
-| `local` | Local Postgres (one-db-per-service) | `127.0.0.1:5432` |
+| `local` | Local Postgres (schema-per-service) | `127.0.0.1:5432` |
 | `dev-supabase` | Dev Supabase (schema-per-service) | `*.pooler.supabase.com:5432` |
 
 RabbitMQ always stays local regardless of DB context.
@@ -192,6 +198,12 @@ inserting orphan UUIDs that do not exist in the new DB. The only safe guard is
 wiping the broker before starting services with a new DB context.
 
 ### One-time setup (dev Supabase)
+
+> **Deprecated: `make supabase-sync`.** The prod→dev Supabase sync workflow is
+> being retired. To copy production data, use `make db-sync` (prod → local
+> Postgres) instead — see [§ Syncing prod data → local Postgres](#syncing-prod-data--local-postgres-make-db-sync).
+> The steps below (populating the *dev* Supabase project) remain valid only for
+> the `dev-supabase` run context until the sync script is removed.
 
 1. Create the five schemas in your Supabase dev project SQL Editor:
 
@@ -288,6 +300,89 @@ To purge the broker without switching context (e.g. after a crash):
 make rabbitmq-purge
 ```
 
+### Syncing prod data → local Postgres (`make db-sync`)
+
+`make db-sync` dumps each service schema from the production Supabase database
+and restores it into your local Postgres. Because both sides now use the same
+schema-per-service layout, this is a near-identical copy. It is the fastest way
+to debug against a real dataset without touching the production database.
+
+**Prerequisites:** local infra must be up so the target schemas exist.
+
+```bash
+make up
+```
+
+**Run it** from the repo root. Only `PROD_DB_URL` is required — `LOCAL_DB_URL`
+is built automatically from `apps/backend/.env`
+(`POSTGRES_USER`/`POSTGRES_PASSWORD`/`POSTGRES_PORT` + database `akademiq`):
+
+```bash
+# Preferred: direct connection (requires IPv6 or the paid Dedicated IPv4 add-on)
+PROD_DB_URL=postgres://postgres.<prod-ref>:PASS@db.<prod-ref>.supabase.co:5432/postgres \
+make db-sync
+
+# Fallback for IPv4-only networks: session pooler :5432 (copy from dashboard)
+PROD_DB_URL=postgres://postgres.<prod-ref>:PASS@aws-1-<region>.pooler.supabase.com:5432/postgres \
+make db-sync
+```
+
+Override the local target explicitly if needed:
+
+```bash
+PROD_DB_URL=postgres://... \
+LOCAL_DB_URL=postgres://akademiq:akademiq_dev@127.0.0.1:54320/akademiq \
+make db-sync
+```
+
+**Flags** (pass through `--`):
+
+| Flag | Effect |
+|---|---|
+| `--dry-run` | Preview dump/restore/rename steps without touching either DB |
+| `--schema=NAME` | Sync a single schema (repeatable). Default: all five |
+| `--skip-verify` | Skip the post-restore prod-vs-local row-count comparison |
+| `--keep-dumps` | Keep the `.dump` files in `DUMP_DIR` (default `/tmp`) |
+
+```bash
+PROD_DB_URL=postgres://... make db-sync -- --dry-run
+PROD_DB_URL=postgres://... make db-sync -- --schema=iam
+```
+
+**Safety model.** `db-sync.sh` renames the existing local schema to
+`<schema>_backup_<timestamp>` *before* restoring, so a failed restore never
+leaves you without data — roll back manually:
+
+```sql
+DROP SCHEMA iam CASCADE;
+ALTER SCHEMA iam_backup_20260625_120000 RENAME TO iam;
+```
+
+Backup schemas are **never auto-dropped**. Clean them up once you are satisfied:
+
+```sql
+DROP SCHEMA iam_backup_20260625_120000 CASCADE;
+-- repeat for each schema
+```
+
+#### Do I need to purge RabbitMQ after a sync?
+
+The outbox publisher drains `outbox` rows from the *current* DB into durable
+RabbitMQ queues. If the broker still holds messages from a previous DB context,
+projection consumers will apply those orphan events to the freshly-synced local
+DB — silently corrupting data. Stop services before syncing, then purge based
+on the table below.
+
+| Broker state before sync | Action after `make db-sync` |
+|---|---|
+| **Dirty** — services ran against another DB context (e.g. `dev-supabase`), or unsure | `make stop && make rabbitmq-purge && make dev` (or one shot: `make db-switch TARGET=local`) |
+| **Clean** — broker freshly purged / never used | `make dev` directly |
+| **Ragu (unsure)** | Purge to be safe — `make rabbitmq-purge` |
+
+`make db-switch TARGET=local` is the convenience wrapper: it stops services,
+runs `make up`, full-resets RabbitMQ, and prints the start command. Use it if
+you want the purge guaranteed in one step.
+
 ### Connection string conventions
 
 | Usage | Recommended | Fallback | Never use |
@@ -295,9 +390,9 @@ make rabbitmq-purge
 | Backend services (`*_DATABASE_URL`) | Session pooler `*.pooler.supabase.com:5432` | none | Transaction pooler `:6543` |
 | `pg_dump` / `pg_restore` (`PROD_DB_URL`, `DEV_DB_URL`) | Direct host `db.<ref>.supabase.co:5432` | Session pooler `*.pooler.supabase.com:5432` if direct is unreachable from IPv4-only networks | Transaction pooler `:6543` |
 
-Direct hosts use IPv6 by default. If your network cannot reach IPv6, either
-enable Supabase's paid Dedicated IPv4 add-on or use the session pooler fallback
-for `supabase-sync.sh`. Never use port `6543` (transaction mode) with SQLx or
-backup/restore workflows — named prepared statements collide across backends and
-billing-service will crash at boot. See `.env.prod.example` for the full SQLx
-rationale.
+> `DEV_DB_URL` / `make supabase-sync` are deprecated. For `make db-sync` the
+> target is local Postgres (`LOCAL_DB_URL`) and needs no Supabase pooler; the
+> `PROD_DB_URL` row above still applies. Never use port `6543` (transaction
+> mode) with SQLx or backup/restore workflows — named prepared statements
+> collide across backends and billing-service will crash at boot. See
+> `.env.prod.example` for the full SQLx rationale.

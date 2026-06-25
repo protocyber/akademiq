@@ -57,7 +57,7 @@ TMUX_SESSION ?= akademiq
 .DEFAULT_GOAL := help
 .PHONY: help dev dev-supabase dev-tmux dev-parallel dev-backend dev-web submodules \
         up down build test test-e2e test-web seed migrate ps stop clean \
-        clean-storage clean-storage-incremental purge doctor supabase-sync \
+        clean-storage clean-storage-incremental purge doctor supabase-sync db-sync \
         rabbitmq-purge db-switch
 
 help: ## Show this help
@@ -80,11 +80,11 @@ dev: ## Launch backend + web together (mprocs primary)
 	@set -a; \
 	[ -f $(BACKEND_DIR)/.env ] && source $(BACKEND_DIR)/.env; \
 	pg="postgres://$${POSTGRES_USER:-akademiq}:$${POSTGRES_PASSWORD:-akademiq_dev}@127.0.0.1:$${POSTGRES_PORT:-5432}"; \
-	export IAM_DATABASE_URL="$$pg/iam_db"; \
-	export BILLING_DATABASE_URL="$$pg/billing_db"; \
-	export ACADEMIC_CONFIG_DATABASE_URL="$$pg/academic_config_db"; \
-	export ACADEMIC_OPS_DATABASE_URL="$$pg/academic_ops_db"; \
-	export GRADING_DATABASE_URL="$$pg/grading_db"; \
+	export IAM_DATABASE_URL="$$pg/akademiq?options=-c%20search_path%3Diam"; \
+	export BILLING_DATABASE_URL="$$pg/akademiq?options=-c%20search_path%3Dbilling"; \
+	export ACADEMIC_CONFIG_DATABASE_URL="$$pg/akademiq?options=-c%20search_path%3Dacademic_config"; \
+	export ACADEMIC_OPS_DATABASE_URL="$$pg/akademiq?options=-c%20search_path%3Dacademic_ops"; \
+	export GRADING_DATABASE_URL="$$pg/akademiq?options=-c%20search_path%3Dgrading"; \
 	export RABBITMQ_URL="amqp://$${RABBITMQ_USER:-akademiq}:$${RABBITMQ_PASSWORD:-akademiq_dev}@127.0.0.1:$${RABBITMQ_PORT:-5672}"; \
 	export IAM_BASE_URL="http://127.0.0.1:$${IAM_PORT:-8081}"; \
 	export FEATURES_TOML_PATH="features.toml"; \
@@ -240,6 +240,23 @@ supabase-sync: ## Copy prod→dev Supabase DB (schema-per-service). Needs PROD_D
 		exit 1; \
 	fi
 	@bash scripts/supabase-sync.sh $(filter-out $@,$(MAKECMDGOALS))
+
+db-sync: ## Copy prod Supabase DB to local Postgres. Needs PROD_DB_URL.
+	@if [ -z "$${PROD_DB_URL:-}" ]; then \
+		echo ">> Usage:"; \
+		echo "   PROD_DB_URL=postgres://...@db.<prod-ref>.supabase.co:5432/postgres make db-sync"; \
+		echo ""; \
+		echo ">> Optional:"; \
+		echo "   LOCAL_DB_URL=postgres://akademiq:akademiq_dev@127.0.0.1:54320/akademiq"; \
+		echo ""; \
+		echo ">> Flags:"; \
+		echo "   -- --dry-run       preview only"; \
+		echo "   -- --schema=iam    sync a single schema"; \
+		echo "   -- --skip-verify   skip row-count check"; \
+		echo "   -- --keep-dumps    keep .dump files"; \
+		exit 1; \
+	fi
+	@bash scripts/db-sync.sh $(filter-out $@,$(MAKECMDGOALS))
 
 rabbitmq-purge: ## Full reset RabbitMQ local (wipe all data). Run on DB switch.
 	@bash scripts/rabbitmq-purge.sh

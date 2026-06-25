@@ -87,7 +87,7 @@ SCRIPTS_DIR="$REPO_ROOT/scripts"
 case "$TARGET" in
   local)
     ENV_FILE="$BACKEND_DIR/.env"
-    ENV_DESC="local Postgres (one-db-per-service)"
+    ENV_DESC="local Postgres (schema-per-service)"
     NEXT_TARGET="dev-supabase"
     ;;
   dev-supabase)

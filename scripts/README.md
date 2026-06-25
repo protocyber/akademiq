@@ -9,11 +9,12 @@ bagian backend submodule — jalankan langsung dari root repo.
 |---|---|
 | `confirm.sh` | Prompt konfirmasi untuk target Makefile SLOW/expensive (build, test, clean) |
 | `db-switch.sh` | Switch konteks DB backend (local Postgres ↔ dev Supabase), reset RabbitMQ |
+| `db-sync.sh` | Dump prod Supabase → restore ke local Postgres (schema-per-service, dengan backup) |
 | `doctor.sh` | Cek tooling yang dibutuhkan + hints install (`make doctor`) |
 | `manage-gcloud-vm.sh` | Manajemen GCP VM prod (start/stop/resize) |
 | `purge.sh` | DESTRUCTIVE: hentikan service, hapus Docker volumes + build artefak |
 | `rabbitmq-purge.sh` | Wipe semua data local RabbitMQ (full reset, pencegah cross-DB pollution) |
-| `supabase-sync.sh` | Dump prod Supabase → restore ke dev (schema-per-service, dengan backup) |
+| `supabase-sync.sh` | *(deprecated — akan dihapus; gunakan `db-sync.sh`)* Dump prod Supabase → restore ke dev |
 | `backfill_evaluation_weights.sql` | Backfill bobot evaluasi 100% + recompute rapor (tenant-scoped) |
 
 ---

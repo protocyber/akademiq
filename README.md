@@ -52,7 +52,7 @@ cp apps/backend/.env.example apps/backend/.env
 cp apps/web/.env.example apps/web/.env
 
 make doctor    # periksa tooling, beri petunjuk instalasi jika ada yang kurang
-make migrate   # jalankan migrasi backend (membuat iam_db & billing_db)
+make migrate   # jalankan migrasi backend (schema iam & billing)
 make seed      # opsional: muat tiga plan + dua tenant demo
 make dev       # primary: mprocs (backend + web bersamaan)
 ```
@@ -117,7 +117,11 @@ make db-switch TARGET=local
 # Reset broker saja (misal setelah crash di tengah switch)
 make rabbitmq-purge
 
-# Salin data prod → dev Supabase
+# Salin data prod → local Postgres
+PROD_DB_URL=postgres://...@db.<prod-ref>.supabase.co:5432/postgres \
+make db-sync
+
+# Salin data prod → dev Supabase (DEPRECATED — gunakan make db-sync untuk data local)
 # Preferred: direct connection (butuh IPv6 atau paid Dedicated IPv4 add-on)
 PROD_DB_URL=postgres://...@db.<prod-ref>.supabase.co:5432/postgres \
 DEV_DB_URL=postgres://...@db.<dev-ref>.supabase.co:5432/postgres \
@@ -129,9 +133,14 @@ DEV_DB_URL=postgres://postgres.<dev-ref>:PASS@aws-1-<region>.pooler.supabase.com
 make supabase-sync
 ```
 
+> `make supabase-sync` **deprecated** dan akan dihapus. Untuk menyalin data
+> produksi, gunakan `make db-sync` (prod → local Postgres) — lihat di atas.
+> Konteks run `dev-supabase` (`make db-switch TARGET=dev-supabase`) tidak
+> terdampak.
+>
 > Broker RabbitMQ **wajib di-purge** setiap ganti konteks DB — event stale di
 > queue durable dapat teraplikasi ke DB yang salah tanpa error. `make db-switch`
-> menangani ini secara otomatis. Untuk `supabase-sync`, direct connection adalah
+> menangani ini secara otomatis. Untuk workflow sync, direct connection adalah
 > pilihan utama, tetapi session pooler `:5432` boleh dipakai sebagai fallback IPv4.
 > Jangan gunakan transaction pooler `:6543`.
 > Detail lengkap: [`docs/internal/13_engineering_standards/11_devops_local_setup.md § Switching database context`](docs/internal/13_engineering_standards/11_devops_local_setup.md#switching-database-context-local--dev-supabase)
@@ -211,7 +220,7 @@ cp apps/backend/.env.example apps/backend/.env
 cp apps/web/.env.example apps/web/.env
 
 make doctor    # checks tooling and prints install hints if anything's missing
-make migrate   # run backend migrations (creates iam_db & billing_db)
+make migrate   # run backend migrations (schemas iam & billing)
 make seed      # optional: load three plans + two demo tenants
 make dev       # primary: mprocs (backend + web together)
 ```
@@ -276,7 +285,7 @@ make db-switch TARGET=local
 # Reset the broker only (e.g. after a crash mid-switch)
 make rabbitmq-purge
 
-# Copy prod data → dev Supabase
+# Copy prod data → dev Supabase (DEPRECATED — use make db-sync for local data)
 # Preferred: direct connection (requires IPv6 or paid Dedicated IPv4 add-on)
 PROD_DB_URL=postgres://...@db.<prod-ref>.supabase.co:5432/postgres \
 DEV_DB_URL=postgres://...@db.<dev-ref>.supabase.co:5432/postgres \
@@ -288,10 +297,15 @@ DEV_DB_URL=postgres://postgres.<dev-ref>:PASS@aws-1-<region>.pooler.supabase.com
 make supabase-sync
 ```
 
+> `make supabase-sync` is **deprecated** and will be removed. To copy
+> production data, use `make db-sync` (prod → local Postgres) instead — see
+> above. The `dev-supabase` run context (`make db-switch TARGET=dev-supabase`)
+> is unaffected.
+>
 > The RabbitMQ broker **must be purged** on every DB context switch — stale
 > messages in durable queues will be applied to the wrong database's projection
 > tables without any error. `make db-switch` handles this automatically. For
-> `supabase-sync`, direct connection is preferred, but session pooler `:5432` is
+> sync workflows, direct connection is preferred, but session pooler `:5432` is
 > acceptable as an IPv4 fallback. Never use transaction pooler `:6543`.
 > Full details: [`docs/internal/13_engineering_standards/11_devops_local_setup.md § Switching database context`](docs/internal/13_engineering_standards/11_devops_local_setup.md#switching-database-context-local--dev-supabase)
 
