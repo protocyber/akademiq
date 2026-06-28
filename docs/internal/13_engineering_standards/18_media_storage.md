@@ -19,7 +19,9 @@ The library provides:
 - A `StorageBackend` trait with two implementations selected by environment:
   - `local` — writes bytes to a configured directory (current behaviour).
   - `r2` — Cloudflare R2 (S3-compatible) object storage.
-- One validation path (max size, allowed content types).
+- One validation path (512 KB max size, allowed content types).
+- One key-derivation convention: owner-backed media is stored at
+  `{owner_type}/{media_id}` and IAM avatars at `avatar/{media_id}`.
 - One URL-resolution scheme so the frontend never receives a raw
   `media://` URI.
 
@@ -27,6 +29,45 @@ Backend selection is env-driven (e.g. `MEDIA_BACKEND=local|r2`). R2 credentials
 are read from env. See the per-service `.env.example` for the variable names.
 Switching between `local` and `r2` does not migrate existing objects; copy or
 re-upload media before flipping an environment that already has uploads.
+
+### Storage key convention
+
+Object keys are grouped by logical owner prefix, but the prefix is
+**reconstructed at runtime** rather than persisted:
+
+- `academic-ops-service`: `{owner_type}/{media_id}` for `student`, `teacher`,
+  and `family` media rows.
+- `billing-service`: `school/{media_id}` for school logos.
+- `iam-service`: `avatar/{media_id}` for avatars (IAM has no `media_asset`
+  table).
+
+R2/S3 remains a flat namespace; `/` is only a visual prefix delimiter. Services
+must read the media row's `owner_type` before serving or deleting an
+owner-backed object. No `storage_key` column is stored because the convention is
+fixed and derivable from existing columns.
+
+If the folder convention changes later, existing objects need a new object
+migration. That is the cost of reconstructing the key instead of persisting it;
+we accept it to avoid storing redundant, drift-prone data.
+
+### Deletion and garbage collection
+
+Media deletes are hard deletes. `academic-ops-service` and `billing-service`
+expose bulk owner deletes that remove active + history rows, delete every
+matching storage object, and null the reflected owner field (`photo_media_id` or
+`logo_media_id`). IAM avatar delete removes `avatar/{media_id}` before clearing
+`avatar_url`.
+
+Upload replacement also garbage-collects the previous active object. The storage
+backend's `delete` operation is idempotent, so replacing or deleting media whose
+old object is already missing still succeeds.
+
+### Upload limit and client compression
+
+The backend shared limit is 512 KB (`common-media::MAX_MEDIA_SIZE_BYTES`). The
+web client compresses image uploads in the browser (canvas downscale, longest
+edge cap, JPEG/WebP re-encode) before sending avatar, logo, and student/teacher
+photo uploads so phone-camera images can fit under the server limit.
 
 ### Serving model
 
@@ -37,9 +78,10 @@ backend storage detail. This keeps the frontend uniform across environments,
 avoids CORS and public-bucket exposure, and leaves room for access control on
 the serve path later.
 
-The serve handler **must** return the stored `content_type` from
-`media_asset`, not a hard-coded `application/octet-stream`, so that
-`next/image` and browsers treat the response as an image.
+The serve handler must reconstruct the storage key from the row's `owner_type`
+(or `avatar/` for IAM) and return the stored object content type, not a
+hard-coded `application/octet-stream`, so that `next/image` and browsers treat
+the response as an image.
 
 ## Why a shared library and not a `storage-service`
 
@@ -114,12 +156,14 @@ outbox event to preserve the active-media reflection.
 ## Current implementation notes (state at time of writing)
 
 - `iam-service` serves avatars at `GET /api/v1/iam/media/:media_id` and
-  resolves `media://` URIs to that path in its `me` response. This is the
-  reference pattern for the proxy serve model.
+  resolves `media://` URIs to that path in its `me` response. It reconstructs
+  physical keys as `avatar/{media_id}`.
 - `billing-service` (school logo) and `academic-ops-service` (student/teacher/
-  family photos) store bytes but, prior to consolidation, lacked a serve
-  endpoint and URI resolution — which is why their images failed to load. The
-  shared library plus a per-service serve endpoint closes that gap.
+  family photos) serve via their own `/media/:media_id` proxy endpoints and
+  reconstruct physical keys from the media row's `owner_type`.
 - `academic-ops-service` previously recorded `file_url` via
   `format!("file://{path:?}")`, which debug-formats the path (embedded quotes)
   and is not a usable URL; the shared library replaces ad-hoc URL construction.
+- Existing flat-keyed objects can be migrated with
+  `apps/backend/scripts/migrate-media-prefixes.sh`; the script is idempotent and
+  supports `MEDIA_BACKEND=local` and `MEDIA_BACKEND=r2`.

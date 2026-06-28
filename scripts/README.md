@@ -12,6 +12,7 @@ bagian backend submodule — jalankan langsung dari root repo.
 | `db-sync.sh` | Dump prod Supabase → restore ke local Postgres (schema-per-service, dengan backup) |
 | `doctor.sh` | Cek tooling yang dibutuhkan + hints install (`make doctor`) |
 | `manage-gcloud-vm.sh` | Manajemen GCP VM prod (start/stop/resize) |
+| `migrate-gcloud-disk.sh` | Migrasi GCP VM ke disk standard 30GB (Free Tier) |
 | `purge.sh` | DESTRUCTIVE: hentikan service, hapus Docker volumes + build artefak |
 | `rabbitmq-purge.sh` | Wipe semua data local RabbitMQ (full reset, pencegah cross-DB pollution) |
 | `supabase-sync.sh` | *(deprecated — akan dihapus; gunakan `db-sync.sh`)* Dump prod Supabase → restore ke dev |
