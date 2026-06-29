@@ -1,4 +1,4 @@
-# AcademiQ Security Architecture
+# AkademiQ Security Architecture
 
 ```mermaid
 flowchart TB
@@ -77,7 +77,7 @@ AUDIT --> ALERT
 
 🧠 What This Architecture Covers
 
-This diagram shows how AcademiQ protects:
+This diagram shows how AkademiQ protects:
 
 User identity
 

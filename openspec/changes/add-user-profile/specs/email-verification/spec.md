@@ -28,7 +28,7 @@ The system SHALL send an email verification message using the existing Resend HT
 
 #### Scenario: Email verification email is sent
 - **WHEN** an email change is requested
-- **THEN** the system SHALL send an email with subject "Verifikasi Email Baru AcademiQ" to the new email address, containing a link to `{PUBLIC_WEB_BASE_URL}/verify-email?token={raw_token}`
+- **THEN** the system SHALL send an email with subject "Verifikasi Email Baru AkademiQ" to the new email address, containing a link to `{PUBLIC_WEB_BASE_URL}/verify-email?token={raw_token}`
 
 #### Scenario: Email provider is set to log mode
 - **WHEN** `EMAIL_PROVIDER` is configured as `log` or `disabled`

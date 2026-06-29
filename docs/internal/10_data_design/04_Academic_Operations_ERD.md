@@ -1,4 +1,4 @@
-# AcademiQ ERD — Academic Operations Service
+# AkademiQ ERD — Academic Operations Service
 
 ```mermaid
 erDiagram

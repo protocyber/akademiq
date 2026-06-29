@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AcademiQ — RabbitMQ local purge (full reset)
+# AkademiQ — RabbitMQ local purge (full reset)
 # =============================================================================
 # Wipes ALL data from the local RabbitMQ broker: queues, exchanges, messages,
 # bindings. Use this every time you switch the backend DB context (local

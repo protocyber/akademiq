@@ -1,4 +1,4 @@
-# AcademiQ Component Diagram — Academic Config Service
+# AkademiQ Component Diagram — Academic Config Service
 
 ```mermaid
 flowchart TB

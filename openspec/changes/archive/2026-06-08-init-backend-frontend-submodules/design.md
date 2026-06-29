@@ -12,7 +12,7 @@ Constraints from `AGENTS.md` and `docs/internal/13_engineering_standards/`:
   change re-roots it at `/apps/backend` to match the parent submodule mount,
   without changing the per-service split underneath.
 - The frontend is a Next.js app — the `WEB` container in
-  `06_container_architecture/AcademiQ_Container_Diagram.md`.
+  `06_container_architecture/AkademiQ_Container_Diagram.md`.
 - All three repos are private under the `protocyber` GitHub org. SSH is the
   contributor access channel.
 - No CI exists in this repo today; whatever we add must not break the docs-only

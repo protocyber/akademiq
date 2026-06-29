@@ -1,6 +1,6 @@
 # akademiq
 
-AcademiQ adalah platform SaaS multi-tenant untuk manajemen sekolah — mencakup
+AkademiQ adalah platform SaaS multi-tenant untuk manajemen sekolah — mencakup
 identitas pengguna, tenant & langganan (billing), konfigurasi dan operasional
 akademik, kehadiran, penilaian, serta kenaikan dan kelulusan.
 
@@ -168,7 +168,7 @@ serta aturan git/commit. Berlaku untuk kontributor manusia maupun AI agent.
 
 # akademiq (English)
 
-AcademiQ is a multi-tenant SaaS platform for school management — covering
+AkademiQ is a multi-tenant SaaS platform for school management — covering
 identity, tenant & subscription billing, academic configuration and operations,
 attendance, grading, and promotion.
 

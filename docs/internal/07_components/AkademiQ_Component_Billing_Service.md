@@ -1,4 +1,4 @@
-# AcademiQ Component Diagram - Tenant and Subscription Service
+# AkademiQ Component Diagram - Tenant and Subscription Service
 
 ```mermaid
 flowchart TB

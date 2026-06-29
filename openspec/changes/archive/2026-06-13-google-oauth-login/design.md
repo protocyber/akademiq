@@ -1,6 +1,6 @@
 ## Context
 
-The client wants "Login with Gmail." AcademiQ already has a full IAM service that
+The client wants "Login with Gmail." AkademiQ already has a full IAM service that
 issues its own RS256 tokens, so the design goal is to add Google as an
 *authentication mechanism* without ceding identity ownership. Google proves an
 email; IAM still mints every token. This depends on
@@ -13,7 +13,7 @@ Google users auto-provision as 0-tenant accounts) and [[username-identity-login]
 Supabase Auth is itself a complete identity provider — its own `auth.users`, its
 own JWTs, its own OAuth dance. Adopting it for "just Google login" would run a
 second IdP alongside IAM and force every service to reconcile two token formats,
-or to trust Supabase JWTs and re-map AcademiQ's multi-tenant roles onto them. The
+or to trust Supabase JWTs and re-map AkademiQ's multi-tenant roles onto them. The
 value Supabase offers ("don't build auth") is already spent — IAM exists. Direct
 Google OAuth keeps one identity system and one token format. Supabase is rejected.
 

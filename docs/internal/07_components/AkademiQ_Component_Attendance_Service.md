@@ -1,4 +1,4 @@
-# AcademiQ Component Diagram - Attendance Service
+# AkademiQ Component Diagram - Attendance Service
 
 ```mermaid
 flowchart TB

@@ -1,4 +1,4 @@
-# AcademiQ Use Case Diagram
+# AkademiQ Use Case Diagram
 
 ```mermaid
 flowchart LR

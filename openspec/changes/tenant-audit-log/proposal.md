@@ -1,6 +1,6 @@
 ## Why
 
-AcademiQ has no record of *who did what* to user accounts or academic configuration.
+AkademiQ has no record of *who did what* to user accounts or academic configuration.
 An admin can invite, disable, change roles, and reset passwords — or activate and
 close an academic year or semester — but there is no consolidated trail to answer
 "who disabled this teacher?" or "when was this semester closed and by whom?" For a

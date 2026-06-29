@@ -1,4 +1,4 @@
-# AcademiQ State Diagram — Class / Homeroom Lifecycle
+# AkademiQ State Diagram — Class / Homeroom Lifecycle
 
 ```mermaid
 stateDiagram-v2

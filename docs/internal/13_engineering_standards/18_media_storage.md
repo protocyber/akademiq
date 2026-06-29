@@ -1,6 +1,6 @@
 # Media Storage Strategy
 
-This document records how AcademiQ stores and serves uploaded media
+This document records how AkademiQ stores and serves uploaded media
 (avatars, school logos, student/teacher photos) and **why we use a shared
 library instead of a dedicated storage service today**. It also defines the
 concrete triggers that would justify extracting a `storage-service` later.

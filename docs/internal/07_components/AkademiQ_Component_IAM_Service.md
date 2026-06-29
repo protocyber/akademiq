@@ -1,4 +1,4 @@
-# AcademiQ Component Diagram - Identity and Access Service
+# AkademiQ Component Diagram - Identity and Access Service
 
 ```mermaid
 flowchart TB

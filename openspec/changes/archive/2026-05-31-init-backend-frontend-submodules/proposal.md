@@ -12,7 +12,7 @@ checkout to read the spec and work on the code without entangling histories.
 
 - Create two new private GitHub repos under the `protocyber` org:
   - `protocyber/akademiq-backend` — Rust/Axum monorepo (will host `services/` and `libs/` per `13_engineering_standards/01_repo_structure.md`).
-  - `protocyber/akademiq-web` — Next.js web application (the `WEB` container in `06_container_architecture/AcademiQ_Container_Diagram.md`).
+  - `protocyber/akademiq-web` — Next.js web application (the `WEB` container in `06_container_architecture/AkademiQ_Container_Diagram.md`).
 - Initialise each new repo with only a `README.md` and a sensible `.gitignore`. No Cargo workspace, no `create-next-app` scaffold, no Makefile targets — those land in follow-up changes.
 - Add both repos as git submodules of this parent repo:
   - `apps/backend` → `git@github.com:protocyber/akademiq-backend.git`

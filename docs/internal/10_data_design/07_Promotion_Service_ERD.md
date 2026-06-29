@@ -1,4 +1,4 @@
-# AcademiQ ERD — Promotion Service
+# AkademiQ ERD — Promotion Service
 
 ```mermaid
 erDiagram

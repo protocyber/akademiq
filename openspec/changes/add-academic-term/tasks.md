@@ -84,7 +84,7 @@
 
 - [x] 14.1 `docs/internal/10_data_design/03_Academic_Config_Service_ERD.md`: add `academic_term` + `academic_term_status_transition`.
 - [x] 14.2 `docs/internal/10_data_design/06_Grading_Service_ERD.md`: add `term_id` to `evaluation`/`report_type`, add `valid_term` projection; refresh the stale diagram to the post-`V4`/`V5` model.
-- [x] 14.3 `docs/internal/09_states/AcademiQ_State_Academic_Term_Lifecycle.md`: new 4-state machine with parent-child coordination rules.
+- [x] 14.3 `docs/internal/09_states/AkademiQ_State_Academic_Term_Lifecycle.md`: new 4-state machine with parent-child coordination rules.
 - [x] 14.4 `docs/internal/11_integration_contracts/apis/academic-config-api.md`: term endpoints + lifecycle text.
 - [x] 14.5 `docs/internal/11_integration_contracts/apis/grading-service-api.md`: `term_id` in evaluation/report-type schemas; new error codes table.
 - [x] 14.6 `docs/internal/11_integration_contracts/events/academic-term-created.md` and `academic-term-status-changed.md`: new event contracts.

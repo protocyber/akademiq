@@ -1,8 +1,8 @@
-# AcademiQ SaaS Business Processes (Improved v4 - Academic Year Aware)
+# AkademiQ SaaS Business Processes (Improved v4 - Academic Year Aware)
 
 ```mermaid
 flowchart TD
-    A[School Admin] --> B[Sign up to AcademiQ]
+    A[School Admin] --> B[Sign up to AkademiQ]
     B --> C[Create Tenant for School]
 
     C --> D[Choose Subscription Plan]

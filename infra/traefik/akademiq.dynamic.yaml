@@ -1,10 +1,10 @@
 # =============================================================================
-# AcademiQ — Traefik file-provider fragment (DEV)
+# AkademiQ — Traefik file-provider fragment (DEV)
 # =============================================================================
 # ENVIRONMENT-SPECIFIC — READ THIS FIRST
 # -----------------------------------------------------------------------------
 # This file describes ONE maintainer's local development setup. It is NOT a
-# requirement to run AcademiQ. The host names (`akademiq.dev.sby.test`,
+# requirement to run AkademiQ. The host names (`akademiq.dev.sby.test`,
 # `akademiq.10.201.0.25.nip.io`), the LAN IP (`10.201.0.25`), and the host
 # ports below are all specific to that machine.
 #

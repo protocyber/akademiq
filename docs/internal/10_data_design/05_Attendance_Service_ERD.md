@@ -1,4 +1,4 @@
-# AcademiQ ERD — Attendance Service
+# AkademiQ ERD — Attendance Service
 
 ```mermaid
 erDiagram

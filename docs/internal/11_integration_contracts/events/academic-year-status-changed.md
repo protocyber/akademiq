@@ -26,7 +26,7 @@ When an academic year successfully transitions to a new lifecycle status.
 
 ## Notes
 
-- **Bidirectional Transitions Warning**: Unlike traditional linear lifecycles, status changes in AcademiQ are bidirectional: `Draft ↔ Active` and `Active ↔ Closed`. Consumers must NOT assume transitions only move forward.
+- **Bidirectional Transitions Warning**: Unlike traditional linear lifecycles, status changes in AkademiQ are bidirectional: `Draft ↔ Active` and `Active ↔ Closed`. Consumers must NOT assume transitions only move forward.
 - Academic Operations uses this event to keep `known_academic_year.status` current and only allow homeroom creation for `Active` years.
 - Grading Service uses this event to allow/reject grades and trigger long-term report-card archival when transitioning to `Archived`.
 

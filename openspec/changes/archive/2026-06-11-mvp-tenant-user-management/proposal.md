@@ -3,7 +3,7 @@
 The report card workflow is a multi-actor approval chain: a **subject
 teacher** records grades, a **homeroom teacher** reviews, and a **principal**
 approves before publication
-(`09_states/AcademiQ_State_Report_Card_Lifecycle.md`). Today the only real
+(`09_states/AkademiQ_State_Report_Card_Lifecycle.md`). Today the only real
 account a tenant has is the admin created during registration; there is no way
 to invite the teachers, homeroom teachers, or principal who drive that chain,
 and **there is no `principal` role seeded at all** — IAM seeds

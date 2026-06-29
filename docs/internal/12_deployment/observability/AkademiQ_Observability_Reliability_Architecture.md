@@ -1,4 +1,4 @@
-# AcademiQ Observability & Reliability Architecture
+# AkademiQ Observability & Reliability Architecture
 
 ```mermaid
 flowchart TB

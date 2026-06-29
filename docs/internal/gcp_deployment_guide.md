@@ -1,6 +1,6 @@
-# AcademiQ Backend Deployment Guide (Google Cloud Platform)
+# AkademiQ Backend Deployment Guide (Google Cloud Platform)
 
-This guide walks you through deploying the AcademiQ backend services to a **Google Compute Engine (GCE)** instance using Docker Compose, with external managed databases and message brokers.
+This guide walks you through deploying the AkademiQ backend services to a **Google Compute Engine (GCE)** instance using Docker Compose, with external managed databases and message brokers.
 
 ---
 
@@ -367,7 +367,7 @@ GOOGLE_REDIRECT_URI="https://<YOUR_VM_IP_WITH_DASHES>.sslip.io/api/v1/iam/auth/g
 PUBLIC_WEB_BASE_URL="https://your-frontend-domain.app"
 CORS_ALLOWED_ORIGINS="https://your-frontend-domain.app"
 EMAIL_PROVIDER="resend"
-EMAIL_FROM="AcademiQ <onboarding@resend.dev>"
+EMAIL_FROM="AkademiQ <onboarding@resend.dev>"
 RESEND_API_KEY="re_xxx"
 RESEND_ENDPOINT="https://api.resend.com/emails"
 ```

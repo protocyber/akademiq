@@ -1,5 +1,5 @@
 # =============================================================================
-# AcademiQ — Local development orchestrator (mprocs config)
+# AkademiQ — Local development orchestrator (mprocs config)
 # =============================================================================
 # Runs the backend service crates with cargo-watch ON THE HOST plus the web dev
 # server. Infra (Postgres + RabbitMQ) is brought up in Docker by `make dev`

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AcademiQ — root purge
+# AkademiQ — root purge
 # =============================================================================
 # DESTRUCTIVE: stops all services, deletes Docker volumes, Cargo build
 # artefacts, .next/, and node_modules/.

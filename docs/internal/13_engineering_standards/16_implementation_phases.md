@@ -1,6 +1,6 @@
 # Implementation Phases
 
-This document defines the phased build order for the AcademiQ backend and
+This document defines the phased build order for the AkademiQ backend and
 web frontend. Each phase ships a vertical slice that a non-developer can
 demo end-to-end. Later phases depend on earlier phases having shipped
 their owned services and event contracts.

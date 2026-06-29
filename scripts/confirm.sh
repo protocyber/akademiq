@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AcademiQ — confirm
+# AkademiQ — confirm
 # =============================================================================
 # Interactive guard for SLOW / EXPENSIVE make targets (Docker image builds,
 # full test suites, cargo clean). Prints a cost warning and asks before

@@ -7,7 +7,7 @@
 
 ## 2. Create the backend repo
 
-- [x] 2.1 Create the GitHub repo: `gh repo create protocyber/akademiq-backend --private --description "AcademiQ backend monorepo (Rust/Axum). See protocyber/akademiq for architecture docs." --disable-issues=false --disable-wiki`
+- [x] 2.1 Create the GitHub repo: `gh repo create protocyber/akademiq-backend --private --description "AkademiQ backend monorepo (Rust/Axum). See protocyber/akademiq for architecture docs." --disable-issues=false --disable-wiki`
 - [x] 2.2 In a temp directory, `git init -b main` an empty working tree for the backend repo
 - [x] 2.3 Add an initial `README.md` to the backend repo with: project name, one-paragraph description, link to `https://github.com/protocyber/akademiq` and to `docs/internal/13_engineering_standards/01_repo_structure.md` for the in-repo layout, "no scaffold yet" note
 - [x] 2.4 Add a Rust-flavoured `.gitignore` to the backend repo (covers `/target`, `**/*.rs.bk`, `Cargo.lock` for libs only if/when relevant — leave commented out, `.env`, `.idea/`, `.vscode/`, OS noise)
@@ -16,9 +16,9 @@
 
 ## 3. Create the web repo
 
-- [x] 3.1 Create the GitHub repo: `gh repo create protocyber/akademiq-web --private --description "AcademiQ web frontend (Next.js). See protocyber/akademiq for architecture docs." --disable-issues=false --disable-wiki`
+- [x] 3.1 Create the GitHub repo: `gh repo create protocyber/akademiq-web --private --description "AkademiQ web frontend (Next.js). See protocyber/akademiq for architecture docs." --disable-issues=false --disable-wiki`
 - [x] 3.2 In a temp directory, `git init -b main` an empty working tree for the web repo
-- [x] 3.3 Add an initial `README.md` to the web repo with: project name, one-paragraph description, link to `https://github.com/protocyber/akademiq` and to `docs/internal/06_container_architecture/AcademiQ_Container_Diagram.md` (the `WEB` container), "no scaffold yet" note
+- [x] 3.3 Add an initial `README.md` to the web repo with: project name, one-paragraph description, link to `https://github.com/protocyber/akademiq` and to `docs/internal/06_container_architecture/AkademiQ_Container_Diagram.md` (the `WEB` container), "no scaffold yet" note
 - [x] 3.4 Add a Node/Next.js-flavoured `.gitignore` to the web repo (covers `node_modules/`, `.next/`, `out/`, `dist/`, `coverage/`, `.env*`, `.idea/`, `.vscode/`, OS noise)
 - [x] 3.5 Commit (`feat: initialize akademiq-web with README and gitignore`) and push: `git remote add origin git@github.com:protocyber/akademiq-web.git && git push -u origin main`
 - [x] 3.6 Verify the push: `gh repo view protocyber/akademiq-web --json defaultBranchRef,visibility` returns `main` and `PRIVATE`

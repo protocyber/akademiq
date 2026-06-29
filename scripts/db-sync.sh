@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AcademiQ — DB sync (prod Supabase → local dev Postgres)
+# AkademiQ — DB sync (prod Supabase → local dev Postgres)
 # =============================================================================
 # Dumps each service schema from the production Supabase database and restores it
 # into the local development Postgres database. Both sides use one database with

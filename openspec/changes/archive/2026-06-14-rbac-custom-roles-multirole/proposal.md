@@ -1,6 +1,6 @@
 ## Why
 
-AcademiQ today has the *vocabulary* of RBAC but not the *mechanism*. Three gaps:
+AkademiQ today has the *vocabulary* of RBAC but not the *mechanism*. Three gaps:
 
 1. **Permissions are dead schema.** `permission` and `role_permission` were
    created in `V1__init.sql` and then never seeded and never queried. Every

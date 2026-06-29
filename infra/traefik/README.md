@@ -1,12 +1,12 @@
-# AcademiQ — Traefik dev routing
+# AkademiQ — Traefik dev routing
 
-> **Environment-specific. Not required to run AcademiQ.**
+> **Environment-specific. Not required to run AkademiQ.**
 >
 > Everything in this directory documents **one maintainer's** local dev setup.
 > The host names (`akademiq.dev.sby.test`, `akademiq.10.201.0.25.nip.io`), the
 > LAN IP (`10.201.0.25`), and the host ports are all specific to that machine.
 >
-> AcademiQ is open source. You do **not** need Traefik, this domain, or this IP
+> AkademiQ is open source. You do **not** need Traefik, this domain, or this IP
 > to develop. You can run the stack on `localhost` with no reverse proxy, use
 > your own domain/ports, or use a different proxy (Caddy, nginx, ...). This
 > folder is a working reference for how the maintainer fronts the web app and

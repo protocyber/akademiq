@@ -1,7 +1,7 @@
 ## Why
 
 Users want a "Login with Gmail" button. The client originally suggested Supabase,
-but AcademiQ already runs a complete identity provider (the Rust IAM service:
+but AkademiQ already runs a complete identity provider (the Rust IAM service:
 Argon2id, RS256 JWT, refresh-token rotation). Supabase's value is "auth so you
 don't build it" — but it is already built, so adding Supabase would mean running a
 **second** identity provider and reconciling two token formats. Instead we

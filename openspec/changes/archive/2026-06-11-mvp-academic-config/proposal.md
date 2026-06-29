@@ -46,7 +46,7 @@ This corresponds to **Phase 2 — Academic Configuration** in
 - HTTP API under `/api/v1/academic-config`:
   - `POST /academic-years`, `GET /academic-years`, `GET /academic-years/{id}`,
     `PATCH /academic-years/{id}/status` (Planning → Configuration → Active …
-    per `09_states/AcademiQ_State_Academic_Year_Lifecycle.md`).
+    per `09_states/AkademiQ_State_Academic_Year_Lifecycle.md`).
   - `POST /academic-years/{id}/curriculum-versions`, list under a year.
   - `POST /curriculum-versions/{id}/subjects`, list; each subject carries a
     `passing_grade`.

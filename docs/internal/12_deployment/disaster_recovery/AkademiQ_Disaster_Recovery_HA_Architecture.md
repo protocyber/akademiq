@@ -1,4 +1,4 @@
-# AcademiQ Disaster Recovery & High Availability Architecture
+# AkademiQ Disaster Recovery & High Availability Architecture
 
 ```mermaid
 flowchart TB

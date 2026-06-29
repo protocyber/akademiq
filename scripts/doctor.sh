@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AcademiQ — doctor
+# AkademiQ — doctor
 # =============================================================================
 # Checks that all required and optional dev tools are present and prints
 # install hints for anything missing.

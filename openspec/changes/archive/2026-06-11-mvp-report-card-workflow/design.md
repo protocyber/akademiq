@@ -12,7 +12,7 @@ report card is an aggregate over that service's own grade rows.
 ### 1. The state machine is the spec
 
 We implement exactly the lifecycle in
-`09_states/AcademiQ_State_Report_Card_Lifecycle.md`:
+`09_states/AkademiQ_State_Report_Card_Lifecycle.md`:
 
 ```
             submit (teacher)        homeroom-approve (homeroom)   principal-approve (principal)

@@ -1,4 +1,4 @@
-# AcademiQ State Diagram — Report Card Lifecycle
+# AkademiQ State Diagram — Report Card Lifecycle
 
 ```mermaid
 stateDiagram-v2

@@ -1,4 +1,4 @@
-# AcademiQ System Context Diagram (C4 Level 1)
+# AkademiQ System Context Diagram (C4 Level 1)
 
 ```mermaid
 flowchart LR
@@ -18,7 +18,7 @@ subgraph External Systems
     SSO[Optional SSO Provider]
 end
 
-System[AcademiQ SaaS Platform]
+System[AkademiQ SaaS Platform]
 
 SA --> System
 TCH --> System

@@ -1,4 +1,4 @@
-# AcademiQ State Diagram — Academic Year Lifecycle
+# AkademiQ State Diagram — Academic Year Lifecycle
 
 ```mermaid
 stateDiagram-v2

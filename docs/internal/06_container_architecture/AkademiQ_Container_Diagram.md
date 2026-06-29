@@ -1,4 +1,4 @@
-# AcademiQ Container Diagram (C4 Level 2)
+# AkademiQ Container Diagram (C4 Level 2)
 
 ```mermaid
 flowchart LR

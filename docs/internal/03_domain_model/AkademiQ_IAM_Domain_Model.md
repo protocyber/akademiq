@@ -1,4 +1,4 @@
-# AcademiQ Identity & Access Domain Model
+# AkademiQ Identity & Access Domain Model
 
 ## IAM = Identity and Access Management
 

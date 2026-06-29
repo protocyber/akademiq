@@ -1,4 +1,4 @@
-# AcademiQ State Diagram — Student Enrollment Status Lifecycle
+# AkademiQ State Diagram — Student Enrollment Status Lifecycle
 
 ```mermaid
 stateDiagram-v2

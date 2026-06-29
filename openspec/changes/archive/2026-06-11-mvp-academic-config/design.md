@@ -31,7 +31,7 @@ config the single source of truth.
 ### 2. Academic-year status machine
 
 We implement the lifecycle from
-`09_states/AcademiQ_State_Academic_Year_Lifecycle.md`, but only the transitions
+`09_states/AkademiQ_State_Academic_Year_Lifecycle.md`, but only the transitions
 phases 2–3 need are *enforced* now:
 
 ```

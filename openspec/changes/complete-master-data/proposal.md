@@ -1,6 +1,6 @@
 ## Why
 
-AcademiQ needs richer school master data so admin sekolah can manage complete operational records for the school, teachers, students, family profiles, and media without overloading IAM or duplicating enrollment history. Current student/teacher data is minimal, guardian access already exists, and UI terminology still exposes technical `tenant` wording instead of user-facing `sekolah`.
+AkademiQ needs richer school master data so admin sekolah can manage complete operational records for the school, teachers, students, family profiles, and media without overloading IAM or duplicating enrollment history. Current student/teacher data is minimal, guardian access already exists, and UI terminology still exposes technical `tenant` wording instead of user-facing `sekolah`.
 
 ## What Changes
 

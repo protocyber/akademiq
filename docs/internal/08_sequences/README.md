@@ -1,6 +1,6 @@
-# AcademiQ Level 8 Sequence Diagrams
+# AkademiQ Level 8 Sequence Diagrams
 
-These diagrams describe critical cross-service runtime flows in AcademiQ.
+These diagrams describe critical cross-service runtime flows in AkademiQ.
 <!-- 
 1. User Login with Tenant Resolution — Authentication and multi-tenant role resolution.
 2. Academic Year Initialization — Creating a new academic year based on prior configuration.
@@ -29,7 +29,7 @@ We create one when a flow:
 - ✅ Has async/event-driven behavior
 - ✅ Would be painful to debug later without a visual flow
 
-## 🧩 Recommended Sequence Diagrams for AcademiQ
+## 🧩 Recommended Sequence Diagrams for AkademiQ
 
 Here is the professional shortlist for your platform.
 

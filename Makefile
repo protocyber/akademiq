@@ -1,5 +1,5 @@
 # =============================================================================
-# AcademiQ — Parent repo orchestrator
+# AkademiQ — Parent repo orchestrator
 # =============================================================================
 # This Makefile is the entry point for local development across both
 # submodules (apps/backend and apps/web). It DOES NOT replace per-app

@@ -1,4 +1,4 @@
-# AcademiQ Engineering Standards
+# AkademiQ Engineering Standards
 
 This folder defines technical standards and conventions to be followed across all backend microservices.
 

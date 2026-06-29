@@ -1,4 +1,4 @@
-# AcademiQ Domain Model v2 (With Subscription Lifecycle)
+# AkademiQ Domain Model v2 (With Subscription Lifecycle)
 
 ```mermaid
 classDiagram

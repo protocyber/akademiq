@@ -1,4 +1,4 @@
-# AcademiQ Component Diagram - Notification Service
+# AkademiQ Component Diagram - Notification Service
 
 ```mermaid
 flowchart TB

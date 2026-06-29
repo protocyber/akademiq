@@ -27,7 +27,7 @@ the request body.
 ### Requirement: Academic year status SHALL follow the documented lifecycle
 
 The service MUST enforce the academic-year lifecycle from
-`09_states/AcademiQ_State_Academic_Year_Lifecycle.md`
+`09_states/AkademiQ_State_Academic_Year_Lifecycle.md`
 (`Planning → Configuration → Active → Locked → Finalizing → Closed → Archived`).
 Illegal transitions MUST be rejected. A tenant MUST NOT have more than one
 academic year in `Active` status at a time.

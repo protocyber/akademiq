@@ -1,4 +1,4 @@
-# AcademiQ ERD — Academic Configuration Service
+# AkademiQ ERD — Academic Configuration Service
 
 ```mermaid
 erDiagram

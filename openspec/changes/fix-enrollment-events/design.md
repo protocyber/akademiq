@@ -2,7 +2,7 @@
 
 ## Context
 
-AcademiQ menggunakan arsitektur microservices dengan event-driven communication untuk menjaga konsistensi data antar service. Saat ini ada dua service yang terlibat dalam enrollment workflow:
+AkademiQ menggunakan arsitektur microservices dengan event-driven communication untuk menjaga konsistensi data antar service. Saat ini ada dua service yang terlibat dalam enrollment workflow:
 
 - **academic-ops-service**: Owner dari tabel `enrollment` (source of truth)
 - **grading-service**: Consumer yang mem-proyeksikan data enrollment ke tabel `enrolled_student` untuk keperluan roster, grading, dan report cards

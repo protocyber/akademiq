@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AcademiQ — Supabase sync (prod → dev, schema-per-service)
+# AkademiQ — Supabase sync (prod → dev, schema-per-service)
 # =============================================================================
 # Dumps each service schema from a Supabase PROD database and restores it into
 # a Supabase DEV database. Both databases use the schema-per-service layout

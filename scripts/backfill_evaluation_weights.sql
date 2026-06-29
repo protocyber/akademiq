@@ -1,5 +1,5 @@
 -- =============================================================================
--- AcademiQ — Backfill Evaluation Weights (100%) + Recompute Report Scores
+-- AkademiQ — Backfill Evaluation Weights (100%) + Recompute Report Scores
 -- =============================================================================
 -- Tenant-scoped maintenance script that:
 --   1. Auto-creates an evaluation (code=SAS) for teaching assignments that

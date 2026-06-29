@@ -135,7 +135,7 @@ Document each service's port and any new env variables in
 > **Optional and environment-specific.** One maintainer fronts the local stack
 > with Traefik so a single HTTPS origin (`akademiq.dev.sby.test`, LAN IP
 > `10.201.0.25`) serves both the web app and the backend APIs. This is **not**
-> required — AcademiQ is open source and runs fine on `localhost` with no proxy,
+> required — AkademiQ is open source and runs fine on `localhost` with no proxy,
 > on your own domain, or behind a different proxy. The reference config lives in
 > the parent repo at `infra/traefik/` (see `infra/traefik/README.md`).
 

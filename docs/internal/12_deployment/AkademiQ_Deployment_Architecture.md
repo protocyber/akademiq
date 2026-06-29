@@ -1,4 +1,4 @@
-# AcademiQ Deployment & Infrastructure Architecture
+# AkademiQ Deployment & Infrastructure Architecture
 
 ```mermaid
 flowchart TB
@@ -77,7 +77,7 @@ GRD --> OBJ
 🧠 What This Diagram Represents
 
 This is Level 11 — Deployment / Infrastructure Architecture.
-It shows how AcademiQ is deployed in a production cloud environment.
+It shows how AkademiQ is deployed in a production cloud environment.
 
 We now move from logical architecture to physical/runtime architecture.
 

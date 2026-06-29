@@ -1,4 +1,4 @@
-# AcademiQ ERD — Identity & Access Service
+# AkademiQ ERD — Identity & Access Service
 
 ```mermaid
 erDiagram

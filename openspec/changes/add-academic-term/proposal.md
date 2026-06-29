@@ -140,7 +140,7 @@ deliberately — it is a neutral label container that can hold "Semester 1",
 - `10_data_design/06_Grading_Service_ERD.md`: add `term_id` to
   `evaluation`/`report_type` and the `valid_term` projection (and refresh the
   stale ERD to the post-`V4`/`V5` model).
-- `09_states/AcademiQ_State_Academic_Term_Lifecycle.md`: new state machine.
+- `09_states/AkademiQ_State_Academic_Term_Lifecycle.md`: new state machine.
 - `11_integration_contracts/apis/academic-config-api.md`: term endpoints.
 - `11_integration_contracts/apis/grading-service-api.md`: `term_id` in
   evaluation/report-type schemas; new error codes.

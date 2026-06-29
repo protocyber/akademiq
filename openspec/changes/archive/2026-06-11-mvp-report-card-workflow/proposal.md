@@ -16,7 +16,7 @@ Academic Config → Academic Ops → Grading: grade capture → Report Card work
 ```
 
 The lifecycle is the one in
-`docs/internal/09_states/AcademiQ_State_Report_Card_Lifecycle.md`:
+`docs/internal/09_states/AkademiQ_State_Report_Card_Lifecycle.md`:
 
 ```
 Draft ─teacher submits grades─▶ HomeroomReview ─homeroom approves─▶ PrincipalApproval

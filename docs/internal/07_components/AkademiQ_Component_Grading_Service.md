@@ -1,4 +1,4 @@
-# AcademiQ Component Diagram - Grading and Report Service
+# AkademiQ Component Diagram - Grading and Report Service
 
 ```mermaid
 flowchart TB

@@ -1,6 +1,6 @@
 ## Why
 
-The architecture for AcademiQ is documented end-to-end in `docs/internal/`, and
+The architecture for AkademiQ is documented end-to-end in `docs/internal/`, and
 `init-dev-orchestration` has landed the dev loop, but neither submodule contains
 any code yet. We need a phased roadmap that takes us from empty submodules to a
 running MVP, **and** the first executable slice of that roadmap so the team can
@@ -148,7 +148,7 @@ user management — land in their own changes once the foundation is stable.
 
 ### New Capabilities
 
-- `implementation-roadmap`: defines the phased build order for the AcademiQ
+- `implementation-roadmap`: defines the phased build order for the AkademiQ
   backend and web frontend, the scope and exit criteria of each phase, and
   which capabilities each phase delivers.
 - `iam-service`: defines authentication (login, refresh, logout), password

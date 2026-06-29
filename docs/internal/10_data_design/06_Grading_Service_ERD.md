@@ -1,4 +1,4 @@
-# AcademiQ ERD — Grading & Report Service
+# AkademiQ ERD — Grading & Report Service
 
 ```mermaid
 erDiagram

@@ -49,7 +49,7 @@ Compose with file-watching enabled.
 - `docker-compose.yml` MUST define services for `postgres` (image
   `postgres:18` or pinned newer minor) and `rabbitmq` (image with management
   plugin), and MUST reserve placeholder structure for the eight microservices
-  named in `docs/internal/06_container_architecture/AcademiQ_Container_Diagram.md`.
+  named in `docs/internal/06_container_architecture/AkademiQ_Container_Diagram.md`.
 - Every service entry that the change adds today MUST consume its port,
   username, password, and database name from environment variables resolved
   via `apps/backend/.env`.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# AcademiQ — DB context switcher
+# AkademiQ — DB context switcher
 # =============================================================================
 # Orchestrates switching the backend database context between local Postgres
 # and the dev Supabase project, while keeping RabbitMQ local.

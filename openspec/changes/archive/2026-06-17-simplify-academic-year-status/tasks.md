@@ -48,7 +48,7 @@
 
 ## 8. Documentation
 
-- [x] 8.1 Rewrite `docs/internal/09_states/AcademiQ_State_Academic_Year_Lifecycle.md` to the 4-state machine with the bidirectional transition diagram and per-state responsibilities.
+- [x] 8.1 Rewrite `docs/internal/09_states/AkademiQ_State_Academic_Year_Lifecycle.md` to the 4-state machine with the bidirectional transition diagram and per-state responsibilities.
 - [x] 8.2 Update `docs/internal/11_integration_contracts/apis/academic-config-api.md`: PATCH status request gains `reason`; valid lifecycle text updated to the 4-state model; error table refreshed.
 - [x] 8.3 Update `docs/internal/11_integration_contracts/events/academic-year-status-changed.md`: add `reason` to the payload example and note the forward-assumption caveat for consumers.
 - [x] 8.4 Align `docs/internal/13_engineering_standards/16_implementation_phases.md:83` to the final `Draft → Active` wording.

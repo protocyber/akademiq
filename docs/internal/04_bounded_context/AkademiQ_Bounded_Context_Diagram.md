@@ -1,4 +1,4 @@
-# AcademiQ Bounded Context Diagram
+# AkademiQ Bounded Context Diagram
 
 ```mermaid
 flowchart LR

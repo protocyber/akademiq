@@ -79,7 +79,7 @@ introducing a new one.
 - `playwright/academic-config.spec.ts`: mocks and assertions updated.
 
 **Docs**
-- `09_states/AcademiQ_State_Academic_Year_Lifecycle.md`: rewritten to 4-state.
+- `09_states/AkademiQ_State_Academic_Year_Lifecycle.md`: rewritten to 4-state.
 - `11_integration_contracts/apis/academic-config-api.md`: PATCH status endpoint
   and lifecycle description updated.
 - `11_integration_contracts/events/academic-year-status-changed.md`: `reason`

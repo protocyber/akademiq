@@ -1,4 +1,4 @@
-# AcademiQ ERD — Tenant & Subscription (Billing) Service
+# AkademiQ ERD — Tenant & Subscription (Billing) Service
 
 ```mermaid
 erDiagram

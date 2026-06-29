@@ -1,6 +1,6 @@
 ## Context
 
-AcademiQ supports passwordless invitation: accepting an invitation creates an account with a `NULL` password hash and issues a tenant-scoped token pair immediately, plus a single-use set-password token shown once. The intent is "signed in now, set a password later." Three gaps in this design surfaced during QA:
+AkademiQ supports passwordless invitation: accepting an invitation creates an account with a `NULL` password hash and issues a tenant-scoped token pair immediately, plus a single-use set-password token shown once. The intent is "signed in now, set a password later." Three gaps in this design surfaced during QA:
 
 1. **No gate forces the "later."** The scoped token from `accept_invitation` is a fully valid access token. The client learns `password_set: false` from `/me` but only *suggests* (banner/CTA) visiting `/set-password`. A no-password user can use the entire app until they happen to log out — at which point they hit a dead end.
 2. **Credential rotation doesn't kill sessions.** `admin_reset_password`, `set_password`, and `set_password_authenticated` persist a new hash but never revoke refresh tokens. Only `change_password` and `verify_email` call `revoke_all_for_user`. An attacker (or shared device) holding a prior refresh token survives a reset.

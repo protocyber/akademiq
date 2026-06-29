@@ -1,4 +1,4 @@
-# AcademiQ Component Diagram - Academic Operations Service
+# AkademiQ Component Diagram - Academic Operations Service
 
 ```mermaid
 flowchart TB

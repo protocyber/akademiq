@@ -90,10 +90,10 @@ parent repo.
 
 ## Dev environment routing (Traefik)
 
-> **Environment-specific. Not required to run AcademiQ.** The maintainer fronts
+> **Environment-specific. Not required to run AkademiQ.** The maintainer fronts
 > the stack with Traefik on `akademiq.dev.sby.test` (LAN IP `10.201.0.25`).
 > These host names, IP, and the proxy itself are one person's local setup —
-> AcademiQ is open source and you can run on `localhost`, your own domain, or no
+> AkademiQ is open source and you can run on `localhost`, your own domain, or no
 > proxy at all. The reference config lives in `infra/traefik/`.
 
 In that setup a single public origin serves both the web app and the backend

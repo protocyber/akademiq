@@ -1,4 +1,4 @@
-# AcademiQ Subscription State Diagram
+# AkademiQ Subscription State Diagram
 
 ```mermaid
 stateDiagram-v2

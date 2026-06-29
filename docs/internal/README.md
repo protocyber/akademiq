@@ -1,7 +1,7 @@
 
 # Internal Architecture Documentation Guide
 
-This folder contains the complete internal architecture documentation for the AcademiQ SaaS platform.  
+This folder contains the complete internal architecture documentation for the AkademiQ SaaS platform.  
 The structure is organized in progressive levels — from business understanding to production engineering standards.
 
 ---
@@ -49,7 +49,7 @@ This level answers: **“How is the business domain divided into services?”**
 ---
 
 ## Level 5 — System Context (`05_system_context`)
-Shows how AcademiQ interacts with external systems:
+Shows how AkademiQ interacts with external systems:
 - Payment gateways
 - Messaging providers
 - Users and administrators
@@ -155,7 +155,7 @@ This level answers: **“How should engineers build the system consistently?”*
 
 ## Summary
 
-These 13 levels together provide a full blueprint of the AcademiQ platform:
+These 13 levels together provide a full blueprint of the AkademiQ platform:
 
 **Business → Domain → Services → Data → Integration → Infrastructure → Engineering Standards**
 

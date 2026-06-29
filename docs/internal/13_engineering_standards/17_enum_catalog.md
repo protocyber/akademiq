@@ -1,7 +1,7 @@
 # Enum Catalog — Canonical Values
 
 This document is the single source of truth for enumerated value sets used across
-AcademiQ backend services and the web frontend. Backend CHECK constraints, domain
+AkademiQ backend services and the web frontend. Backend CHECK constraints, domain
 `FromStr`/`as_str` impls, and frontend Zod enum schemas MUST use exactly these values
 (including casing: all lowercase snake_case).
 
