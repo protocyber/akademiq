@@ -217,6 +217,22 @@ The new asset becomes active and previous assets remain visible in history.
 
 Errors: `400 VALIDATION_ERROR` (`file` field) for invalid type/size.
 
+### `DELETE /tenants/me/school-profile/media/{media_id}`
+
+Deletes one school logo media asset for the current tenant. The service only
+matches assets with `owner_type = school` and `owner_id` equal to the tenant id
+resolved from the JWT. Other logo history rows are not deleted. If the deleted
+asset is active, `logo_media_id` is cleared and no historical logo is promoted.
+
+Success (204): empty body.
+
+Errors:
+
+| Code       | HTTP | Cause |
+|------------|------|-------|
+| `NOT_FOUND`| 404  | The media asset does not exist or is not accessible to the current tenant school owner. |
+| `FORBIDDEN`| 403  | Caller lacks `billing.manage`. |
+
 ## Health
 
 ### `GET /healthz`
