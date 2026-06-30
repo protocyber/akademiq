@@ -1,9 +1,8 @@
 ## MODIFIED Requirements
 
 ### Requirement: The template files SHALL include guidance and examples
-
-The static `.xlsx` files at `public/templates/students-template.xlsx` and
-`teachers-template.xlsx` MUST include:
+The static `.xlsx` template files MUST include guidance and examples at
+`public/templates/students-template.xlsx` and `teachers-template.xlsx`:
 - Sheet 1 ("Data"): the English header row (row 1) matching the backend's
   expected columns, followed by blank rows for user input.
 - Sheet 2 ("Petunjuk"): a column-by-column guide with Indonesian label,

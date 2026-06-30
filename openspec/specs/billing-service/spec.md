@@ -3,9 +3,7 @@
 ## Purpose
 
 Defines requirements for the billing-service (Tenant & Subscription Service), including plan management, tenant registration, module overrides, event emission, subscription lifecycles, and seed data.
-
 ## Requirements
-
 ### Requirement: Billing service SHALL expose tenant and plan endpoints under `/api/v1/billing`
 
 The service MUST provide `POST /tenants/register`, `GET /plans`,
@@ -134,3 +132,48 @@ documentation aligned.
 
 - **WHEN** `make seed` runs against an empty `billing_db`
 - **THEN** the `plan` table contains exactly three rows with names `Starter`, `Standard`, `Premium` and `plan_feature` rows match the documented matrix
+
+### Requirement: Billing SHALL serve the school logo and resolve its storage URI
+
+The billing service SHALL expose `GET /api/v1/billing/media/:media_id` that
+streams the stored school-logo bytes with their recorded content type. The
+school media list endpoint SHALL resolve each asset's storage reference to a
+servable HTTP media path (or `media_id`) instead of returning a raw `media://`
+URI, so the web app can render the logo.
+
+#### Scenario: School logo is served
+
+- **WHEN** a client requests an existing billing media id
+- **THEN** the service responds 200 with the stored content type and the logo bytes
+
+#### Scenario: Media list returns resolvable paths
+
+- **WHEN** the school media list is requested
+- **THEN** each asset exposes a resolvable HTTP media path rather than a raw `media://` URI
+
+### Requirement: School logo SHALL support bulk hard deletion
+
+billing-service SHALL expose
+`DELETE /api/v1/billing/media?owner_type=school&owner_id=` that removes
+**all** media asset rows (active and inactive history) for the school logo
+owner within the tenant, deletes the matching storage objects (key
+reconstructed as `school/{media_id}`), and nulls the tenant's
+`logo_media_id`. The operation is tenant-scoped (resolved from the JWT,
+never client-supplied) and hard.
+
+#### Scenario: Bulk delete removes the school logo history
+
+- **WHEN** the school logo is bulk-deleted
+- **THEN** all logo `media_asset` rows are removed, the storage objects are
+  deleted, and `logo_media_id` is set to NULL
+
+### Requirement: Logo upload SHALL garbage-collect the previous active logo
+
+The billing-service SHALL garbage-collect the previous active logo when a new logo is uploaded and a previous active logo exists, by deleting the previous logo object from storage within the same transaction that activates the new one.
+
+#### Scenario: Replacing the logo removes the old object
+
+- **WHEN** a tenant uploads a new logo over an existing one
+- **THEN** the previous logo object is deleted and the new object becomes
+  active
+

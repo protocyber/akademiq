@@ -1,4 +1,4 @@
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: The service SHALL provide a PATCH endpoint to update academic year identity fields
 

@@ -25,10 +25,7 @@ never client-supplied) and hard: rows and bytes are permanently removed.
 
 ### Requirement: Photo upload SHALL garbage-collect the previous active photo
 
-When a new photo is uploaded for an owner that already has an active photo,
-the service SHALL delete the previous active object from storage within the
-same transaction that activates the new one. This applies to student,
-teacher, and family owner types.
+The academic-ops-service SHALL garbage-collect the previous active photo when a new photo is uploaded for an owner that already has an active photo, by deleting the previous active object from storage within the same transaction that activates the new one. This applies to student, teacher, and family owner types.
 
 #### Scenario: Replacing a student photo removes the old object
 

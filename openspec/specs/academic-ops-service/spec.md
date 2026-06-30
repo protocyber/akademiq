@@ -3,9 +3,7 @@
 ## Purpose
 
 Defines tenant-scoped academic operations for students, teachers, homerooms, enrollment, teaching assignments, spreadsheet import, and academic-ops event publication under `/api/v1/academic-ops`.
-
 ## Requirements
-
 ### Requirement: Academic Ops service SHALL manage students, teachers, homerooms, enrollment, and teaching assignments under `/api/v1/academic-ops`
 
 The service MUST provide tenant-scoped CRUD for students and teachers,
@@ -150,13 +148,136 @@ report.
 - **WHEN** a spreadsheet whose rows all pass validation is uploaded
 - **THEN** the response is HTTP 201 with an imported-count summary and every row is persisted in a single transaction
 
+### Requirement: The importer SHALL translate Indonesian gender labels
+
+`parse_students` and `parse_teachers` in `imports.rs` MUST translate common
+Indonesian gender labels to their English backend values before passing to
+validation. The mapping MUST include at minimum: `laki-laki`/`laki laki`/
+`pria`/`l` → `male`; `perempuan`/`wanita`/`p` → `female`. Values that are
+already `male`/`female` MUST pass through unchanged. Unknown values MUST pass
+through to validation, which rejects them.
+
+#### Scenario: Indonesian gender label in student import
+
+- **WHEN** a student import file has `gender = "Laki-laki"` in a row
+- **THEN** the importer translates it to `"male"` and the row is accepted
+
+#### Scenario: English gender value passes through
+
+- **WHEN** a student import file has `gender = "male"` in a row
+- **THEN** the value is accepted as-is without translation
+
+#### Scenario: Unknown gender value rejected
+
+- **WHEN** a student import file has `gender = "xyz"` in a row
+- **THEN** the translation does not match and validation rejects it with `VALIDATION_ERROR`
+
+### Requirement: The template endpoint SHALL return column metadata
+
+`GET /api/v1/academic-ops/imports/template` MUST return the column list with
+Indonesian labels, required/optional flags, and format hints for both student
+and teacher templates. This enables the frontend to render dynamic guidance if
+needed.
+
+#### Scenario: Template metadata response
+
+- **WHEN** a client calls `GET /imports/template`
+- **THEN** the response includes for each column: `field` (English key), `label` (Indonesian), `required` (boolean), and `format` (e.g. "date", "integer", "text")
+
 ### Requirement: Enrollment SHALL emit `student.enrolled`
 
 On successful enrollment the service MUST emit `student.enrolled` consistent
 with the existing contract under
 `docs/internal/11_integration_contracts/events/student-enrolled.md`.
 
+This includes both manual enrollment via `POST /enrollments` and initial
+placement during student creation via `POST /students` with
+`initial_placement`. Both paths MUST emit the same event within the same
+database transaction as the enrollment INSERT.
+
 #### Scenario: Enrollment publishes the event
 
-- **WHEN** a student is enrolled into a homeroom for an academic year
+- **WHEN** a student is enrolled into a homeroom for an academic year via `POST /enrollments`
 - **THEN** a `student.enrolled` event is published to RabbitMQ with the documented payload
+
+#### Scenario: Initial placement publishes the event
+
+- **WHEN** a student is created with `initial_placement` and the placement succeeds
+- **THEN** a `student.enrolled` event is published to RabbitMQ with the documented payload, in the same transaction as the enrollment INSERT
+
+### Requirement: Academic Ops SHALL store and serve student and teacher photos
+
+The academic-ops service SHALL accept photo uploads for students and teachers
+through `POST /api/v1/academic-ops/media`, store the bytes via the shared
+`common-media` library, record a `media_asset` row, and reflect the new active
+asset onto the owning entity's `photo_media_id` in the same transaction. It MUST
+expose `GET /api/v1/academic-ops/media/:media_id` to serve the stored bytes with
+their recorded content type. Stored references MUST use the shared library's URL
+scheme and MUST NOT be debug-formatted paths.
+
+#### Scenario: Upload a student photo
+
+- **WHEN** an admin uploads a valid image for a student
+- **THEN** the photo is stored, `student.photo_media_id` is set to the new asset, and the previous active asset for that student is deactivated
+
+#### Scenario: Serve a stored photo
+
+- **WHEN** a client requests an existing academic-ops media id
+- **THEN** the service responds 200 with the stored content type and the file bytes
+
+#### Scenario: Stored reference is a usable URL
+
+- **WHEN** a photo is stored
+- **THEN** the recorded `file_url` is a valid media URI (not `file://"…"` debug output) that resolves to the serve endpoint
+
+### Requirement: Media SHALL support bulk hard deletion per owner
+
+academic-ops-service SHALL expose
+`DELETE /api/v1/academic-ops/media?owner_type=&owner_id=` that removes
+**all** media asset rows (active and inactive history) for the given owner
+within the tenant, deletes every matching storage object (key reconstructed
+as `{owner_type}/{media_id}`), and nulls the owning entity's
+`photo_media_id`. The operation is tenant-scoped (resolved from the JWT,
+never client-supplied) and hard: rows and bytes are permanently removed.
+
+#### Scenario: Bulk delete removes active and history for an owner
+
+- **WHEN** an owner's media is bulk-deleted
+- **THEN** all of that owner's `media_asset` rows are removed, every
+  matching storage object is deleted, and `photo_media_id` is set to NULL
+  on the owning entity
+
+#### Scenario: Bulk delete of an owner with no media succeeds
+
+- **WHEN** bulk delete targets an owner with no media assets
+- **THEN** the operation completes without error and no storage object is
+  touched
+
+### Requirement: Photo upload SHALL garbage-collect the previous active photo
+
+The academic-ops-service SHALL garbage-collect the previous active photo when a new photo is uploaded for an owner that already has an active photo, by deleting the previous active object from storage within the same transaction that activates the new one. This applies to student, teacher, and family owner types.
+
+#### Scenario: Replacing a student photo removes the old object
+
+- **WHEN** a student with an existing active photo uploads a new one
+- **THEN** the previous photo object is deleted and the new object becomes
+  active
+
+### Requirement: Unenrollment SHALL emit `student.unenrolled`
+
+On successful unenrollment the service MUST emit `student.unenrolled` with
+payload `{ tenant_id, student_id, homeroom_id, academic_year_id }` within
+the same database transaction as the enrollment status update. The event
+MUST only be emitted when the unenroll operation actually affects a row
+(i.e., an active enrollment existed).
+
+#### Scenario: Unenrollment publishes the event
+
+- **WHEN** a student is unenrolled from a homeroom via `DELETE /enrollments/{id}`
+- **THEN** a `student.unenrolled` event is published to RabbitMQ with payload `{ tenant_id, student_id, homeroom_id, academic_year_id }`
+
+#### Scenario: Unenroll of non-existent enrollment does not emit event
+
+- **WHEN** an unenroll request targets an enrollment_id that does not exist or is already inactive
+- **THEN** no event is emitted and the response is HTTP 404 `NOT_FOUND`
+

@@ -3,9 +3,7 @@
 ## Purpose
 
 Defines the per-term evaluation template contract — template CRUD, weight templates, materialization on teaching assignment, backfill, and unmaterialized-assignment reporting.
-
 ## Requirements
-
 ### Requirement: The grading service SHALL manage a per-term evaluation template
 
 The service MUST provide evaluation-template CRUD under `/api/v1/grading/evaluation-templates`, tenant-scoped from the JWT. A template entry captures `{ term_id, code, name, position }` and defines one default assessment column (e.g. "UH1", "UTS") for the whole term. `tenant_id` MUST be resolved from the term (via the `valid_term` projection) and never taken from the client. `code` MUST be unique per `(tenant_id, term_id)`. Template writes MUST require the academic-config write permission (tenant admin).
@@ -70,17 +68,27 @@ When a `teacher.assigned` event is consumed, the service MUST materialize concre
 
 ### Requirement: The grading service SHALL backfill evaluations for assignments lacking them
 
-The service MUST expose an endpoint that applies a term's template to every teaching assignment in that term that currently has no evaluations, creating the concrete evaluations (and weights where report types exist). The operation MUST be idempotent, MUST require the academic-config write permission, and MUST return counts of assignments filled and skipped.
+The service MUST expose an endpoint that applies a term's template to every teaching assignment in that term that currently has **no evaluations at all**, creating the concrete evaluations (and weights where report types exist). "No evaluations" MUST be determined per assignment by the absence of any `evaluation` row for that `(tenant_id, homeroom_id, subject_id, academic_year_id, term_id)` — NOT by the absence of a same-coded evaluation. An assignment that already has one or more evaluations MUST be skipped entirely, even when the template defines a code that assignment does not yet have. This skip predicate MUST match the one used by the unmaterialized-assignment count so the two stay consistent. The operation MUST be idempotent, MUST require the academic-config write permission, and MUST return counts of assignments filled and skipped.
 
 #### Scenario: Apply template fills only assignments with no evaluations
 
 - **WHEN** an admin POSTs the apply action for a term with template entries
 - **THEN** assignments in that term with zero evaluations receive the template's evaluations and assignments that already have evaluations are left unchanged
 
+#### Scenario: Assignment with a different-coded evaluation is skipped
+
+- **WHEN** an assignment already has an evaluation `SA` and the term template defines `SAS`, and the admin POSTs the apply action
+- **THEN** no `SAS` evaluation is inserted for that assignment and it is reported as skipped
+
 #### Scenario: Apply is idempotent
 
 - **WHEN** the apply action is invoked twice in a row
 - **THEN** the second invocation creates no additional evaluations and reports them as skipped
+
+#### Scenario: Skip predicate matches the unmaterialized count
+
+- **WHEN** the unmaterialized-assignment count for a term reports zero
+- **THEN** the apply action for that term creates no evaluations
 
 ### Requirement: The grading service SHALL report assignments lacking evaluations for a term
 
@@ -95,3 +103,4 @@ The service MUST expose an endpoint returning the count of teaching assignments 
 
 - **WHEN** the count is requested after the apply action has filled every assignment
 - **THEN** the response reports a count of 0
+

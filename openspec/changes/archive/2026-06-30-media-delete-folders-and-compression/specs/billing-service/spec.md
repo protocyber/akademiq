@@ -18,9 +18,7 @@ never client-supplied) and hard.
 
 ### Requirement: Logo upload SHALL garbage-collect the previous active logo
 
-When a new logo is uploaded and a previous active logo exists, the service
-SHALL delete the previous logo object from storage within the same
-transaction that activates the new one.
+The billing-service SHALL garbage-collect the previous active logo when a new logo is uploaded and a previous active logo exists, by deleting the previous logo object from storage within the same transaction that activates the new one.
 
 #### Scenario: Replacing the logo removes the old object
 

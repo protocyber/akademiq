@@ -1,5 +1,8 @@
-## MODIFIED Requirements
+# web-academic-ui Specification
 
+## Purpose
+TBD - created by archiving change fix-academic-status-logic. Update Purpose after archive.
+## Requirements
 ### Requirement: The term edit form SHALL NOT transition status on save
 
 The `TermInfoSection` "Simpan" button (`term-form-modal.tsx`) MUST only call
@@ -60,14 +63,34 @@ the submit button MUST remain disabled until the reason is valid.
 
 ### Requirement: The UI SHALL refresh all dependent data after a status transition
 
-After a successful year or term status transition, the mutation's `onSuccess`
-MUST invalidate the primary list query key AND all identified dependent query
-keys (academic scope context, dashboard KPIs that depend on year/term status)
-so that the UI reflects the new status without requiring a manual page
-refresh.
+The UI MUST refresh all dependent data after a successful year or term status transition. The mutation's `onSuccess` MUST invalidate the primary list query key AND all identified dependent query keys (academic scope context, dashboard KPIs that depend on year/term status) so that the UI reflects the new status without requiring a manual page refresh.
 
 #### Scenario: UI updates after term status change
 
 - **WHEN** a term status transition succeeds
 - **THEN** the term list, year list (if affected), and academic scope context
   all refresh to reflect the new status
+
+### Requirement: The template files SHALL include guidance and examples
+
+The static `.xlsx` template files MUST include guidance and examples at
+`public/templates/students-template.xlsx` and `teachers-template.xlsx`:
+
+- Sheet 1 ("Data"): the English header row (row 1) matching the backend's
+  expected columns, followed by blank rows for user input.
+- Sheet 2 ("Petunjuk"): a column-by-column guide with Indonesian label,
+  required/optional status, expected format, and an example value for each
+  column.
+
+#### Scenario: Template has a guidance sheet
+
+- **WHEN** a user opens the downloaded template file
+- **THEN** they see a "Petunjuk" sheet with Indonesian labels, format hints,
+  and examples for every column
+
+#### Scenario: Data sheet headers match backend expectation
+
+- **WHEN** the user fills in the "Data" sheet and uploads it
+- **THEN** the headers in row 1 exactly match the backend's expected English
+  field names, and the import validates successfully
+

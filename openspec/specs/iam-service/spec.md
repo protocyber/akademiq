@@ -416,16 +416,24 @@ The invitee MUST be signed in (scoped token pair) upon acceptance in both cases.
 ### Requirement: The service SHALL support accounts that have not yet set a password
 
 The service MUST allow an account to exist without a password. Password login
-against such an account MUST be rejected with a distinct, actionable error code
-(e.g. `PASSWORD_NOT_SET`) rather than a generic invalid-credentials response, so
-the client can route the user to set a password. Non-password authentication
-(e.g. OAuth) MUST be unaffected.
+against such an account MUST be rejected with the standard invalid-credentials
+error (`INVALID_CREDENTIALS`) — the same code and message returned for a wrong
+password — so that the response does **not** reveal whether the account exists
+in a no-password state. Non-password authentication (e.g. OAuth) MUST be
+unaffected. The distinct `PASSWORD_NOT_SET` code is removed from the login path;
+detection of a no-password account for routing purposes is the client's
+responsibility, driven by the `password_set` flag on `GET /me`.
 
-#### Scenario: Password login blocked until a password is set
+#### Scenario: Password login against a no-password account returns invalid credentials
 
 - **WHEN** a user attempts password login on an account with no password set
-- **THEN** the response carries a distinct "password not set" code and no session
-  is issued
+- **THEN** the response carries the `INVALID_CREDENTIALS` code (not a distinct
+  no-password code) and no session is issued
+
+#### Scenario: OAuth login is unaffected by password state
+
+- **WHEN** a no-password account authenticates via OAuth
+- **THEN** the login succeeds and is not blocked by the absence of a password
 
 ### Requirement: The service SHALL issue a single-use, time-bound set-password token
 
@@ -490,4 +498,147 @@ Callers without the required permission MUST receive HTTP 403 with code `FORBIDD
 
 - **WHEN** a caller holding `role.read` calls `GET /tenants/me/roles`
 - **THEN** the response is HTTP 200 with the role list
+
+### Requirement: IAM SHALL seed the grade.evaluation.manage permission
+
+IAM MUST add `grade.evaluation.manage` to the fixed, seeded `permission`
+vocabulary, describing the authority to create, update, and delete concrete
+grading evaluations for a teaching assignment. The permission MUST be seeded
+idempotently and MUST NOT be editable by tenants. The built-in roles
+`tenant_admin`, `teacher`, and `homeroom_teacher` MUST be granted this permission
+via `role_permission`, so their issued access tokens carry it in `perms`.
+
+#### Scenario: The permission exists in the vocabulary
+
+- **WHEN** the IAM permission seed has run
+- **THEN** a permission with code `grade.evaluation.manage` exists and is not tenant-editable
+
+#### Scenario: Built-in roles carry the permission
+
+- **WHEN** a user holding the built-in `teacher`, `homeroom_teacher`, or `tenant_admin` role obtains a tenant-scoped access token
+- **THEN** the token's `perms` includes `grade.evaluation.manage`
+
+#### Scenario: Seed is idempotent
+
+- **WHEN** the permission and role-permission seed migrations run more than once
+- **THEN** no duplicate permission or role-permission rows are created
+
+### Requirement: IAM SHALL serve avatars with their stored content type
+
+The iam service SHALL serve avatar media via `GET /api/v1/iam/media/:media_id`
+returning the `content_type` recorded on the `media_asset` row, so that
+`next/image` and browsers treat the response as an image rather than a generic
+binary download.
+
+#### Scenario: Avatar served as an image
+
+- **WHEN** a client requests an existing avatar media id
+- **THEN** the service responds 200 with the stored image content type (e.g. `image/jpeg`) and the avatar bytes
+
+#### Scenario: Avatar renders through the image optimizer
+
+- **WHEN** the web app loads a user's resolved `avatar_url` through `next/image`
+- **THEN** the optimizer accepts the response content type and the avatar renders
+
+### Requirement: Avatar upload SHALL garbage-collect the previous object
+
+When an IAM user uploads a new avatar, the service SHALL delete the previous
+avatar object (at `avatar/{previous_media_id}`) from storage before the new
+avatar becomes active. IAM uses a single `avatar_url` column (no
+`media_asset` table), so the previous object is identified by parsing the
+existing `avatar_url`. If no previous avatar exists, no deletion is
+performed.
+
+#### Scenario: Replacing an avatar removes the old object
+
+- **WHEN** a user with an existing avatar uploads a new one
+- **THEN** the previous avatar object is deleted from storage and the new
+  object is stored at `avatar/{new_media_id}`
+
+#### Scenario: First avatar upload deletes nothing
+
+- **WHEN** a user with no avatar uploads one
+- **THEN** no previous-object deletion occurs
+
+### Requirement: Avatar deletion SHALL remove stored bytes
+
+The `DELETE /api/v1/iam/me/avatar` endpoint SHALL delete the stored avatar
+object at `avatar/{media_id}` and set `avatar_url` to NULL. This resolves
+the prior behavior that only nulled the column and orphaned the bytes.
+Deletion is idempotent.
+
+#### Scenario: Deleting an avatar removes bytes and clears the column
+
+- **WHEN** a user deletes their avatar
+- **THEN** the avatar object is removed from storage and `avatar_url` is
+  set to NULL
+
+### Requirement: Credential rotation SHALL revoke all active sessions
+
+`admin_reset_password`, the token-based `set_password`, and the session-based
+`set_password_authenticated` MUST revoke **all** of the target user's refresh
+tokens after persisting the new password hash, by calling the same
+`revoke_all_for_user` mechanism used by `change_password`. This guarantees that
+any refresh token minted before the credential change can no longer rotate into
+a new access token. For the session-based set-password path, the caller's own
+refresh token is also revoked, requiring re-authentication after the password is
+set.
+
+#### Scenario: Admin reset invalidates prior sessions
+
+- **WHEN** an admin resets a user's password and that user holds a valid refresh
+  token from before the reset
+- **THEN** the next `POST /auth/refresh` with that refresh token is rejected as
+  revoked, and no new access token is issued
+
+#### Scenario: Self-service set-password invalidates the calling session
+
+- **WHEN** a signed-in no-password user sets a password via the authenticated
+  set-password path
+- **THEN** all of that user's refresh tokens (including the one backing the
+  current session) are revoked, and the client must re-authenticate to continue
+
+#### Scenario: Token-based set-password invalidates prior sessions
+
+- **WHEN** a user sets a password using a single-use set-password token and that
+  user also holds a refresh token from a prior session
+- **THEN** the prior refresh token is revoked and can no longer mint access
+  tokens
+
+### Requirement: Users SHALL be able to request a fresh set-password token
+
+The service MUST provide `POST /api/v1/iam/auth/set-password/resend` to support
+recovery for no-password accounts. The endpoint accepts either (a) an
+authenticated identity/session request, resolving the caller directly, or (b) an
+unauthenticated request carrying an account identifier (email or username). It
+MUST look up the account; if the account has no password, it MUST revoke any
+prior unconsumed set-password tokens for that user and issue a fresh single-use,
+time-bound token (reusing `issue_set_password_token`). If the account already
+has a password, or no account matches, the endpoint MUST return the same generic
+success-like response to avoid account enumeration. The endpoint MUST be
+rate-limited per identifier and per source address.
+
+#### Scenario: No-password user requests and receives a fresh token
+
+- **WHEN** a request identifies a no-password account (by session or by
+  identifier)
+- **THEN** any prior unconsumed set-password tokens for that user are revoked, a
+  new single-use token is issued, and the response indicates success
+
+#### Scenario: Account with a password does not receive a token
+
+- **WHEN** a request identifies an account that already has a password set
+- **THEN** no set-password token is issued, and the response is the same generic
+  shape as a successful request (no enumeration leak)
+
+#### Scenario: Unknown identifier does not leak existence
+
+- **WHEN** a request carries an identifier that matches no account
+- **THEN** the response is identical to the success shape and no token is issued
+
+#### Scenario: Prior token is invalidated on resend
+
+- **WHEN** a no-password user requests a resend and then attempts to use the
+  previously-issued (now-superseded) set-password token
+- **THEN** the superseded token is rejected as invalid or already used
 
