@@ -15,7 +15,7 @@ STUDENT {
   string birth_place
   string address_line
   string phone_number
-  string photo_media_id
+  string photo_url
   string religion
   string nationality
   int child_order
@@ -43,7 +43,7 @@ TEACHER {
   string birth_place
   string address_line
   string phone_number
-  string photo_media_id
+  string photo_url
   string email
   string employment_status
   string role_position
@@ -70,7 +70,7 @@ FAMILY_PROFILE {
   date birth_date
   string address_line
   string phone_number
-  string photo_media_id
+  string photo_url
   string email
   string occupation
   string income_range
@@ -144,18 +144,6 @@ TIMETABLE {
   string end_time
 }
 
-MEDIA_ASSET {
-  uuid media_id PK
-  uuid tenant_id
-  string owner_type
-  uuid owner_id
-  string file_url
-  string content_type
-  int size_bytes
-  boolean is_active
-  datetime uploaded_at
-}
-
 STUDENT ||--o{ ENROLLMENT : has
 HOMEROOM ||--o{ ENROLLMENT : contains
 TEACHER ||--o{ TEACHING_ASSIGNMENT : teaches
@@ -169,8 +157,7 @@ GUARDIAN }o--|| STUDENT : "portal access for"
 
 ## 🧠 What This Database Owns
 This service handles daily academic structure, not grades or billing. It owns the
-complete operational master data: students, teachers, family profiles, and their
-media/photo history.
+complete operational master data: students, teachers, family profiles, and their photos.
 
 ### Main Entities
 | Entity | Purpose |
@@ -184,7 +171,6 @@ media/photo history.
 | Enrollment | Student ↔ Homeroom relationship per year |
 | TeachingAssignment | Which teacher teaches which subject in which class |
 | Timetable | Weekly schedule for classes |
-| MediaAsset | Photo upload history for teacher/student/family owners |
 
 ## 🔗 Important Relationships
 
@@ -206,9 +192,14 @@ lives-with-student, active/inactive status).
   student. Managed independently; creating/removing a family link must never mutate
   guardian access rows.
 
-### Media history
-Logo and photo uploads use file-backed assets. Replacing a photo creates a new active
-asset and keeps previous assets visible in history. Media is tenant+owner scoped.
+### Photo storage
+Student, teacher, and family profile photos are stored as a single active photo per
+entity. The `photo_url` column holds a host-agnostic `media://{owner_id}/{media_id}.{ext}`
+URI. Uploading a new photo replaces the previous one (single-active, no history). The HTTP
+layer resolves this URI to a public serve path
+(`/api/v1/academic-ops/media/{owner_type}/{media_id}`) before returning it to the frontend.
+Stored blob objects live under the `{owner_type}/` prefix in the configured storage backend
+(local or R2). The previous blob is garbage-collected on replace or clear.
 
 ### Profile vs IAM contact data
 Student, teacher, and family profile email/phone fields are administrative contact data.

@@ -116,7 +116,7 @@ Returns one tenant-scoped student with complete biodata:
     "birth_place": "Surabaya",
     "address_line": "Jl. Merdeka No. 10",
     "phone_number": "081234567890",
-    "photo_media_id": "uuid|null",
+    "photo_url": "string|null",
     "religion": "islam",
     "nationality": "Indonesia",
     "child_order": 1,
@@ -537,17 +537,41 @@ Removes a student-family link. Does **not** remove any guardian portal access li
 
 ## Profile media
 
-All require `academic_ops` entitlement. Media assets are tenant + owner scoped.
+All require `academic_ops` entitlement.
 
-### POST `/media/{owner_type}/{owner_id}`
+### POST `/media`
 
-Uploads a photo for a `teacher`, `student`, or `family` owner (multipart `file`).
-Validates JPG/PNG/WebP up to 2MB. The new asset becomes active; previous assets remain
-visible in history.
+Uploads a photo for a `teacher`, `student`, or `family` owner (multipart form).
+The new photo replaces the previous one (single-active, no history retained).
+The previous photo's storage object is garbage-collected on replace.
 
-### GET `/media/{owner_type}/{owner_id}`
+Form fields:
+- `owner_type`: `teacher` | `student` | `family`
+- `owner_id`: UUID of the owning entity
+- `file`: image bytes (JPG/PNG/WebP, max 512 KB)
 
-Returns media history for the owner (active first, then previous assets). Only assets
-for the given owner in the current tenant are returned.
+Response (201):
 
-Errors: `400 VALIDATION_ERROR` (`file`) for invalid type/size.
+```json
+{
+  "data": { "photo_url": "/api/v1/academic-ops/media/{owner_type}/{media_id}" },
+  "meta": {}
+}
+```
+
+Errors: `400 VALIDATION_ERROR` (`file`, `owner_type`) for invalid type/size/owner.
+
+### DELETE `/media`
+
+Clears the photo for an owner: deletes the backing storage object and nulls `photo_url`.
+Idempotent — an owner with no photo succeeds silently.
+
+Query params: `owner_type`, `owner_id`.
+
+Success (204): empty body.
+
+### GET `/media/{owner_type}/{media_id}`
+
+Serves the photo bytes (no auth required). If the storage backend exposes a public
+URL (R2), returns a 302 redirect; otherwise streams the bytes inline with the stored
+content type and a one-year cache header.

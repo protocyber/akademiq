@@ -207,61 +207,59 @@ database transaction as the enrollment INSERT.
 
 ### Requirement: Academic Ops SHALL store and serve student and teacher photos
 
-The academic-ops service SHALL accept photo uploads for students and teachers
-through `POST /api/v1/academic-ops/media`, store the bytes via the shared
-`common-media` library, record a `media_asset` row, and reflect the new active
-asset onto the owning entity's `photo_media_id` in the same transaction. It MUST
-expose `GET /api/v1/academic-ops/media/:media_id` to serve the stored bytes with
-their recorded content type. Stored references MUST use the shared library's URL
-scheme and MUST NOT be debug-formatted paths.
+The academic-ops service SHALL accept photo uploads for students, teachers, and
+family profiles through `POST /api/v1/academic-ops/media`, store the bytes via
+the shared `common-media` library, and set the owning entity's `photo_url` to the
+new `media://` URI. It MUST expose
+`GET /api/v1/academic-ops/media/{owner_type}/{media_id}` to serve the stored bytes
+with their recorded content type (no DB lookup required — the storage key is
+`{owner_type}/{media_id}`). This is a single-active model: replacing a photo
+replaces the stored URI, no history is retained.
+
+The response from the upload endpoint SHALL include a resolved HTTP serve path
+(not a raw `media://` URI) so the web app can render the photo directly.
 
 #### Scenario: Upload a student photo
 
 - **WHEN** an admin uploads a valid image for a student
-- **THEN** the photo is stored, `student.photo_media_id` is set to the new asset, and the previous active asset for that student is deactivated
+- **THEN** `student.photo_url` is set to the new `media://` URI and the previous object is garbage-collected
 
 #### Scenario: Serve a stored photo
 
-- **WHEN** a client requests an existing academic-ops media id
+- **WHEN** a client requests an existing academic-ops media id with the owner_type path segment
 - **THEN** the service responds 200 with the stored content type and the file bytes
 
 #### Scenario: Stored reference is a usable URL
 
-- **WHEN** a photo is stored
-- **THEN** the recorded `file_url` is a valid media URI (not `file://"…"` debug output) that resolves to the serve endpoint
+- **WHEN** a photo is uploaded
+- **THEN** the response `photo_url` resolves to the `/api/v1/academic-ops/media/{owner_type}/{media_id}` serve path
 
-### Requirement: Media SHALL support bulk hard deletion per owner
+### Requirement: Photo SHALL support explicit clearing per owner
 
 academic-ops-service SHALL expose
-`DELETE /api/v1/academic-ops/media?owner_type=&owner_id=` that removes
-**all** media asset rows (active and inactive history) for the given owner
-within the tenant, deletes every matching storage object (key reconstructed
-as `{owner_type}/{media_id}`), and nulls the owning entity's
-`photo_media_id`. The operation is tenant-scoped (resolved from the JWT,
-never client-supplied) and hard: rows and bytes are permanently removed.
+`DELETE /api/v1/academic-ops/media?owner_type=&owner_id=` that deletes the
+current storage object and nulls the owning entity's `photo_url`. The operation
+is tenant-scoped (resolved from the JWT, never client-supplied) and idempotent:
+an owner with no photo completes without error.
 
-#### Scenario: Bulk delete removes active and history for an owner
+#### Scenario: Clearing removes the object and nulls photo_url
 
-- **WHEN** an owner's media is bulk-deleted
-- **THEN** all of that owner's `media_asset` rows are removed, every
-  matching storage object is deleted, and `photo_media_id` is set to NULL
-  on the owning entity
+- **WHEN** an owner's photo is cleared
+- **THEN** the storage object is deleted and `photo_url` is set to NULL on the owning entity
 
-#### Scenario: Bulk delete of an owner with no media succeeds
+#### Scenario: Clearing an owner with no photo succeeds
 
-- **WHEN** bulk delete targets an owner with no media assets
-- **THEN** the operation completes without error and no storage object is
-  touched
+- **WHEN** clear targets an owner with no photo
+- **THEN** the operation completes without error
 
 ### Requirement: Photo upload SHALL garbage-collect the previous active photo
 
-The academic-ops-service SHALL garbage-collect the previous active photo when a new photo is uploaded for an owner that already has an active photo, by deleting the previous active object from storage within the same transaction that activates the new one. This applies to student, teacher, and family owner types.
+The academic-ops-service SHALL garbage-collect the previous active photo when a new photo is uploaded for an owner that already has one, by deleting the previous object from storage before setting the new `photo_url`. This applies to student, teacher, and family owner types.
 
 #### Scenario: Replacing a student photo removes the old object
 
-- **WHEN** a student with an existing active photo uploads a new one
-- **THEN** the previous photo object is deleted and the new object becomes
-  active
+- **WHEN** a student with an existing photo uploads a new one
+- **THEN** the previous photo object is deleted and `photo_url` points to the new one
 
 ### Requirement: Unenrollment SHALL emit `student.unenrolled`
 

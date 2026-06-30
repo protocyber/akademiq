@@ -90,15 +90,11 @@ AkademiQ backend services and the web frontend. Backend CHECK constraints, domai
 | `aktif` | Active link |
 | `nonaktif` | Inactive link |
 
-## Media (Billing + Academic Ops)
+## Media upload content types
 
-### `owner_type`
-| Value | Owner service | Meaning |
-|-------|---------------|---------|
-| `school` | Billing | School logo |
-| `teacher` | Academic Ops | Teacher photo |
-| `student` | Academic Ops | Student photo |
-| `family` | Academic Ops | Family profile photo |
+These are the allowed `Content-Type` values for photo/logo uploads across all
+services (billing `POST /tenants/me/school-profile/logo` and academic-ops
+`POST /academic-ops/media`):
 
 ### Allowed upload content types
 | Value |
@@ -107,7 +103,12 @@ AkademiQ backend services and the web frontend. Backend CHECK constraints, domai
 | `image/png` |
 | `image/webp` |
 
-Maximum upload size: **2 MB** (2_097_152 bytes).
+Maximum upload size: **512 KB** (512 × 1024 bytes).
+
+The storage key scheme is `{owner_type}/{media_id}` (e.g. `school/…`,
+`student/…`, `teacher/…`, `family/…`). The serve paths are:
+- Billing: `GET /api/v1/billing/media/school/{media_id}`
+- Academic Ops: `GET /api/v1/academic-ops/media/{owner_type}/{media_id}`
 
 ## Demographic reference fields
 

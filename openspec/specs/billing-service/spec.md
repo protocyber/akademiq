@@ -135,92 +135,55 @@ documentation aligned.
 
 ### Requirement: Billing SHALL serve the school logo and resolve its storage URI
 
-The billing service SHALL expose `GET /api/v1/billing/media/:media_id` that
-streams the stored school-logo bytes with their recorded content type. The
-school media list endpoint SHALL resolve each asset's storage reference to a
-servable HTTP media path (or `media_id`) instead of returning a raw `media://`
-URI, so the web app can render the logo.
+The billing service SHALL expose `GET /api/v1/billing/media/school/{media_id}` that
+streams the stored school-logo bytes with their recorded content type (no DB lookup
+required — the storage key is `school/{media_id}`). If the storage backend exposes a
+public URL (R2), the serve endpoint SHALL return a 302 redirect instead.
+
+The school profile GET endpoint SHALL resolve `logo_url` from the stored `media://`
+URI to the public serve path before returning, so the web app can render the logo
+directly.
 
 #### Scenario: School logo is served
 
 - **WHEN** a client requests an existing billing media id
 - **THEN** the service responds 200 with the stored content type and the logo bytes
 
-#### Scenario: Media list returns resolvable paths
+#### Scenario: School profile returns a resolvable logo_url
 
-- **WHEN** the school media list is requested
-- **THEN** each asset exposes a resolvable HTTP media path rather than a raw `media://` URI
+- **WHEN** the school profile is requested after a logo upload
+- **THEN** `logo_url` is a resolvable HTTP serve path rather than a raw `media://` URI
 
-### Requirement: School logo SHALL support bulk hard deletion
+### Requirement: School logo upload SHALL follow a single-active model
 
-billing-service SHALL expose
-`DELETE /api/v1/billing/media?owner_type=school&owner_id=` that removes
-**all** media asset rows (active and inactive history) for the school logo
-owner within the tenant, deletes the matching storage objects (key
-reconstructed as `school/{media_id}`), and nulls the tenant's
-`logo_media_id`. The operation is tenant-scoped (resolved from the JWT,
-never client-supplied) and hard.
+billing-service SHALL expose `POST /api/v1/billing/tenants/me/school-profile/logo`
+that accepts a multipart `file` (JPG/PNG/WebP, max 512 KB). The new logo replaces the
+previous one — there is no history retention. The previous logo's storage object is
+garbage-collected on replace. `tenant.logo_url` is set to the new `media://` URI.
 
-#### Scenario: Bulk delete removes the school logo history
+#### Scenario: Uploading a logo sets logo_url
 
-- **WHEN** the school logo is bulk-deleted
-- **THEN** all logo `media_asset` rows are removed, the storage objects are
-  deleted, and `logo_media_id` is set to NULL
-
-### Requirement: Logo upload SHALL garbage-collect the previous active logo
-
-The billing-service SHALL garbage-collect the previous active logo when a new logo is uploaded and a previous active logo exists, by deleting the previous logo object from storage within the same transaction that activates the new one.
+- **WHEN** a tenant uploads a valid PNG logo
+- **THEN** `tenant.logo_url` is set to a `media://` URI and the response includes the resolved serve path
 
 #### Scenario: Replacing the logo removes the old object
 
 - **WHEN** a tenant uploads a new logo over an existing one
-- **THEN** the previous logo object is deleted and the new object becomes
-  active
+- **THEN** the previous logo object is deleted and `logo_url` points to the new one
 
-### Requirement: School logo SHALL support single media deletion
+#### Scenario: Invalid upload is rejected
 
-billing-service SHALL expose a tenant-scoped operation that deletes one school
-logo media asset by `media_id`. The operation MUST only delete media where
-`owner_type` is `school` and `owner_id` matches the tenant resolved from the
-authenticated request. It MUST remove the selected media row and its backing
-storage object without deleting other school logo history rows.
+- **WHEN** a client uploads a `text/plain` file or a file exceeding 512 KB
+- **THEN** the service returns 400 `VALIDATION_ERROR` with per-field errors
 
-#### Scenario: Inactive history item is deleted
+### Requirement: School logo SHALL support explicit clearing
 
-- **WHEN** an authenticated tenant admin deletes an inactive school logo media asset by `media_id`
-- **THEN** billing-service removes only that media asset row and its backing storage object
-- **AND** other school logo media assets remain available in the media list
-- **AND** the tenant's active `logo_media_id` is unchanged
+billing-service SHALL expose `DELETE /api/v1/billing/tenants/me/school-profile/logo`
+that deletes the backing storage object and sets `tenant.logo_url` to NULL.
+The operation is idempotent — a tenant with no logo succeeds silently.
 
-#### Scenario: Active logo item is deleted
+#### Scenario: Clearing the logo deletes the object and nulls logo_url
 
-- **WHEN** an authenticated tenant admin deletes the active school logo media asset by `media_id`
-- **THEN** billing-service removes that media asset row and its backing storage object
-- **AND** billing-service sets the tenant's `logo_media_id` to NULL
-- **AND** billing-service does not promote another historical logo to active
-
-#### Scenario: Media outside the tenant school owner is not deleted
-
-- **WHEN** a delete request references a media asset that does not belong to the authenticated tenant's school owner
-- **THEN** billing-service does not delete the media asset or storage object
-- **AND** the response indicates the asset was not found or not accessible
-
-### Requirement: School profile UI SHALL allow deleting logo history items
-
-The web school profile settings page SHALL render a delete control for each
-image in the logo history section. Deleting a history item MUST call the single
-media deletion operation and refresh the school profile and school media data
-after success.
-
-#### Scenario: Admin deletes a logo history image
-
-- **WHEN** an admin uses the delete control for a logo history image on `/settings/school-profile`
-- **THEN** the web app requests deletion for that image's `media_id`
-- **AND** the logo history list refreshes without the deleted image after the operation succeeds
-
-#### Scenario: Admin deletes the active logo from history
-
-- **WHEN** an admin deletes the active logo image from the logo history section
-- **THEN** the web app refreshes school profile and school media data
-- **AND** the page shows no current logo after the operation succeeds
+- **WHEN** an authenticated tenant admin clears the school logo
+- **THEN** the storage object is deleted and `tenant.logo_url` is set to NULL
 

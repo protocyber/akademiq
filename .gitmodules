@@ -6,3 +6,7 @@
 	path = apps/web
 	url = git@github.com:protocyber/akademiq-web.git
 	branch = main
+[submodule "apps/web-admin"]
+	path = apps/web-admin
+	url = git@github.com:protocyber/akademiq-web-admin.git
+	branch = main

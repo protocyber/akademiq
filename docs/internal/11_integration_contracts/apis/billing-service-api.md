@@ -143,7 +143,7 @@ Returns the complete school profile for the current tenant.
     "email": "info@sman1.sch.id",
     "website": "https://sman1.sch.id",
     "npsn": "20512345",
-    "logo_media_id": "uuid|null",
+    "logo_url": "string|null",
     "school_level": "sma|smp|sd|mi|mts|ma|slb",
     "school_status": "negeri|swasta",
     "accreditation": "a|b|c|belum_terakreditasi",
@@ -186,43 +186,29 @@ Errors:
 | `VALIDATION_ERROR`| 400  | Per-field errors (`school_level`, `school_status`, `accreditation`, `email`, etc.). |
 | `FORBIDDEN`       | 403  | Caller lacks `billing.manage`. |
 
-## School profile media
+## School profile logo
 
-### `GET /tenants/me/school-profile/media`
+### `POST /tenants/me/school-profile/logo`
 
-Returns the media history for the school logo (active first, then previous assets).
+Uploads a new school logo (multipart `file`). Validates JPG/PNG/WebP up to 512 KB.
+The new logo replaces the previous one (single-active, no history retained).
+The previous logo's storage object is garbage-collected on replace.
+
+Response (201):
 
 ```json
 {
-  "data": [
-    {
-      "media_id": "uuid",
-      "owner_type": "school",
-      "owner_id": "uuid",
-      "file_url": "string",
-      "content_type": "image/jpeg",
-      "size_bytes": 51200,
-      "is_active": true,
-      "uploaded_at": "2026-06-19T00:00:00Z"
-    }
-  ],
+  "data": { "logo_url": "/api/v1/billing/media/school/{media_id}" },
   "meta": {}
 }
 ```
 
-### `POST /tenants/me/school-profile/media`
-
-Uploads a new school logo (multipart `file`). Validates JPG/PNG/WebP up to 2MB.
-The new asset becomes active and previous assets remain visible in history.
-
 Errors: `400 VALIDATION_ERROR` (`file` field) for invalid type/size.
 
-### `DELETE /tenants/me/school-profile/media/{media_id}`
+### `DELETE /tenants/me/school-profile/logo`
 
-Deletes one school logo media asset for the current tenant. The service only
-matches assets with `owner_type = school` and `owner_id` equal to the tenant id
-resolved from the JWT. Other logo history rows are not deleted. If the deleted
-asset is active, `logo_media_id` is cleared and no historical logo is promoted.
+Clears the school logo: deletes the backing storage object and nulls `logo_url`.
+Idempotent — a tenant with no logo succeeds silently.
 
 Success (204): empty body.
 
@@ -230,8 +216,13 @@ Errors:
 
 | Code       | HTTP | Cause |
 |------------|------|-------|
-| `NOT_FOUND`| 404  | The media asset does not exist or is not accessible to the current tenant school owner. |
 | `FORBIDDEN`| 403  | Caller lacks `billing.manage`. |
+
+### `GET /media/school/{media_id}`
+
+Serves the logo bytes (no auth required). If the storage backend exposes a public
+URL (R2), returns a 302 redirect to that URL; otherwise streams the bytes inline
+with the stored content type and a one-year cache header.
 
 ## Health
 
