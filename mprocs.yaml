@@ -37,8 +37,14 @@ procs:
   grading-service:
     cwd: apps/backend
     shell: cargo watch -x "run -p grading-service"
+  platform-service:
+    cwd: apps/backend
+    shell: cargo watch -x "run -p platform-service"
   web:
     cwd: apps/web
+    shell: make dev
+  web-admin:
+    cwd: apps/web-admin
     shell: make dev
 
 mouse_scroll_speed: 1

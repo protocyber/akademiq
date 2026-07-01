@@ -111,11 +111,60 @@ http:
       priority: 100
       tls: {}
 
+    akademiq-platform-https:
+      rule: "(Host(`akademiq.dev.sby.test`) || Host(`akademiq.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/platform`)"
+      service: akademiq-platform
+      entryPoints:
+        - websecure
+      priority: 100
+      tls: {}
+
+    # --- Operator admin app (distinct origin for token isolation) -------------
+    # akademiq-admin.dev.sby.test serves the web-admin Nuxt app and proxies the
+    # platform API on the same origin (per-host routing → same-origin client
+    # base URLs, no Nuxt rewrite). Mirrors the tenant host's routing model.
+    akademiq-admin:
+      rule: "Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`admin.10.201.0.25.nip.io`)"
+      service: akademiq-web-admin
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-https
+
+    akademiq-admin-https:
+      rule: "Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`admin.10.201.0.25.nip.io`)"
+      service: akademiq-web-admin
+      entryPoints:
+        - websecure
+      priority: 1
+      tls: {}
+
+    akademiq-admin-platform-https:
+      rule: "(Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`admin.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/platform`)"
+      service: akademiq-platform
+      entryPoints:
+        - websecure
+      priority: 100
+      tls: {}
+
+    akademiq-admin-iam-https:
+      rule: "(Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`admin.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/iam`)"
+      service: akademiq-iam
+      entryPoints:
+        - websecure
+      priority: 100
+      tls: {}
+
   services:
     akademiq-web:
       loadBalancer:
         servers:
           - url: "http://10.201.0.25:3009"
+
+    akademiq-web-admin:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.25:3010"
 
     akademiq-iam:
       loadBalancer:
@@ -141,3 +190,8 @@ http:
       loadBalancer:
         servers:
           - url: "http://10.201.0.25:8086"
+
+    akademiq-platform:
+      loadBalancer:
+        servers:
+          - url: "http://10.201.0.25:8087"

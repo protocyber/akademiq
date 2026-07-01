@@ -54,7 +54,7 @@ cp apps/web/.env.example apps/web/.env
 make doctor    # periksa tooling, beri petunjuk instalasi jika ada yang kurang
 make migrate   # jalankan migrasi backend (schema iam & billing)
 make seed      # opsional: muat tiga plan + dua tenant demo
-make dev       # primary: mprocs (backend + web bersamaan)
+make dev       # primary: mprocs (backend + web + web-admin bersamaan)
 ```
 
 Demo flow setelah `make dev` siap:
@@ -222,7 +222,7 @@ cp apps/web/.env.example apps/web/.env
 make doctor    # checks tooling and prints install hints if anything's missing
 make migrate   # run backend migrations (schemas iam & billing)
 make seed      # optional: load three plans + two demo tenants
-make dev       # primary: mprocs (backend + web together)
+make dev       # primary: mprocs (backend + web + web-admin together)
 ```
 
 Demo flow once `make dev` is up:

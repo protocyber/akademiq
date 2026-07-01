@@ -18,6 +18,7 @@ RESET='\033[0m'
 
 BACKEND_DIR="${BACKEND_DIR:-apps/backend}"
 WEB_DIR="${WEB_DIR:-apps/web}"
+WEB_ADMIN_DIR="${WEB_ADMIN_DIR:-apps/web-admin}"
 
 fail=0
 
@@ -115,10 +116,16 @@ else
   printf "  ${YELLOW}·${RESET} Playwright not installed yet — run: cd %s && pnpm install && pnpm exec playwright install\n" "$WEB_DIR"
 fi
 
+if [ -d "${WEB_ADMIN_DIR}/node_modules/@playwright" ]; then
+  printf "  ${GREEN}✓${RESET} Playwright browsers (apps/web-admin/node_modules/@playwright present)\n"
+else
+  printf "  ${YELLOW}·${RESET} web-admin Playwright not installed yet — run: cd %s && npm install && npx playwright install\n" "$WEB_ADMIN_DIR"
+fi
+
 echo ""
 echo ".env files:"
 
-for f in .env "${BACKEND_DIR}/.env" "${WEB_DIR}/.env"; do
+for f in .env "${BACKEND_DIR}/.env" "${WEB_DIR}/.env" "${WEB_ADMIN_DIR}/.env"; do
   if [ -f "$f" ]; then
     printf "  ${GREEN}✓${RESET} %s\n" "$f"
   else

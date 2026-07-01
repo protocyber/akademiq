@@ -218,6 +218,43 @@ Errors:
 |------------|------|-------|
 | `FORBIDDEN`| 403  | Caller lacks `billing.manage`. |
 
+## Internal platform operator endpoints
+
+All internal endpoints require `X-Service-Token` and do not accept tenant access
+tokens. Missing or invalid service tokens return `401 UNAUTHORIZED_SERVICE_CALL`.
+These endpoints are called by platform-service; billing remains the source of
+truth for tenant status, plans, and subscriptions.
+
+### `POST /internal/tenants/{tenant_id}/suspend`
+
+Suspends the tenant and emits `tenant.suspended` when state changes. Repeated
+suspend is idempotent.
+
+Success: `{ "data": { "changed": true|false }, "meta": {} }`
+
+### `POST /internal/tenants/{tenant_id}/reactivate`
+
+Reactivates the tenant and emits `tenant.reactivated` when state changes.
+
+Success: `{ "data": { "changed": true|false }, "meta": {} }`
+
+### `POST /internal/plans`
+
+Creates a plan and emits a plan-catalog event. Duplicate `code` returns `409`.
+
+### `PUT /internal/plans/{plan_id}`
+
+Updates plan metadata/features and emits a plan-catalog event. Success: `204`.
+
+### `DELETE /internal/plans/{plan_id}`
+
+Deactivates the plan and emits a plan-catalog event. Success: `204`.
+
+### `POST /internal/tenants/{tenant_id}/subscription`
+
+Overrides a tenant subscription to an existing `plan_id`. Unknown plans return
+`400 UNKNOWN_PLAN`. Success: `204`.
+
 ### `GET /media/school/{media_id}`
 
 Serves the logo bytes (no auth required). If the storage backend exposes a public

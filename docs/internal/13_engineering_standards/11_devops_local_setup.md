@@ -70,22 +70,22 @@ reserved as commented-out lines and become live as their crates land.
 
 ## Orchestrator: `make dev` ladder
 
-The parent repo offers three ways to run backend + web together. Pick the
+The parent repo offers three ways to run backend + web + web-admin together. Pick the
 first one that works on your machine:
 
 1. **mprocs (primary)** — `make dev`. Brings Postgres + RabbitMQ up in Docker,
    then reads `mprocs.yaml` and spawns one pane per backend service running
-   `cargo watch -x "run -p <svc>"` **on the host** plus a `web` pane. Services
-   compile incrementally against one shared `target/`; the host env (127.0.0.1
-   DB/broker URLs, `mold` linker) is exported by the `make dev` target.
-   Best per-process scrollback and restart UX.
+   `cargo watch -x "run -p <svc>"` **on the host** plus `web` and `web-admin`
+   panes. Services compile incrementally against one shared `target/`; the host
+   env (127.0.0.1 DB/broker URLs, `mold` linker) is exported by the `make dev`
+   target. Best per-process scrollback and restart UX.
    `brew install mprocs` (or `cargo install mprocs`).
 2. **tmux (fallback)** — `make dev-tmux`. Creates a tmux session
-   `akademiq` with two windows running the same commands.
+   `akademiq` with three windows running the same commands.
    `Ctrl-b d` detaches; `tmux attach -t akademiq` re-attaches.
    `brew install tmux`.
-3. **plain `make -j2` (last resort)** — `make dev-parallel`. No extra
-   tooling. Logs from both processes interleave.
+3. **plain `make -j3` (last resort)** — `make dev-parallel`. No extra
+   tooling. Logs from all processes interleave.
 
 Run `make doctor` to check tooling and print install hints. It exits
 non-zero only if a *required* tool is missing; mprocs, tmux, `cargo-watch`,

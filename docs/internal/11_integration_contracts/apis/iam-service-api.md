@@ -32,6 +32,11 @@ tenant; switching tenants is a fresh `/enter`, not a refresh.
 | identity | `IDENTITY_TOKEN_TTL_SECONDS` | 600 (10 min) | no — re-login |
 | access | `ACCESS_TOKEN_TTL_SECONDS` | 900 (15 min) | yes — via refresh token |
 | refresh | — | 7 days | rotated on each refresh |
+| platform | `ACCESS_TOKEN_TTL_SECONDS` | 900 (15 min) | yes — via platform refresh |
+
+Platform operators use a separate `typ:"platform"` token with no `tenant_id`.
+Tenant-scoped services reject platform tokens; platform-service rejects tenant,
+identity, and refresh tokens.
 
 Because the identity token is short-lived and non-refreshable, clients SHOULD
 switch to the tenant-scoped access token once a tenant has been entered (e.g. for
@@ -155,6 +160,35 @@ Errors: `INVALID_REFRESH_TOKEN` (401), `EXPIRED_REFRESH_TOKEN` (401).
 
 Body: `{ "refresh_token": "..." }`. Revokes the refresh token by its `jti` and
 returns 204. Like refresh, it requires no live access token.
+
+## Platform operator auth
+
+Operators are IAM users with `platform_admin` and zero tenant memberships. They
+are created only with `akademiq platform create-operator`; migrations never seed a
+bootstrap operator account.
+
+### `POST /platform/auth/login`
+
+Request:
+
+```json
+{ "identifier": "operator@example.com", "password": "string" }
+```
+
+Success: returns a `typ:"platform"` access token with no `tenant_id` and a
+platform refresh token. Non-operators receive `INVALID_CREDENTIALS`/`FORBIDDEN`
+and no platform token.
+
+### `POST /platform/auth/refresh`
+
+Request:
+
+```json
+{ "refresh_token": "<jti>.<random>" }
+```
+
+Success: rotates the platform refresh token and returns a new `typ:"platform"`
+access token. Platform refresh tokens are not tenant-scoped.
 
 ## Tenant selection endpoints
 

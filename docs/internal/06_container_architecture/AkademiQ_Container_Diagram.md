@@ -5,6 +5,7 @@ flowchart LR
 
 subgraph Client_Layer
     WEB[Web Application - Nextjs Frontend]
+    ADMIN[Platform Admin Web - Nuxt Frontend]
 end
 
 subgraph Edge_Layer
@@ -21,6 +22,7 @@ subgraph Core_Services
     PROMO[Promotion and Graduation Service]
     NOTIF[Notification Service]
     FILE[File and Storage Service]
+    PLATFORM[Platform Service]
 end
 
 subgraph Data_Stores
@@ -31,9 +33,11 @@ subgraph Data_Stores
     ATTDB[(Attendance Database)]
     GRDDB[(Grading Database)]
     PROMODB[(Promotion Database)]
+    PLATFORMDB[(Platform Database)]
 end
 
 WEB --> API
+ADMIN --> API
 
 API --> IAM
 API --> TENANT
@@ -44,6 +48,7 @@ API --> GRD
 API --> PROMO
 API --> NOTIF
 API --> FILE
+API --> PLATFORM
 
 IAM --> IAMDB
 TENANT --> TENANTDB
@@ -52,7 +57,10 @@ AOPS --> AOPSDB
 ATT --> ATTDB
 GRD --> GRDDB
 PROMO --> PROMODB
+PLATFORM --> PLATFORMDB
 
+PLATFORM --> TENANT
+PLATFORM --> IAM
 TENANT --> NOTIF
 GRD --> NOTIF
 ATT --> NOTIF

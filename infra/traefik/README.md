@@ -25,8 +25,13 @@ A single public origin serves both the web app and the backend APIs:
 | `/api/v1/grading/*`           | grading-service `:8086`  | 100      |
 | everything else               | Next.js web app `:3009`  | 1        |
 
-Host: `akademiq.dev.sby.test` (and `akademiq.10.201.0.25.nip.io`). HTTP is
-redirected to HTTPS via the shared `redirect-https` middleware.
+The operator admin origin `akademiq-admin.dev.sby.test` routes everything else
+to the Nuxt web-admin app on `:3010`, plus `/api/v1/platform/*` and
+`/api/v1/iam/*` to their matching backend services.
+
+Host: `akademiq.dev.sby.test` (and `akademiq.10.201.0.25.nip.io`) for tenant web;
+`akademiq-admin.dev.sby.test` for web-admin. HTTP is redirected to HTTPS via the
+shared `redirect-https` middleware.
 
 Because path routing happens at the proxy, the web client uses absolute
 **same-origin** base URLs (`NEXT_PUBLIC_*_BASE_URL=https://akademiq.dev.sby.test`)
@@ -83,8 +88,8 @@ files live only in the shared repo's gitignored `certs/`.
 
 After editing this fragment or the shared compose, redeploy the Traefik stack
 in Portainer and confirm routes resolve (e.g. `https://akademiq.dev.sby.test`
-loads the app and `https://akademiq.dev.sby.test/api/v1/iam/healthz` returns the
-IAM health JSON).
+loads the app, `https://akademiq-admin.dev.sby.test` loads web-admin, and
+`https://akademiq.dev.sby.test/api/v1/iam/healthz` returns the IAM health JSON).
 
 ## Adding a new backend service
 

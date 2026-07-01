@@ -1,15 +1,15 @@
 # =============================================================================
 # AkademiQ — Parent repo orchestrator
 # =============================================================================
-# This Makefile is the entry point for local development across both
-# submodules (apps/backend and apps/web). It DOES NOT replace per-app
-# Makefiles — those remain authoritative. The targets here are either
-# orchestrator-specific (dev / dev-tmux / dev-parallel / submodules /
-# doctor) or thin delegators to the submodule Makefiles.
+# This Makefile is the entry point for local development across all
+# submodules (apps/backend, apps/web, and apps/web-admin). It DOES NOT replace
+# per-app Makefiles — those remain authoritative. The targets here are either
+# orchestrator-specific (dev / dev-tmux / dev-parallel / submodules / doctor)
+# or thin delegators to the submodule Makefiles.
 #
 # Standard target list (per docs/internal/13_engineering_standards/12_makefile_standards.md):
 #
-#   make dev           # primary: launch backend + web together via mprocs
+#   make dev           # primary: launch backend + web + web-admin together via mprocs
 #   make migrate       # delegate to backend (web has no migrations)
 #   make seed          # load demo data (delegates to backend)
 #   make test          # run tests in both submodules sequentially
@@ -21,12 +21,13 @@
 #
 # Orchestrator extras:
 #
-#   make dev-supabase  # launch backend + web with backend DB URLs from apps/backend/.env.dev-supabase
+#   make dev-supabase  # launch backend + web + web-admin with backend DB URLs from apps/backend/.env.dev-supabase
 #   make dev-backend   # just the backend dev loop
 #   make dev-tmux      # tmux fallback for machines without mprocs
 #   make dev-parallel  # `make -j2` last-resort fallback
 #   make dev-backend   # just the backend dev loop
 #   make dev-web       # just the web dev loop
+#   make dev-web-admin # just the web-admin (operator) dev loop
 #   make ps            # show status of all services (backend + web)
 #   make stop          # kill all host-run service processes (backend + web)
 #   make clean         # delete build artefacts in both submodules (keeps volumes)
@@ -51,13 +52,15 @@ SHELL := /usr/bin/env bash
 
 BACKEND_DIR ?= apps/backend
 WEB_DIR ?= apps/web
+WEB_ADMIN_DIR ?= apps/web-admin
 MPROCS_CONFIG ?= mprocs.yaml
 TMUX_SESSION ?= akademiq
 
 .DEFAULT_GOAL := help
-.PHONY: help dev dev-supabase dev-tmux dev-parallel dev-backend dev-web submodules \
-        up down build test test-e2e test-web seed migrate ps stop clean \
-        clean-storage clean-storage-incremental purge doctor supabase-sync db-sync \
+.PHONY: help dev dev-supabase dev-tmux dev-parallel dev-backend dev-web dev-web-admin \
+        submodules \
+        up down build test test-e2e test-web test-web-admin seed migrate ps stop \
+        clean clean-storage clean-storage-incremental purge doctor supabase-sync db-sync \
         rabbitmq-purge db-switch
 
 help: ## Show this help
@@ -67,7 +70,7 @@ help: ## Show this help
 # Dev orchestration ladder: mprocs (primary) → tmux (fallback) → -j2 (last)
 # -----------------------------------------------------------------------------
 
-dev: ## Launch backend + web together (mprocs primary)
+dev: ## Launch backend + web + web-admin together (mprocs primary)
 	@if ! command -v mprocs >/dev/null; then \
 		echo ">> mprocs not found on PATH."; \
 		echo ">>   Install:  brew install mprocs   (or  cargo install mprocs)"; \
@@ -85,15 +88,17 @@ dev: ## Launch backend + web together (mprocs primary)
 	export ACADEMIC_CONFIG_DATABASE_URL="$$pg/akademiq?options=-c%20search_path%3Dacademic_config"; \
 	export ACADEMIC_OPS_DATABASE_URL="$$pg/akademiq?options=-c%20search_path%3Dacademic_ops"; \
 	export GRADING_DATABASE_URL="$$pg/akademiq?options=-c%20search_path%3Dgrading"; \
+	export PLATFORM_DATABASE_URL="$$pg/akademiq?options=-c%20search_path%3Dplatform"; \
 	export RABBITMQ_URL="amqp://$${RABBITMQ_USER:-akademiq}:$${RABBITMQ_PASSWORD:-akademiq_dev}@127.0.0.1:$${RABBITMQ_PORT:-5672}"; \
 	export IAM_BASE_URL="http://127.0.0.1:$${IAM_PORT:-8081}"; \
+	export BILLING_BASE_URL="http://127.0.0.1:$${BILLING_PORT:-8082}"; \
 	export FEATURES_TOML_PATH="features.toml"; \
 	if command -v mold >/dev/null; then export RUSTFLAGS="-Clink-arg=-fuse-ld=mold"; fi; \
 	export CARGO_BUILD_JOBS="$${CARGO_BUILD_JOBS:-4}"; \
 	set +a; \
 	mprocs --config $(MPROCS_CONFIG)
 
-dev-supabase: ## Launch backend + web with backend DB URLs from apps/backend/.env.dev-supabase
+dev-supabase: ## Launch backend + web + web-admin with backend DB URLs from apps/backend/.env.dev-supabase
 	@if ! command -v mprocs >/dev/null; then \
 		echo ">> mprocs not found on PATH."; \
 		echo ">>   Install:  brew install mprocs   (or  cargo install mprocs)"; \
@@ -114,7 +119,7 @@ dev-supabase: ## Launch backend + web with backend DB URLs from apps/backend/.en
 	set +a; \
 	mprocs --config $(MPROCS_CONFIG)
 
-dev-tmux: ## Launch backend + web in a tmux session (fallback for no mprocs)
+dev-tmux: ## Launch backend + web + web-admin in a tmux session (fallback for no mprocs)
 	@if ! command -v tmux >/dev/null; then \
 		echo ">> tmux not found on PATH."; \
 		echo ">>   Install:  brew install tmux"; \
@@ -128,17 +133,21 @@ dev-tmux: ## Launch backend + web in a tmux session (fallback for no mprocs)
 		echo ">> Starting tmux session '$(TMUX_SESSION)' (detach: Ctrl-b d)"; \
 		tmux new-session -d -s $(TMUX_SESSION) -n backend -c $(BACKEND_DIR) 'make dev'; \
 		tmux new-window -t $(TMUX_SESSION) -n web -c $(WEB_DIR) 'make dev'; \
+		tmux new-window -t $(TMUX_SESSION) -n web-admin -c $(WEB_ADMIN_DIR) 'make dev'; \
 		tmux attach -t $(TMUX_SESSION); \
 	fi
 
-dev-parallel: ## Launch backend + web with `make -j2` (last-resort fallback)
-	$(MAKE) -j2 dev-backend dev-web
+dev-parallel: ## Launch backend + web + web-admin with `make -j3` (last-resort fallback)
+	$(MAKE) -j3 dev-backend dev-web dev-web-admin
 
 dev-backend: ## Run only the backend dev loop
 	$(MAKE) -C $(BACKEND_DIR) dev
 
 dev-web: ## Run only the web dev loop
 	$(MAKE) -C $(WEB_DIR) dev
+
+dev-web-admin: ## Run only the web-admin (operator) dev loop
+	$(MAKE) -C $(WEB_ADMIN_DIR) dev
 
 # -----------------------------------------------------------------------------
 # Submodule + lifecycle helpers
@@ -157,11 +166,13 @@ build: ## Build artefacts for both submodules (SLOW)
 	@bash scripts/confirm.sh "make build" "builds the backend release Docker images (~8 min cold) AND the web bundle. For the daily loop use 'make dev'."
 	YES=1 $(MAKE) -C $(BACKEND_DIR) build
 	$(MAKE) -C $(WEB_DIR) build
+	$(MAKE) -C $(WEB_ADMIN_DIR) build
 
 test: ## Run tests in both submodules (SLOW)
 	@bash scripts/confirm.sh "make test" "compiles and runs the FULL backend + web test suites — several minutes. For a quick check run 'cargo test' in apps/backend."
 	$(MAKE) -C $(BACKEND_DIR) test
 	$(MAKE) -C $(WEB_DIR) test
+	$(MAKE) -C $(WEB_ADMIN_DIR) test
 
 test-e2e: ## Run cross-service backend e2e suite (compose.test.yml) (SLOW)
 	@bash scripts/confirm.sh "make test-e2e" "builds the compose.test.yml stack and runs the cross-service suite — several minutes."
@@ -170,6 +181,10 @@ test-e2e: ## Run cross-service backend e2e suite (compose.test.yml) (SLOW)
 test-web: ## Run web Vitest + Playwright suites (SLOW)
 	@bash scripts/confirm.sh "make test-web" "runs Vitest + Playwright (may download browsers) — several minutes."
 	$(MAKE) -C $(WEB_DIR) test
+
+test-web-admin: ## Run web-admin Vitest + Playwright suites (SLOW)
+	@bash scripts/confirm.sh "make test-web-admin" "runs web-admin Vitest + Playwright (may download browsers) — several minutes."
+	$(MAKE) -C $(WEB_ADMIN_DIR) test
 
 seed: ## Load demo data (plans + tenants) into the local stack (SLOW)
 	@bash scripts/confirm.sh "make seed" "builds the seed image and starts the stack — a few minutes on a cold cache."
@@ -184,6 +199,9 @@ ps: ## Show status of all services (backend compose + web dev server)
 	@echo ""
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) ps
+	@echo ""
+	@echo ">>> web-admin"
+	@$(MAKE) -C $(WEB_ADMIN_DIR) ps
 
 stop: ## Kill all host-run service processes (backend + web dev server)
 	@echo ">>> backend"
@@ -191,6 +209,9 @@ stop: ## Kill all host-run service processes (backend + web dev server)
 	@echo ""
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) stop
+	@echo ""
+	@echo ">>> web-admin"
+	@$(MAKE) -C $(WEB_ADMIN_DIR) stop
 
 clean: ## Delete build artefacts in both submodules (SLOW next build)
 	@bash scripts/confirm.sh "make clean" "deletes the ~9.5 GB backend target/ and web artefacts; the NEXT build will be a full cold rebuild."
@@ -199,6 +220,9 @@ clean: ## Delete build artefacts in both submodules (SLOW next build)
 	@echo ""
 	@echo ">>> web"
 	@$(MAKE) -C $(WEB_DIR) clean
+	@echo ""
+	@echo ">>> web-admin"
+	@$(MAKE) -C $(WEB_ADMIN_DIR) clean
 
 clean-storage: ## Delete backend Cargo target/ only (SLOW next backend build)
 	@bash scripts/confirm.sh "make clean-storage" "runs 'cargo clean' in $(BACKEND_DIR); this frees Cargo build artefacts but the NEXT backend build will be a full cold rebuild."

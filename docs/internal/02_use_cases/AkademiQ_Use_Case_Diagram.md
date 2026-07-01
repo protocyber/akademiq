@@ -46,3 +46,8 @@ SuperAdmin --> UC27[Manage Subscription Plans]
 SuperAdmin --> UC28[Monitor System Usage]
 SuperAdmin --> UC29[Enable or Disable Modules per Plan]
 ```
+
+The SaaS Super Admin use cases are implemented through the platform plane:
+operator login issues a `typ:"platform"` token, and platform-service exposes
+cross-tenant tenant, plan, usage, and audit APIs without accepting tenant-scoped
+access tokens.
