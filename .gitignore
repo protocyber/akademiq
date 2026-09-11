@@ -16,3 +16,4 @@ Thumbs.db
 # Logs / scratch
 *.log
 .tmp/
+.superpowers/

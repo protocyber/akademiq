@@ -17,6 +17,41 @@ change directory into the relevant submodule. The architecture docs under
 when scaffolding new code, and confirm with the user before adding services
 or migrations.
 
+## Planning workflow
+
+This repo plans with **Superpowers**, not OpenSpec. For any non-trivial change,
+follow the skill chain rather than writing code directly:
+
+| Stage | Skill | Output |
+|-------|-------|--------|
+| 1. Shape the idea | `brainstorming` | design spec in `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` |
+| 2. Break it down | `writing-plans` | task plan in `docs/superpowers/plans/YYYY-MM-DD-<feature>.md` |
+| 3. Build it | `subagent-driven-development` (preferred) or `executing-plans` | code + tests, task by task |
+| 4. Check it | `requesting-code-review` | review notes |
+| 5. Land it | `finishing-a-development-branch` | merged branch |
+
+`brainstorming` classifies work as spike / bounded / architectural and scales
+ceremony to match — a one-line fix does not need a spec file. Every path still
+ends with the human approving intent before code is written.
+
+Debugging starts with `systematic-debugging`. Implementation follows
+`test-driven-development`.
+
+Superpowers ships as a per-harness plugin and is **not** vendored here. Install
+it once for the harness you use (<https://github.com/obra/superpowers>). The
+workflow above is a process, so it still holds if you run it by hand.
+
+### OpenSpec is frozen
+
+`openspec/` is kept **read-only** as historical reference: `openspec/specs/`
+documents capability contracts the current code honours, and
+`openspec/changes/archive/` records how each shipped. Read them freely.
+
+Do **not** create new OpenSpec changes, run `openspec` CLI commands, or add
+files under `openspec/changes/`. New work is planned in `docs/superpowers/`.
+`docs/internal/` remains the living source of truth for architecture — when a
+frozen spec and `docs/internal/` disagree, `docs/internal/` wins.
+
 ## Submodules
 
 | Mount path     | Repo                                              | Tracks |

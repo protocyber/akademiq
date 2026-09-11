@@ -13,9 +13,9 @@ phase that satisfies the demo, not as a flag-day mega-PR.
 
 | Symbol | Meaning |
 |--------|---------|
-| ✅     | Phase shipped (delivering change archived under `openspec/changes/archive/`) |
-| 🚧     | Phase in flight (delivering change is `proposal` / `apply` / `archive` pending) |
-| ⏳     | Phase planned, not yet started (no openspec change opened) |
+| ✅     | Phase shipped (delivering plan complete; pre-2026-09 phases archived under `openspec/changes/archive/`) |
+| 🚧     | Phase in flight (plan in `docs/superpowers/plans/` with tasks outstanding) |
+| ⏳     | Phase planned, not yet started (no plan written) |
 
 ## Phase 1 — Foundation: IAM + Billing 🚧
 

@@ -2,7 +2,7 @@
 
 This folder defines cross-service communication contracts. Every event
 or API a service depends on MUST be documented here before the
-delivering openspec change is archived.
+delivering plan is marked complete.
 
 ## APIs (synchronous REST)
 

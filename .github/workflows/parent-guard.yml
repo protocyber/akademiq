@@ -49,22 +49,3 @@ jobs:
           slug=$(echo "$repo" | sed -E 's|^git@github\.com:||; s|^https://github\.com/||; s|\.git$||')
           echo "Checking $slug @ $sha"
           gh api "repos/$slug/commits/$sha" --jq '.sha' >/dev/null
-
-  openspec-validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install openspec
-        run: npm install -g openspec || npm install -g @openspec/cli || true
-      - name: Validate active changes
-        run: |
-          if command -v openspec >/dev/null 2>&1; then
-            openspec validate --strict || exit 1
-          else
-            echo "openspec CLI not available on registry; skipping validation in CI"
-          fi
