@@ -124,7 +124,7 @@ http:
     # platform API on the same origin (per-host routing → same-origin client
     # base URLs, no Nuxt rewrite). Mirrors the tenant host's routing model.
     akademiq-admin:
-      rule: "Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`admin.10.201.0.25.nip.io`)"
+      rule: "Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`akademiq-admin.10.201.0.25.nip.io`)"
       service: akademiq-web-admin
       entryPoints:
         - web
@@ -132,7 +132,7 @@ http:
         - redirect-https
 
     akademiq-admin-https:
-      rule: "Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`admin.10.201.0.25.nip.io`)"
+      rule: "Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`akademiq-admin.10.201.0.25.nip.io`)"
       service: akademiq-web-admin
       entryPoints:
         - websecure
@@ -140,7 +140,7 @@ http:
       tls: {}
 
     akademiq-admin-platform-https:
-      rule: "(Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`admin.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/platform`)"
+      rule: "(Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`akademiq-admin.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/platform`)"
       service: akademiq-platform
       entryPoints:
         - websecure
@@ -148,7 +148,7 @@ http:
       tls: {}
 
     akademiq-admin-iam-https:
-      rule: "(Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`admin.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/iam`)"
+      rule: "(Host(`akademiq-admin.dev.sby.test`) || Host(`admin.akademiq.web.id`) || Host(`akademiq-admin.10.201.0.25.nip.io`)) && PathPrefix(`/api/v1/iam`)"
       service: akademiq-iam
       entryPoints:
         - websecure
