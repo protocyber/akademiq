@@ -1,3 +1,8 @@
+## RENAMED Requirements
+
+- FROM: `### Requirement: Billing service SHALL expose tenant and plan endpoints under `/api/v1/billing``
+- TO: `### Requirement: Billing service SHALL expose tenant, school profile, and plan endpoints under `/api/v1/billing``
+
 ## MODIFIED Requirements
 
 ### Requirement: Billing service SHALL expose tenant, school profile, and plan endpoints under `/api/v1/billing`

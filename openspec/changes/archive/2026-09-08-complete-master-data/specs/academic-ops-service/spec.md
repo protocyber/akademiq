@@ -1,3 +1,10 @@
+## RENAMED Requirements
+
+- FROM: `### Requirement: Academic Ops service SHALL manage students, teachers, homerooms, enrollment, and teaching assignments under `/api/v1/academic-ops``
+- TO: `### Requirement: Academic Ops service SHALL manage students, teachers, homerooms, enrollment, teaching assignments, and family profiles under `/api/v1/academic-ops``
+- FROM: `### Requirement: Students, teachers, homerooms, and teaching assignments SHALL support delete, and teachers SHALL support edit`
+- TO: `### Requirement: Students, teachers, family profiles, homerooms, and teaching assignments SHALL support archive/soft-delete behavior, and teachers SHALL support edit`
+
 ## MODIFIED Requirements
 
 ### Requirement: Academic Ops service SHALL manage students, teachers, homerooms, enrollment, teaching assignments, and family profiles under `/api/v1/academic-ops`

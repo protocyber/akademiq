@@ -4,23 +4,6 @@
 
 Defines requirements for the billing-service (Tenant & Subscription Service), including plan management, tenant registration, module overrides, event emission, subscription lifecycles, and seed data.
 ## Requirements
-### Requirement: Billing service SHALL expose tenant and plan endpoints under `/api/v1/billing`
-
-The service MUST provide `POST /tenants/register`, `GET /plans`,
-`GET /tenants/me`, and `PATCH /tenants/me/modules` under the path prefix
-`/api/v1/billing`. All endpoints MUST follow the success and error
-envelopes from `13_engineering_standards/03_api_conventions.md`.
-
-#### Scenario: Plan catalog is publicly accessible
-
-- **WHEN** an unauthenticated client GETs `/api/v1/billing/plans`
-- **THEN** the response is HTTP 200 with `data: [{ plan_id, name, price_monthly, price_yearly, features: [{ feature_code, enabled }] }]` for every active plan
-
-#### Scenario: Tenant profile is tenant-scoped
-
-- **WHEN** a tenant admin GETs `/api/v1/billing/tenants/me` with a valid access token
-- **THEN** the response is HTTP 200 with `data: { tenant_id, school_name, status, current_plan: { plan_id, name }, modules: [{ feature_code, enabled }] }` for the tenant resolved from the JWT, and never another tenant's data
-
 ### Requirement: `POST /tenants/register` SHALL be a public endpoint that creates tenant, subscription, and admin user
 
 The handler MUST accept `{ school_name, plan_id, admin_email,
@@ -186,4 +169,119 @@ The operation is idempotent — a tenant with no logo succeeds silently.
 
 - **WHEN** an authenticated tenant admin clears the school logo
 - **THEN** the storage object is deleted and `tenant.logo_url` is set to NULL
+
+### Requirement: Billing service SHALL expose tenant, school profile, and plan endpoints under `/api/v1/billing`
+
+The service MUST provide `POST /tenants/register`, `GET /plans`,
+`GET /tenants/me`, school profile read/update for the current tenant, and
+`PATCH /tenants/me/modules` under the path prefix `/api/v1/billing`. All endpoints
+MUST follow the success and error envelopes from
+`13_engineering_standards/03_api_conventions.md`.
+
+The tenant school profile MUST include school identity, contact, address, and
+branding fields needed by admin sekolah: school name, address, phone number,
+email, website, optional NPSN, logo reference, school level, public/private status,
+accreditation, village/subdistrict/city-or-regency/province, and postal code. The
+profile MUST NOT own kepala sekolah/head-teacher linkage in this change.
+
+#### Scenario: Plan catalog is publicly accessible
+
+- **WHEN** an unauthenticated client GETs `/api/v1/billing/plans`
+- **THEN** the response is HTTP 200 with `data: [{ plan_id, name, price_monthly, price_yearly, features: [{ feature_code, enabled }] }]` for every active plan
+
+#### Scenario: Tenant profile is tenant-scoped
+
+- **WHEN** a tenant admin GETs `/api/v1/billing/tenants/me` with a valid access token
+- **THEN** the response is HTTP 200 with `data: { tenant_id, school_name, status, current_plan: { plan_id, name }, modules: [{ feature_code, enabled }] }` for the tenant resolved from the JWT, and never another tenant's data
+
+#### Scenario: School profile is updated for current tenant
+
+- **WHEN** a tenant admin updates valid school profile fields
+- **THEN** the response is HTTP 200 with the updated school profile for the tenant resolved from the JWT
+
+#### Scenario: School profile excludes head teacher linkage
+
+- **WHEN** a tenant admin reads or updates the school profile
+- **THEN** the response does not require or expose `head_teacher_id`
+
+### Requirement: Internal operator endpoints (X-Service-Token)
+
+billing-service SHALL expose internal endpoints, authenticated by the existing
+`X-Service-Token` mechanism, that let platform-service drive cross-tenant
+operations. These endpoints MUST NOT be reachable with a tenant access token and
+MUST validate the service token before acting. billing-service remains the source
+of truth for tenant status, the plan catalog, and subscriptions.
+
+#### Scenario: Internal call requires service token
+
+- **WHEN** an internal operator endpoint is called without a valid `X-Service-Token`
+- **THEN** billing-service returns `401` with code `UNAUTHORIZED_SERVICE_CALL` and
+  performs no mutation
+
+#### Scenario: Internal call ignores client-supplied tenant scope
+
+- **WHEN** platform-service forwards a command targeting `tenant_id`
+- **THEN** billing-service acts on exactly that tenant from the path/body and does
+  not require a tenant-scoped JWT
+
+### Requirement: Tenant suspend and reactivate
+
+billing-service SHALL support suspending and reactivating any tenant via its
+internal operator endpoints, flipping the tenant status and emitting the
+corresponding event through the transactional outbox.
+
+#### Scenario: Suspend emits event
+
+- **WHEN** the internal suspend endpoint is called for an active tenant
+- **THEN** billing-service sets the tenant status to suspended and emits
+  `tenant.suspended` via the outbox
+
+#### Scenario: Reactivate emits event
+
+- **WHEN** the internal reactivate endpoint is called for a suspended tenant
+- **THEN** billing-service restores the tenant status and emits `tenant.reactivated`
+  via the outbox
+
+#### Scenario: Suspend is idempotent on already-suspended tenant
+
+- **WHEN** the suspend endpoint is called for an already-suspended tenant
+- **THEN** billing-service does not emit a duplicate state change and reports the
+  no-op without error
+
+### Requirement: Plan-catalog management
+
+billing-service SHALL support creating, updating, and deactivating subscription
+plans and their feature matrix via internal operator endpoints, emitting a
+plan-catalog event on each change.
+
+#### Scenario: Create plan
+
+- **WHEN** the internal create-plan endpoint receives a valid plan with a unique
+  `code`
+- **THEN** billing-service persists it, exposes it in `GET /plans` when active, and
+  emits the plan-created event
+
+#### Scenario: Reject duplicate plan code
+
+- **WHEN** the create-plan endpoint receives a `code` that already exists
+- **THEN** billing-service returns `409` and creates no plan
+
+### Requirement: Tenant subscription override
+
+billing-service SHALL let an operator change a tenant's active subscription plan
+via an internal endpoint, updating the subscription and emitting the
+subscription-change event.
+
+#### Scenario: Override tenant plan
+
+- **WHEN** the internal subscription-override endpoint assigns a different existing
+  plan to a tenant
+- **THEN** billing-service updates the subscription and emits the
+  subscription-change event via the outbox
+
+#### Scenario: Reject unknown plan on override
+
+- **WHEN** the override targets a plan that does not exist
+- **THEN** billing-service returns `400` with code `UNKNOWN_PLAN` and changes
+  nothing
 

@@ -51,26 +51,48 @@ readable errors rather than failing silently.
 ### Requirement: Admins SHALL manage subjects in a filtered data table
 
 The web app MUST provide a subjects screen at `/settings/academic/subjects`
-listing subjects in a shadcn data table with multi-select, sortable columns
-(Nama, Kode, KKM), a per-row actions dropdown (Edit / Hapus), and a bulk-delete
-flow. The screen MUST provide two cascading filter dropdowns at the top —
-**Tahun Ajaran** then **Versi Kurikulum** — where the version options depend on
-the selected year and the subjects table is empty until a curriculum version is
-selected. The selected year and version MUST be reflected in the browser URL.
+listing subjects grouped by **Kelompok Mata Pelajaran**, where each kelompok
+is a collapsible section rendered above its subjects. The screen MUST provide
+two cascading filter dropdowns at the top — **Tahun Ajaran** then **Versi
+Kurikulum** — where the version options depend on the selected year and the
+subjects table is empty until a curriculum version is selected. The selected
+year and version MUST be reflected in the browser URL.
+
+Within a selected curriculum version the screen MUST also allow managing the
+kelompok: add (name, optional code, position), edit, delete, and reorder
+(position), scoped to that curriculum version. Groups MUST be listed in
+`position` order; subjects within a group MUST be listed by name.
 
 Creating and editing subjects MUST use a Dialog modal (name, code, passing
-grade). Bulk delete MUST be confirmed via AlertDialog/ConfirmDialog and MUST
-surface the server `SUBJECT_IN_USE` guard.
+grade, and a **Kelompok** selector defaulting to the first group). Bulk delete
+of subjects MUST be confirmed via AlertDialog/ConfirmDialog and MUST surface
+the server `SUBJECT_IN_USE` guard. Deleting a kelompok that still has subjects
+MUST surface the server `SUBJECT_GROUP_IN_USE` guard as a readable error.
 
 #### Scenario: Subjects require a selected curriculum version
 
 - **WHEN** an admin opens the subjects screen without selecting a curriculum version
 - **THEN** the table prompts the admin to pick a year and version and lists no subjects until a version is selected
 
+#### Scenario: Subjects are rendered grouped by kelompok
+
+- **WHEN** an admin selects a curriculum version that has two kelompok each with subjects
+- **THEN** the screen renders two group sections in position order, each listing its subjects, rather than a single flat table
+
+#### Scenario: Creating a kelompok scoped to the selected curriculum version
+
+- **WHEN** an admin adds a kelompok named "Muatan Lokal" with position 3 for the selected curriculum version
+- **THEN** the new kelompok section appears in position order and is empty until subjects are added to it
+
 #### Scenario: Bulk delete blocked by an in-use subject
 
 - **WHEN** an admin selects several subjects including one referenced by a teaching assignment and confirms bulk delete
 - **THEN** the UI surfaces `SUBJECT_IN_USE` and none of the selected subjects are removed
+
+#### Scenario: Deleting a non-empty kelompok is blocked
+
+- **WHEN** an admin attempts to delete a kelompok that still has subjects
+- **THEN** the UI surfaces `SUBJECT_GROUP_IN_USE` as a readable error and the kelompok remains
 
 ### Requirement: Admins SHALL manage class templates in a filtered data table
 
@@ -87,21 +109,22 @@ reflected in the browser URL.
 
 ### Requirement: The academic settings navigation SHALL reflect the new structure
 
-The academic settings nav MUST list **Tahun Ajaran**, **Semester**,
-**Mata Pelajaran**, and **Template Kelas**. The standalone **Kebijakan Nilai**
-and **Kurikulum** tabs MUST be removed; their management lives inside the
-academic-year modal (Kebijakan Nilai and Versi Kurikulum tabs) and the subjects
-screen. The **Semester** entry MUST link to `/settings/academic/terms`.
+The academic settings nav MUST list **Tahun Ajaran**, **Mata Pelajaran**, and
+**Template Kelas**. Kelompok management lives inside the Mata Pelajaran screen
+(once a curriculum version is selected), not as a separate nav entry. The
+standalone **Kebijakan Nilai** and **Kurikulum** tabs MUST be removed; their
+management lives inside the academic-year modal (Kebijakan Nilai and Versi
+Kurikulum sections).
 
 #### Scenario: Grading-policy page is gone
 
 - **WHEN** an admin navigates to `/settings/academic/grading-policy`
 - **THEN** the standalone page no longer exists and grading policy is managed inside the academic-year modal
 
-#### Scenario: Semester tab is present in the academic settings nav
+#### Scenario: Kelompok is managed inside the Mata Pelajaran screen
 
-- **WHEN** an admin views the academic settings navigation
-- **THEN** a **Semester** tab is listed and links to `/settings/academic/terms`
+- **WHEN** an admin selects a curriculum version on the Mata Pelajaran screen
+- **THEN** kelompok add/edit/delete/reorder controls appear on that screen and there is no separate Kelompok nav entry
 
 ### Requirement: The term edit form SHALL provide an Evaluasi tab after the Rapor tab
 
@@ -135,4 +158,111 @@ The Evaluasi tab MUST provide an action to apply the term's template (evaluation
 
 - **WHEN** the term has assignments without evaluations
 - **THEN** the Evaluasi tab shows a count of assignments that still need the template applied
+
+### Requirement: Status transitions SHALL require a tights confirmation flow with a reason
+
+Every academic-year status change initiated from the UI MUST open a confirmation
+dialog that requires a non-empty `reason` (min 10 chars) and whose strictness
+scales with the transition's risk:
+
+- Forward transitions to `Active` or `Closed` MUST show an impact summary and a
+  reason field.
+- Backward transitions (`Active → Draft`, `Closed → Active`, `Closed → Draft`)
+  MUST additionally require type-to-confirm (the admin types the target status
+  label exactly) and MUST keep the submit button disabled for a 5-second
+  cooldown after the dialog opens.
+- The `Closed → Archived` transition MUST show an extra prominent,
+  non-dismissable warning that it is irreversible and that published report
+  cards for the year will be archived, in addition to type-to-confirm and the
+  5-second cooldown.
+
+The dialog MUST send `{ status, reason }` to `PATCH /academic-years/{id}/status`
+and MUST surface server errors (`INVALID_STATE_TRANSITION`,
+`ACTIVE_YEAR_EXISTS`, `VALIDATION_ERROR` on `reason`) as readable messages.
+
+#### Scenario: Forward transition confirms with reason only
+
+- **WHEN** an admin transitions a `Draft` year to `Active` and enters a valid reason
+- **THEN** the submit button is enabled without a cooldown and the PATCH is sent with the reason
+
+#### Scenario: Backward transition requires type-to-confirm and cooldown
+
+- **WHEN** an admin transitions a `Closed` year back to `Active`
+- **THEN** the dialog requires the admin to type "Active" exactly and keeps the submit button disabled for 5 seconds after opening
+
+#### Scenario: Archived transition shows the irreversible warning
+
+- **WHEN** an admin transitions a `Closed` year to `Archived`
+- **THEN** the dialog shows a prominent warning that the action is irreversible and will archive published report cards, requires typing "Archived", and enforces the 5-second cooldown
+
+#### Scenario: Missing reason blocks submission
+
+- **WHEN** an admin opens a status-change dialog and attempts to submit without a reason (or a reason under 10 characters)
+- **THEN** the submit button remains disabled and a validation message is shown
+
+#### Scenario: Server validation error on reason is surfaced
+
+- **WHEN** the backend rejects a transition with `VALIDATION_ERROR` on the `reason` field
+- **THEN** the UI shows the field error inline and the year's status is unchanged
+
+### Requirement: Operators SHALL manage academic terms per year
+
+The web console MUST provide a term-management surface scoped to an academic
+year (as a section/sub-page of the year management area) that lists the year's
+terms and allows creating, editing, and deleting a term, and transitioning a
+term's status. Term status transitions MUST reuse the confirmation UX pattern
+(type-to-confirm + cooldown for backward/`→ Archived` transitions) established
+for academic-year transitions.
+
+#### Scenario: Create a term
+
+- **WHEN** a tenant admin opens a year and creates a term "Semester 2" with
+  dates within the year
+- **THEN** the term appears in the list with status `Draft`
+
+#### Scenario: Transition a term with confirmation
+
+- **WHEN** a tenant admin transitions a term from `Active` back to `Draft`
+- **THEN** a type-to-confirm dialog with a 5-second cooldown is shown before the
+  request is sent
+
+### Requirement: Deleting a term SHALL be guarded
+
+Deleting a term MUST be rejected by the backend when the term is referenced by
+evaluations, report types, or grades (the UI surfaces the resulting error). The
+UI MUST confirm a delete with the operator before issuing the request.
+
+#### Scenario: Delete a term with dependent data shows an error
+
+- **WHEN** a tenant admin attempts to delete a term that has evaluations and
+  confirms the dialog
+- **THEN** the UI surfaces the backend error (e.g. `TERM_IN_USE`) and the term
+  is not removed
+
+### Requirement: The UI SHALL warn when an active year has no active term
+
+The web console MUST show a visible warning in the year/term management area when
+the selected academic year is `Active` but none of its terms is `Active`,
+prompting the operator to activate a term. This warning MUST be consistent with
+the header warning specified in `web-academic-scope`.
+
+#### Scenario: Warning is shown on the management page
+
+- **GIVEN** the selected year is `Active` and all its terms are `Draft`
+- **WHEN** the tenant admin opens the term management area
+- **THEN** a warning is displayed prompting term activation
+
+### Requirement: Academic-config management pages SHALL respect read permission
+
+The web console MUST gate every academic-config management page — years,
+curriculum, subjects, class templates, and the new term-management surface — on
+`academic.config.read` (introduced by `rbac-read-and-menu-restructure`) for
+viewing, and on `academic.config.write` for create/edit/delete/status
+transitions.
+
+#### Scenario: Term management is visible to readers
+
+- **WHEN** a role holding `academic.config.read` opens the academic-config area
+- **THEN** the term-management surface is visible; create/edit/delete/status
+  controls are disabled unless the role also holds `academic.config.write`
 

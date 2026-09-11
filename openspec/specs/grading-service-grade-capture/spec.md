@@ -239,3 +239,179 @@ without error (idempotent).
 - **WHEN** the grading service receives a `student.unenrolled` event for a student whose `enrolled_student` row is already `status='inactive'`
 - **THEN** the row remains unchanged and the event is acknowledged
 
+### Requirement: Grade entry SHALL be rejected when the academic year is not `Active`
+
+The service MUST reject recording a new grade (`POST /grades`) when the
+evaluation's `academic_year_id` resolves, via the local `valid_year`
+projection, to a status other than `Active`. Existing grades remain readable
+and updatable only as permitted by report-card status; this guard specifically
+blocks new grade capture for years in `Draft`, `Closed`, or `Archived`.
+
+#### Scenario: Grade entry on a Closed year is rejected
+
+- **WHEN** a teacher POSTs a grade for an evaluation whose year's `valid_year.status` is `Closed`
+- **THEN** the response is HTTP 409 with code `YEAR_NOT_ACTIVE` and no grade is stored
+
+#### Scenario: Grade entry on an Active year succeeds
+
+- **WHEN** a teacher POSTs a grade for an evaluation whose year's `valid_year.status` is `Active`
+- **THEN** the response is HTTP 201 (or 200 on upsert) with the stored grade
+
+### Requirement: Published report cards SHALL be archived only on transition to `Archived`
+
+The service MUST archive published report cards for a year (transition them to
+`Archived` status) only when consuming an `academic_year.status_changed` event
+whose `status` is `Archived`. The service MUST NOT archive report cards on
+`Closed` or any other non-`Archived` status. Archived report cards remain
+readable for historical reporting.
+
+#### Scenario: Report cards are not archived when year becomes Closed
+
+- **WHEN** the service consumes an `academic_year.status_changed` event with `status: "Closed"`
+- **THEN** no report cards for that year change status and `Published` cards remain `Published`
+
+#### Scenario: Report cards are archived when year becomes Archived
+
+- **WHEN** the service consumes an `academic_year.status_changed` event with `status: "Archived"`
+- **THEN** all `Published` report cards for that year are transitioned to `Archived`
+
+### Requirement: Evaluations SHALL be scoped to a term
+
+An evaluation MUST reference both an `academic_year_id` and a `term_id` (NOT
+NULL). The evaluation code MUST be unique within
+`(tenant_id, homeroom_id, subject_id, academic_year_id, term_id, code)`.
+Creating or editing an evaluation MUST be rejected when the referenced term's
+status is not `Draft` or `Active` (validated against the local `valid_term`
+projection).
+
+#### Scenario: Create evaluation in an active term
+
+- **WHEN** a teacher POSTs an evaluation referencing a term whose status is
+  `Active`
+- **THEN** the response is HTTP 201 and the evaluation is stored with that
+  `term_id`
+
+#### Scenario: Create evaluation in a closed term is rejected
+
+- **WHEN** a teacher POSTs an evaluation referencing a term whose status is
+  `Closed`
+- **THEN** the response is HTTP 409 `{ "error": { "code": "TERM_NOT_EDITABLE" } }`
+
+#### Scenario: Evaluation code can repeat across terms in the same year
+
+- **WHEN** a teacher creates an evaluation with `code: "UH1"` in Semester 1 and
+  another with `code: "UH1"` in Semester 2 of the same
+  `(tenant, homeroom, subject, year)`
+- **THEN** both creations succeed because the `term_id` differs
+
+### Requirement: Report types SHALL be strictly term-scoped
+
+A report type MUST reference both an `academic_year_id` and a `term_id` (NOT
+NULL). The report type code MUST be unique within
+`(academic_year_id, term_id, code)`. A report type belongs to exactly one term;
+annual report aggregation across multiple terms is not supported by this
+requirement.
+
+#### Scenario: Create report type for a term
+
+- **WHEN** a tenant admin POSTs a report type referencing a term
+- **THEN** the response is HTTP 201 and the report type is stored with that
+  `term_id`
+
+#### Scenario: Report type code can repeat across terms in the same year
+
+- **WHEN** a tenant admin creates report types with `code: "Rapor"` in Semester 1
+  and Semester 2 of the same year
+- **THEN** both creations succeed because the `term_id` differs
+
+### Requirement: Report formulas SHALL only reference same-term evaluations
+
+Adding a `report_formula` row MUST be rejected when the evaluation's `term_id`
+differs from the report type's `term_id`. Validating the term match MUST happen
+in the application layer (there is no cross-table physical FK between
+`report_type` and `evaluation` term references).
+
+#### Scenario: Cross-term formula is rejected
+
+- **WHEN** a tenant admin adds a formula linking a Semester-1 report type to a
+  Semester-2 evaluation
+- **THEN** the response is HTTP 409
+  `{ "error": { "code": "EVALUATION_TERM_MISMATCH" } }`
+
+### Requirement: Grade entry SHALL be gated on an active term
+
+Recording a grade MUST be rejected when the referenced term's status (resolved
+via the evaluation's `term_id` and the `valid_term` projection) is not `Active`.
+This gate is in addition to the existing gate that requires the academic year to
+be `Active`.
+
+#### Scenario: Grade entry in an active term succeeds
+
+- **WHEN** a teacher records a grade for an evaluation whose term and year are
+  both `Active`
+- **THEN** the response is HTTP 201 and the grade is stored
+
+#### Scenario: Grade entry in a draft term is rejected
+
+- **WHEN** a teacher records a grade for an evaluation whose term is `Draft`
+  (even if the year is `Active`)
+- **THEN** the response is HTTP 409 `{ "error": { "code": "TERM_NOT_ACTIVE" } }`
+
+### Requirement: Grading SHALL maintain a valid_term projection
+
+The service MUST consume `academic_term.created` and
+`academic_term.status_changed` events and upsert a local `valid_term`
+projection (mirroring `valid_year`) holding at least `term_id`, `tenant_id`,
+`academic_year_id`, and `status`. The projection MUST be idempotent on event
+redelivery.
+
+#### Scenario: Projection reflects a status change
+
+- **WHEN** an `academic_term.status_changed` event arrives
+- **THEN** the `valid_term` row for that `term_id` is upserted with the new
+  status and a second delivery of the same event does not duplicate or corrupt
+  the row
+
+### Requirement: Grading gates SHALL use clear, documented error codes
+
+The service MUST return the following HTTP 409 error codes for the term-related
+gates: `TERM_NOT_EDITABLE` (create/edit evaluation when the term is not
+`Draft`/`Active`), `TERM_NOT_ACTIVE` (record grade when the term is not
+`Active`), and `EVALUATION_TERM_MISMATCH` (report formula cross-term).
+
+#### Scenario: Each gate returns its documented code
+
+- **WHEN** each of the three term-related gate failures occurs (evaluation edit
+  on a closed term, grade entry on a non-active term, cross-term formula add)
+- **THEN** the service responds with HTTP 409 and the matching error code
+  (`TERM_NOT_EDITABLE`, `TERM_NOT_ACTIVE`, or `EVALUATION_TERM_MISMATCH`)
+
+### Requirement: Grading SHALL resolve `term_id` only from the `valid_term` projection
+
+Grading writes (create/update evaluation, create report type, record grade) MUST
+resolve and validate `term_id` from the local `valid_term` projection. When the
+client omits `term_id`, grading MUST select a real projected term for the scope
+(the year's default term per the agreed tie-break) instead of deriving
+`md5(academic_year_id)` or generating a new UUID. When no projected term exists
+for the scope, the request MUST be rejected with a domain error rather than
+proceed against a fabricated id.
+
+#### Scenario: Omitted term id resolves to a real projected term
+
+- **WHEN** a client creates an evaluation for a year without sending `term_id`
+  and that year has exactly one projected term
+- **THEN** the evaluation is stored with that real `term_id`
+
+#### Scenario: Write with a real active term id is accepted
+
+- **WHEN** a client creates an evaluation referencing the real `term_id` of an
+  Active term that exists in `valid_term`
+- **THEN** the response is HTTP 201 and the evaluation is stored with that
+  `term_id`
+
+#### Scenario: No projected term yields a domain error, not a fabricated id
+
+- **WHEN** a grading write targets a scope that has no row in `valid_term`
+- **THEN** the service returns a domain error and MUST NOT synthesize a
+  `term_id`
+
