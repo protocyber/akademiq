@@ -13,9 +13,60 @@ All endpoints follow the standard envelopes:
 
 ### `GET /healthz`
 
-Performs `SELECT 1` against `platform_db`.
+Performs `SELECT 1` against `platform_db`. This is platform-service's **own**
+liveness probe and is the only unauthenticated endpoint here. It is also served
+at the bare path `/healthz` so fleet-wide probes can reach every service at the
+same address.
 
 Success: `{ "data": { "status": "ok" }, "meta": {} }`
+
+## Service health
+
+### `GET /health`
+
+Aggregate liveness board for the backend fleet. Probes each service's `/healthz`
+live over HTTP — this is the one platform endpoint that makes synchronous
+cross-service calls by design, because "is it answering *now*" is the entire
+question and a projection could only report what a service last told us.
+
+> **Naming hazard.** `/api/v1/platform/healthz` (above) is platform-service's own
+> liveness probe. `/api/v1/platform/health` (this endpoint) is the aggregate
+> board. The two differ by one character and mean completely different things.
+
+Six services are probed: `iam`, `billing`, `academic-config`, `academic-ops`,
+`grading`, and `platform` itself. Each target's base URL is overridable via
+`<NAME>_BASE_URL` (dashes folded to underscores, e.g.
+`ACADEMIC_CONFIG_BASE_URL`); `docker-compose.yml` sets all six.
+
+The probes are awaited together, so the handler's worst case is **one** 2-second
+timeout rather than one per target. A `down` service never fails the request —
+reporting the outage is the endpoint's whole purpose.
+
+```json
+{
+  "data": {
+    "services": [
+      { "name": "iam",             "status": "up",   "latency_ms": 4 },
+      { "name": "billing",         "status": "up",   "latency_ms": 7 },
+      { "name": "academic-config", "status": "down", "latency_ms": null }
+    ]
+  },
+  "meta": {}
+}
+```
+
+| Field        | Type              | Notes |
+|--------------|-------------------|-------|
+| `name`       | string            | Service name as configured, not the container name. |
+| `status`     | `"up"` \| `"down"`| `up` only when the probe returned a 2xx within the timeout. |
+| `latency_ms` | number \| null    | Round-trip milliseconds for a **successful** probe only. |
+
+`latency_ms: null` does **not** mean "unreachable". It is null for every
+non-`up` outcome, which includes a service that answered promptly with a 500 or
+503. The wire response deliberately carries no failure detail (that is an
+internal detail per `CONVENTIONS.md` §2); each failure is logged server-side with
+its cause, so a timeout, a refused connection, and a 503 are distinguishable in
+the logs but not in the response.
 
 ## Operator identity
 
@@ -81,6 +132,192 @@ return `404 NOT_FOUND`.
 ### `GET /tenants/{tenant_id}/usage`
 
 Returns `student_count` and `teacher_count` from `platform_tenant_stats`.
+
+## Subscription detail
+
+### `GET /tenants/{tenant_id}/subscription`
+
+Returns the tenant's subscription as projected locally into
+`platform_subscription`. No call to billing is made.
+
+```json
+{
+  "data": {
+    "tenant_id": "uuid",
+    "plan_code": "premium",
+    "status": "active",
+    "modules": { "grading": true, "attendance": false },
+    "started_at": "timestamp|null",
+    "ends_at": "timestamp|null"
+  },
+  "meta": {}
+}
+```
+
+Contract notes:
+
+- **`data` is `null` when no projection row exists** — not `404`, not an error.
+  A tenant that exists but has never had a subscription event projected is a
+  normal state for this endpoint, and the caller renders "no subscription"
+  rather than an error.
+- `ends_at` is nullable: an open-ended subscription has no end date. `started_at`
+  is nullable too (the row can be created by a module toggle before any
+  subscription event arrives — see below).
+- **`payment_method` is intentionally not exposed.** Billing owns it and does not
+  project it, so there is no value platform-service could return. Do not add it
+  to the client contract without first projecting it.
+- A tenant whose projection row was created by `tenant.module_toggled` before any
+  subscription event reads back `plan_code: "unknown"` and `status: "unknown"` —
+  the column defaults. A later subscription event overwrites both.
+
+## Module entitlements
+
+### `GET /tenants/{tenant_id}/modules`
+
+Operator view of a tenant's modules: what is switched on now, and what the
+tenant's plan allows.
+
+```json
+{
+  "data": {
+    "modules": [
+      { "code": "academic_config", "enabled": true,  "entitled": true  },
+      { "code": "attendance",      "enabled": false, "entitled": true  },
+      { "code": "grading",         "enabled": true,  "entitled": false }
+    ]
+  },
+  "meta": {}
+}
+```
+
+| Field      | Source | Meaning |
+|------------|--------|---------|
+| `code`     | —      | Feature code from `features.toml`. |
+| `enabled`  | local `platform_subscription.modules` | Is the module switched on right now. |
+| `entitled` | billing's live plan catalog | Does the tenant's plan include the feature. |
+
+The list is the **union** of the two key sets, sorted by `code`. That is
+deliberate: a module can be `enabled: true, entitled: false` — drift, typically a
+feature switched on under a plan the tenant has since left — and the union is
+what makes that visible instead of silently dropping it. `entitled: true,
+enabled: false` (available but off) is equally representable.
+
+`entitled` is read **live** from `GET /api/v1/billing/plans`, not from the local
+`platform_plan_catalog` table. That table has no working producer — billing emits
+`plan.created` / `plan.updated` / `plan.deactivated`, which neither match the
+`plan-catalog.*` queue binding nor carry a `features` field — so reading it would
+report `entitled: false` for every tenant in every real environment.
+
+**If billing is unreachable, this endpoint fails rather than degrading.**
+Returning `entitled: false` for everything would render every switch disabled,
+which is indistinguishable from a plan that legitimately entitles nothing; an
+operator would reasonably conclude the tenant's plan is broken. Failing loudly is
+also what the sibling `GET /plans` already does. The billing call is skipped
+entirely when there is no subscription row — there is no plan to resolve.
+
+A tenant with no projection row returns an empty `modules` array with HTTP 200,
+matching the sibling `GET /subscription`'s `data: null` rather than `404`.
+Billing remains the authority on entitlement; `entitled` is only a hint so the UI
+can pre-disable a toggle billing would reject.
+
+### `PUT /tenants/{tenant_id}/modules`
+
+Toggles one module. Forwarded to billing's
+`PATCH /api/v1/billing/internal/tenants/{tenant_id}/modules` over
+`X-Service-Token`.
+
+Request:
+
+```json
+{ "feature_code": "grading", "enabled": false }
+```
+
+Success (200): `{ "data": { "ok": true }, "meta": {} }`
+
+Errors:
+
+| Code                    | HTTP | Cause |
+|-------------------------|------|-------|
+| `FEATURE_NOT_AVAILABLE` | 403  | Billing: the tenant's plan does not entitle `feature_code`. |
+| `SUBSCRIPTION_EXPIRED`  | 403  | Billing: the tenant has no subscription, or it is not `active`. |
+| `DOWNSTREAM_FORBIDDEN`  | 403  | Any *other* downstream 403. |
+
+**Billing is the sole authority.** platform-service performs no entitlement check
+of its own; it forwards the request and reports billing's verdict.
+`FEATURE_NOT_AVAILABLE` and `SUBSCRIPTION_EXPIRED` propagate **unchanged** — they
+are part of the platform contract so the UI can explain *why* a toggle was
+refused. This is an explicit allowlist of exactly those two codes; every other
+downstream 403 is an internal detail and flattens to `DOWNSTREAM_FORBIDDEN`.
+
+Note the ordering inside billing: the entitlement gate runs **before** billing
+inspects the requested value. An unentitled module therefore cannot be switched
+*off* either — `{"enabled": false}` on an unentitled feature is still
+`FEATURE_NOT_AVAILABLE`. This is why the `GET` above reports drift instead of
+offering to clean it up.
+
+A rejected toggle writes nothing anywhere: no `tenant_module` row in billing, no
+event, and no `operator_audit` row here. The audit row is written only after a
+2xx from billing, and records `tenant.module_toggle` with the `feature_code` and
+`enabled` that were requested.
+
+On success billing emits `tenant.module_toggled`, which platform-service consumes
+back into `platform_subscription.modules` — so the `GET` above reflects the new
+value once the projection catches up, not synchronously.
+
+## Registration troubleshooting
+
+### `GET /registrations?state=&page=&page_size=`
+
+Operator listing of registration saga rows, newest first. Proxied live from
+billing's `GET /api/v1/billing/internal/registrations` over `X-Service-Token`,
+in the same pattern as `GET /plans`. **platform-service keeps no local copy.**
+
+A projection would be actively harmful here: these rows exist because onboarding
+got stuck, an operator acts on them precisely while they are still stuck, and a
+lagging projection would show registrations that have since completed or hide
+ones that just failed.
+
+```json
+{
+  "data": [
+    {
+      "registration_id": "uuid",
+      "email": "string",
+      "iam_user_id": "uuid|null",
+      "tenant_id": "uuid|null",
+      "state": "user_created|tenant_created|completed|failed",
+      "attempted_at": "timestamp"
+    }
+  ],
+  "meta": { "page": 1, "page_size": 20 }
+}
+```
+
+`iam_user_id` and `tenant_id` are exposed so an operator can trace the orphaned
+resources a half-finished saga left behind.
+
+`state` is optional; absent or blank means "every state". When supplied it is
+validated against exactly four values — `user_created`, `tenant_created`,
+`completed`, `failed` — mirroring billing's `pending_registration_state_chk`
+constraint. Anything else returns `400 VALIDATION_ERROR` with the `state` field
+key. This is a security boundary, not a convenience check: the value is
+interpolated into the forwarded path, so an arbitrary string could otherwise
+smuggle extra query parameters into billing's internal API.
+
+**Operational reality — this is a live view, not a history.** Two caveats an
+operator needs:
+
+- Only `user_created` and `completed` are ever written today. `tenant_created`
+  and `failed` are accepted by the constraint and by this filter, but no code
+  path produces them, so filtering on either returns an empty list. They are kept
+  in the allowlist because the constraint allows them.
+- Billing's janitor runs every 60 seconds and **deletes** any non-`completed` row
+  older than ~5 minutes, after compensating (deleting the orphaned IAM user and
+  tenant). `completed` rows are retained indefinitely. So a stalled registration
+  is visible for about five minutes and then disappears — absence from this list
+  does not mean it never happened.
+
+Reads are not audited, matching `GET /plans`.
 
 ## User lookup
 
@@ -212,3 +449,12 @@ Request:
 ```
 
 Success: `204`. Unknown plans surface billing's `UNKNOWN_PLAN` error.
+
+Billing emits **only** `subscription.plan_changed` for this command, including
+when it has to INSERT a subscription row for a tenant that had none —
+`subscription.activated` never fires for an operator override. Consumers must not
+treat `subscription.activated` as the guaranteed first subscription event for a
+tenant; see `events/tenant.module_toggled.md` §Ordering.
+
+The read sibling on this path is `GET /tenants/{tenant_id}/subscription`, under
+"Subscription detail" above.

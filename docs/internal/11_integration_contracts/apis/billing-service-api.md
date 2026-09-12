@@ -203,7 +203,8 @@ Response (201):
 }
 ```
 
-Errors: `400 VALIDATION_ERROR` (`file` field) for invalid type/size.
+Errors: `400 INVALID_FILE_TYPE` for a non-JPG/PNG/WebP upload,
+`400 FILE_TOO_LARGE` for a file over 512 KB.
 
 ### `DELETE /tenants/me/school-profile/logo`
 
@@ -238,6 +239,36 @@ Reactivates the tenant and emits `tenant.reactivated` when state changes.
 
 Success: `{ "data": { "changed": true|false }, "meta": {} }`
 
+### `PATCH /internal/tenants/{tenant_id}/modules`
+
+Operator-initiated module toggle. Enforces the same plan-entitlement and
+subscription-status rules as the tenant-facing
+`PATCH /tenants/me/modules`, and emits `tenant.module_toggled` on success.
+`tenant_id` comes from the path because this route is authenticated by
+`X-Service-Token`, not a tenant access token.
+
+Request:
+
+```json
+{ "feature_code": "grading", "enabled": false }
+```
+
+Success (200): `{ "data": { "ok": true }, "meta": {} }`
+
+Errors:
+
+| Code                        | HTTP | Cause |
+|-----------------------------|------|-------|
+| `FEATURE_NOT_AVAILABLE`     | 403  | The tenant's current plan does not entitle `feature_code`. |
+| `SUBSCRIPTION_EXPIRED`      | 403  | The tenant has no subscription, or it is not `active`. |
+| `UNAUTHORIZED_SERVICE_CALL` | 401  | Missing or invalid `X-Service-Token`. |
+
+A rejected toggle writes nothing: no `tenant_module` row and no event.
+
+The entitlement gate runs **before** the handler inspects the requested value, so
+an unentitled module cannot be switched *off* either — `{"enabled": false}` on an
+unentitled feature still returns `FEATURE_NOT_AVAILABLE`.
+
 ### `POST /internal/plans`
 
 Creates a plan and emits a plan-catalog event. Duplicate `code` returns `409`.
@@ -254,6 +285,49 @@ Deactivates the plan and emits a plan-catalog event. Success: `204`.
 
 Overrides a tenant subscription to an existing `plan_id`. Unknown plans return
 `400 UNKNOWN_PLAN`. Success: `204`.
+
+### `GET /internal/registrations?state=&page=&page_size=`
+
+Operator listing of registration saga rows from `pending_registration`, newest
+first (`attempted_at DESC, registration_id DESC`). Service-token guarded like the
+other `internal/` routes: these rows carry the email of a user who never finished
+signing up and are not tenant-scoped, so no tenant JWT can authorize them.
+
+```json
+{
+  "data": [
+    {
+      "registration_id": "uuid",
+      "email": "string",
+      "iam_user_id": "uuid|null",
+      "tenant_id": "uuid|null",
+      "state": "user_created|tenant_created|completed|failed",
+      "attempted_at": "timestamp"
+    }
+  ],
+  "meta": { "page": 1, "page_size": 20 }
+}
+```
+
+`page` defaults to 1 (floor-clamped), `page_size` defaults to 20 and is clamped
+to 1-100. The offset is computed with saturating arithmetic because this endpoint
+is reachable directly by any service-token holder and cannot assume the caller
+bounded `page`.
+
+`state` narrows to a single value; absent or blank lists every state. It is bound
+as a query parameter and never interpolated, and `NULL` means "no filter", so a
+caller cannot widen the predicate. Billing does **not** reject an unrecognised
+`state` — it simply matches nothing. The four-value allowlist is enforced
+upstream by platform-service's `GET /registrations`, which returns
+`VALIDATION_ERROR`.
+
+Lifecycle caveats for consumers:
+
+- Only `user_created` and `completed` are written today. `tenant_created` and
+  `failed` are permitted by `pending_registration_state_chk` but have no producer.
+- The janitor (`run_pending_registration_janitor`, every 60s) deletes any
+  non-`completed` row older than 5 minutes after compensating the orphaned IAM
+  user and tenant. `completed` rows are retained indefinitely.
 
 ### `GET /media/school/{media_id}`
 
