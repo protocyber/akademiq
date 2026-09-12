@@ -239,6 +239,48 @@ Reactivates the tenant and emits `tenant.reactivated` when state changes.
 
 Success: `{ "data": { "changed": true|false }, "meta": {} }`
 
+### `GET /internal/tenants/{tenant_id}/modules`
+
+Operator-facing read of a tenant's **effective** module state, for
+platform-service's `GET /platform/tenants/{tenant_id}/modules`. Billing owns
+both halves of the answer, so the operator console reports what billing actually
+enforces.
+
+```json
+{
+  "data": {
+    "modules": [
+      { "feature_code": "academic_config", "plan_entitled": true,  "enabled": true  },
+      { "feature_code": "grading",         "plan_entitled": true,  "enabled": false },
+      { "feature_code": "promotion",       "plan_entitled": false, "enabled": false }
+    ]
+  },
+  "meta": {}
+}
+```
+
+| Field           | Meaning |
+|-----------------|---------|
+| `feature_code`  | Feature code from `features.toml`. |
+| `plan_entitled` | Does the tenant's current plan include the feature. |
+| `enabled`       | Is the module in force right now. |
+
+Two rules decide `enabled`, both shared with the tenant-facing
+`GET /tenants/me` via `queries::resolve_modules`, so the two views cannot drift:
+
+1. **An absent `tenant_module` override means the plan default, not `false`.**
+   `toggle_module` and every entitlement check resolve it that way, so an
+   entitled feature nobody has touched is genuinely running.
+2. **An override for a feature the plan no longer entitles is still listed**, as
+   `enabled: true, plan_entitled: false`. It remains in force, and this is the
+   only way an operator can see and clear the leftover. Note that
+   `internal_create_plan` writes a `plan_feature` row only for the features it
+   is given, so such a feature may have no plan row at all.
+
+A tenant with no active subscription returns an empty `modules` array with HTTP
+200 — not `404`. The operator console reads this for any tenant id it holds, and
+an unknown tenant is a normal input.
+
 ### `PATCH /internal/tenants/{tenant_id}/modules`
 
 Operator-initiated module toggle. Enforces the same plan-entitlement and

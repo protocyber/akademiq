@@ -160,9 +160,19 @@ Contract notes:
   A tenant that exists but has never had a subscription event projected is a
   normal state for this endpoint, and the caller renders "no subscription"
   rather than an error.
-- `ends_at` is nullable: an open-ended subscription has no end date. `started_at`
-  is nullable too (the row can be created by a module toggle before any
-  subscription event arrives — see below).
+- `started_at` and `ends_at` are projected from `subscription.activated`'s
+  `start_date` / `end_date`. `subscription.plan_changed` carries neither, and a
+  plan change deliberately preserves the dates an activation already projected.
+- `started_at` is nullable: the row can be created by a module toggle before any
+  subscription event arrives (see below).
+- **`ends_at` is always `null` today, and that is not a projection bug.** Billing
+  sets `end_date = None` at both subscription creation sites and no code path
+  ever updates it, so the event never carries one. Anything downstream that keys
+  off `ends_at` — notably the console's "<30 days to expiry" warning — is
+  therefore unreachable until subscription lifecycle work (renewal, expiry,
+  cancellation) exists. That UI is kept deliberately: it is correct code waiting
+  on a producer, not dead code. Do not read a null `ends_at` as "the projection
+  dropped it".
 - **`payment_method` is intentionally not exposed.** Billing owns it and does not
   project it, so there is no value platform-service could return. Do not add it
   to the client contract without first projecting it.
@@ -192,33 +202,46 @@ tenant's plan allows.
 
 | Field      | Source | Meaning |
 |------------|--------|---------|
-| `code`     | —      | Feature code from `features.toml`. |
-| `enabled`  | local `platform_subscription.modules` | Is the module switched on right now. |
-| `entitled` | billing's live plan catalog | Does the tenant's plan include the feature. |
+| `code`     | billing's `feature_code` | Feature code from `features.toml`. |
+| `enabled`  | billing's `enabled`      | Is the module switched on right now. |
+| `entitled` | billing's `plan_entitled` | Does the tenant's plan include the feature. |
 
-The list is the **union** of the two key sets, sorted by `code`. That is
-deliberate: a module can be `enabled: true, entitled: false` — drift, typically a
-feature switched on under a plan the tenant has since left — and the union is
-what makes that visible instead of silently dropping it. `entitled: true,
-enabled: false` (available but off) is equally representable.
+**Both fields are read live from billing**, via
+`GET /api/v1/billing/internal/tenants/{tenant_id}/modules` over
+`X-Service-Token`. Neither is derived from the local projection.
 
-`entitled` is read **live** from `GET /api/v1/billing/plans`, not from the local
-`platform_plan_catalog` table. That table has no working producer — billing emits
-`plan.created` / `plan.updated` / `plan.deactivated`, which neither match the
-`plan-catalog.*` queue binding nor carry a `features` field — so reading it would
-report `entitled: false` for every tenant in every real environment.
+That is the whole point of this endpoint, and it is a correction of an earlier
+design. `platform_subscription.modules` is written *only* by
+`tenant.module_toggled` — i.e. only for features somebody has explicitly
+toggled, since no subscription event carries a modules map. Reading `enabled`
+from it forced "key absent" to mean **off**, while billing resolves an absent
+override to the **plan default**. For a premium tenant nobody had ever toggled,
+billing ran `grading` and this endpoint reported it off: the console
+contradicting the system it monitors, on its only write surface.
+
+Billing computes the answer in one place (`queries::resolve_modules`), which
+also serves the tenant-facing `GET /billing/tenants/me`, so the operator view
+and the tenant view cannot drift.
+
+The list is the **union** of the tenant's plan features and its explicit
+overrides, sorted by `code`. That is deliberate: a module can be
+`enabled: true, entitled: false` — drift, typically a feature switched on under
+a plan the tenant has since left — and the union is what makes that visible
+instead of silently dropping it. `entitled: true, enabled: false` (available but
+off) is equally representable.
 
 **If billing is unreachable, this endpoint fails rather than degrading.**
-Returning `entitled: false` for everything would render every switch disabled,
-which is indistinguishable from a plan that legitimately entitles nothing; an
-operator would reasonably conclude the tenant's plan is broken. Failing loudly is
-also what the sibling `GET /plans` already does. The billing call is skipped
-entirely when there is no subscription row — there is no plan to resolve.
+Returning an all-off board would be indistinguishable from a tenant that
+genuinely runs nothing, and would invite an operator to "fix" a healthy system.
+Failing loudly is also what the sibling `GET /plans` already does. A 200 whose
+body cannot be parsed is treated the same way: an empty list would assert
+something about the tenant that we have no basis for.
 
-A tenant with no projection row returns an empty `modules` array with HTTP 200,
-matching the sibling `GET /subscription`'s `data: null` rather than `404`.
-Billing remains the authority on entitlement; `entitled` is only a hint so the UI
-can pre-disable a toggle billing would reject.
+A tenant billing knows nothing about returns an empty `modules` array with HTTP
+200, matching the sibling `GET /subscription`'s `data: null` rather than `404`.
+
+The `tenant.module_toggled` event and its projection remain — they still serve
+`GET /tenants/{tenant_id}/subscription` above.
 
 ### `PUT /tenants/{tenant_id}/modules`
 
@@ -261,8 +284,9 @@ event, and no `operator_audit` row here. The audit row is written only after a
 `enabled` that were requested.
 
 On success billing emits `tenant.module_toggled`, which platform-service consumes
-back into `platform_subscription.modules` — so the `GET` above reflects the new
-value once the projection catches up, not synchronously.
+back into `platform_subscription.modules`, feeding `GET /subscription`. The `GET
+/modules` endpoint above reads billing directly, so it reflects the new value
+immediately rather than waiting on the projection.
 
 ## Registration troubleshooting
 
