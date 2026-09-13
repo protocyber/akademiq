@@ -105,9 +105,28 @@ projection (events + `scripts/bootstrap-projections.sh` backfill).
 
 ## Tenant directory
 
-### `GET /tenants?page=&page_size=`
+### `GET /tenants?search=&page=&page_size=`
 
 Returns the local cross-tenant projection from `platform_tenant`.
+
+`search` is an **optional** filter. A term matches either:
+
+- `school_name` as a **case-insensitive substring**, or
+- `tenant_id` by **prefix** (so the 8-character id the console displays, or a
+  full UUID, both work).
+
+An operator is not expected to know which kind of value they pasted, so one box
+serves both. Absent, blank, or whitespace-only means "no filter" — never "match
+the empty string". Terms are trimmed and capped at **128 characters**; a longer
+term is rejected with `VALIDATION_ERROR` on field `search` rather than
+truncated, since truncating would answer a question the operator did not ask.
+
+`LIKE` metacharacters (`%`, `_`) in the term are matched as literal text.
+
+> **Previously broken.** The parameter was accepted and silently ignored: the
+> handler's query struct declared only `page`/`page_size` and serde drops
+> unknown fields, so this endpoint returned every tenant regardless of the
+> term. Clients that appeared to search were not searching.
 
 ```json
 {
@@ -345,16 +364,53 @@ Reads are not audited, matching `GET /plans`.
 
 ## User lookup
 
-### `GET /users?email=&page=&page_size=`
+### `GET /users?search=&page=&page_size=`
 
-Cross-tenant directory from `platform_user`. `email` is an **optional** filter:
+Cross-tenant directory from `platform_user`. `search` is an **optional**
+filter. A term matches either:
 
-- With `email`: returns users whose email matches (case-insensitive).
-- Without `email` (or blank): returns a paginated listing of the directory,
-  ordered by email. Previously this returned `VALIDATION_ERROR`; the contract
-  changed when the listing was added.
+- `email` as a **case-insensitive substring**, or
+- `user_id` by **prefix** (the console's 8-character id display, or a full
+  UUID).
 
-`page_size` defaults to 20 and is clamped to 1-100.
+Without `search` (or blank) the endpoint returns a paginated listing of the
+directory, ordered by email. Trimming, the 128-character cap, the
+`VALIDATION_ERROR` on an over-long term, and literal treatment of `LIKE`
+metacharacters all match `GET /tenants` above.
+
+`page_size` defaults to 20 and is clamped to 1-100. Filtered and unfiltered
+responses are **both** paginated, so `meta` always describes what was returned.
+
+**Parameter rename.** This filter was called `email`. It is now `search`,
+because it no longer matches only an email. `email` remains accepted as a
+**legacy alias** so an un-updated client does not lose its filter — with the
+widened substring behaviour, not the old exact match. When both are supplied,
+`search` wins.
+
+> **Previously broken.** `email` was exact equality (`lower(email) =
+> lower($1)`), so a partial address matched nothing and a user id never matched
+> at all — an operator had to already know the complete address to find anyone.
+> That path also ignored `LIMIT`/`OFFSET` while still reporting `meta.page` and
+> `meta.page_size`, advertising a pagination it did not perform.
+
+#### Search performance (both endpoints)
+
+Both searches are **sequential scans**, deliberately.
+
+A substring match compiles to `ILIKE '%term%'`, whose leading wildcard leaves
+no prefix to seek on, so `idx_platform_user_email` — a btree on `lower(email)`
+— **cannot** serve it. The id predicates compare `<id>::text`, an expression
+rather than the raw primary-key column, so the PK index does not apply either.
+Do not read these queries as index-assisted.
+
+This is accepted because both tables are projections sized by the number of
+schools and operators on the platform. Making them index-assisted means
+`pg_trgm` plus a GIN index; that extension is **not** currently enabled for
+platform-service and adding it is a migration decision of its own, not a
+drive-by change.
+
+Search terms reach Postgres only as **bind parameters**. They are never
+formatted into a SQL string.
 
 ```json
 {
