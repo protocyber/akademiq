@@ -364,7 +364,7 @@ Reads are not audited, matching `GET /plans`.
 
 ## User lookup
 
-### `GET /users?search=&page=&page_size=`
+### `GET /users?search=&tenant=&page=&page_size=`
 
 Cross-tenant directory from `platform_user`. `search` is an **optional**
 filter. A term matches either:
@@ -377,6 +377,32 @@ Without `search` (or blank) the endpoint returns a paginated listing of the
 directory, ordered by email. Trimming, the 128-character cap, the
 `VALIDATION_ERROR` on an over-long term, and literal treatment of `LIKE`
 metacharacters all match `GET /tenants` above.
+
+`tenant` is a **second, independent optional filter** narrowing to users who
+hold a membership in a matching tenant. A term matches either:
+
+- a `tenant_name` inside `memberships` as a **case-insensitive substring**, or
+- a `tenant_id` by **prefix**.
+
+`search` and `tenant` are **ANDed**: they answer different questions ("which
+user" vs "which school"), so supplying both returns the intersection rather
+than one overriding the other. `tenant` gets the same trimming, 128-character
+cap, and literal wildcard handling; its errors are field-scoped to `tenant`.
+
+A user belonging to several tenants is matched by **any** of their
+memberships. A user with no memberships matches no tenant term — belonging to
+no tenant is not belonging to the one asked for.
+
+> **Depends on the memberships projection.** `platform_user.memberships` used
+> to be written **only** by `scripts/bootstrap-projections.sh`: the event
+> consumer refreshed identity fields without touching the array, so any user
+> created since the last backfill had `memberships: []` and would have been
+> silently omitted by this filter. `tenant_user.created` / `tenant_user.updated`
+> now project the membership directly (keyed on `tenant_id`, preserving other
+> tenants' entries and idempotent under replay). `tenant_name` is resolved from
+> `platform_tenant` at write time; if that row has not arrived yet the entry is
+> still written with a null name, because the `tenant_id` is what this filter
+> matches on.
 
 `page_size` defaults to 20 and is clamped to 1-100. Filtered and unfiltered
 responses are **both** paginated, so `meta` always describes what was returned.
@@ -435,9 +461,51 @@ NOT_FOUND`.
 
 ## Audit
 
-### `GET /audit?page=&page_size=`
+### `GET /audit?tenant=&page=&page_size=`
 
 Read-only operator audit listing. There is no mutate/delete endpoint.
+
+`tenant` is an **optional** filter narrowing to entries that target a matching
+tenant. A term matches either the tenant's `school_name` as a
+**case-insensitive substring** or its `tenant_id` by **prefix**. Trimming, the
+128-character cap, the `VALIDATION_ERROR` on an over-long term (field-scoped to
+`tenant`), and literal treatment of `LIKE` metacharacters all match
+`GET /tenants`.
+
+`operator_audit` stores no tenant name, so matching by name requires a join to
+`platform_tenant`. Each entry therefore also carries **`target_name`**, the
+resolved school name, so the console's Target column can show a name instead of
+a raw UUID. It is `null` when the target is not a tenant or names a tenant the
+projection does not know; `target_id` is always present for the copy button.
+
+```json
+{
+  "data": [
+    {
+      "audit_id": "uuid",
+      "actor_sub": "uuid",
+      "action": "tenant.suspend",
+      "target_type": "tenant",
+      "target_id": "string",
+      "target_name": "string|null",
+      "outcome": "success",
+      "metadata": {},
+      "created_at": "timestamptz"
+    }
+  ],
+  "meta": { "page": 1, "page_size": 20 }
+}
+```
+
+> **`target_id` is TEXT and `target_type` is not always `'tenant'`.**
+> `plan.create` stores a plan **code** (`"premium"`), and `plan.update` /
+> `plan.deactivate` store a plan UUID under `target_type: "plan"`. The join
+> therefore compares `platform_tenant.tenant_id::text` against `target_id`
+> rather than casting `target_id::uuid`: the cast raises
+> `invalid input syntax for type uuid` and fails the **entire** query, so the
+> audit page would return 500 for every operator as soon as one plan existed.
+> Casting the trusted column to text removes the failure mode instead of
+> relying on `AND` short-circuiting, which the planner does not guarantee.
 
 ## Tenant lifecycle commands
 
