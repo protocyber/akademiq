@@ -26,9 +26,21 @@ Payload:
   "email": "teacher@school.test",
   "role": "teacher",
   "invited_by": "uuid",
-  "expires_at": "2026-06-16T12:00:00Z"
+  "expires_at": "2026-06-16T12:00:00Z",
+  "issued_by_operator": "uuid"
 }
 ```
+
+`issued_by_operator` is **optional and additive**; existing consumers may ignore
+it. It is present only when a platform operator issued the invitation through
+`POST /api/v1/platform/tenants/{tenant_id}/invitations`, and absent (not null)
+otherwise — so its presence is the signal that this was an operator action.
+
+It exists because `invited_by` is constrained to a tenant member by a foreign
+key, while an operator belongs to no tenant. On the operator path `invited_by`
+therefore names a school admin rather than the actual actor;
+`issued_by_operator` carries the truth and can be joined to the `operator_audit`
+row platform-service writes for the same action.
 
 ## `tenant_user.activated`
 
