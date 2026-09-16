@@ -329,7 +329,8 @@ ones that just failed.
       "iam_user_id": "uuid|null",
       "tenant_id": "uuid|null",
       "state": "user_created|tenant_created|completed|failed",
-      "attempted_at": "timestamp"
+      "attempted_at": "timestamp",
+      "failure_reason": "string|null"
     }
   ],
   "meta": { "page": 1, "page_size": 20 }
@@ -338,6 +339,27 @@ ones that just failed.
 
 `iam_user_id` and `tenant_id` are exposed so an operator can trace the orphaned
 resources a half-finished saga left behind.
+
+`failure_reason` explains why a `failed` row stopped. It is `null` for every
+other state — a row still in flight has not failed, and a `completed` one never
+does — so clients must treat it as nullable rather than keying off `state`
+alone. Three properties of the value are contractual, all enforced in billing's
+`domain::failure_reason`:
+
+- **It is prefixed with the `AppError` code**, e.g.
+  `CONFLICT: email is already registered` or
+  `VALIDATION_ERROR: plan_id: plan_id is unknown`, so an operator can tell
+  "already taken" from "unreachable" at a glance. Do not parse it — the prefix
+  is for a human reader; the machine-readable signal is `state`.
+- **It is sanitised.** The text of an `AppError::Internal` never reaches this
+  field: it is replaced wholesale with the fixed string
+  `INTERNAL_ERROR: registration failed unexpectedly; see service logs`. That
+  variant wraps arbitrary driver, `reqwest`, and `anyhow` chains — including
+  ones carrying a downstream response body, which on this path can contain a
+  live activation link — so it is dropped rather than rendered. The detail still
+  reaches the service log, which is the right audience for it.
+- **It is truncated to 300 bytes**, on a character boundary, with a trailing
+  `…` charged against the budget rather than appended to it.
 
 `state` is optional; absent or blank means "every state". When supplied it is
 validated against exactly four values — `user_created`, `tenant_created`,
@@ -350,15 +372,22 @@ smuggle extra query parameters into billing's internal API.
 **Operational reality — this is a live view, not a history.** Two caveats an
 operator needs:
 
-- Only `user_created` and `completed` are ever written today. `tenant_created`
-  and `failed` are accepted by the constraint and by this filter, but no code
-  path produces them, so filtering on either returns an empty list. They are kept
-  in the allowlist because the constraint allows them.
+- **`failed` now has a producer.** Billing's `register_tenant` parks a
+  registration in `failed` with a `failure_reason` at both of its failure
+  points: when IAM refuses to create the admin, and when tenant/subscription
+  creation fails afterwards (recorded *before* the compensating IAM delete, so
+  the reason survives even if that delete itself fails). `user_created` and
+  `completed` are written as before. `tenant_created` remains accepted by the
+  constraint and by this filter with no code path producing it, so filtering on
+  it returns an empty list; it is kept in the allowlist because the constraint
+  allows it.
 - Billing's janitor runs every 60 seconds and **deletes** any non-`completed` row
   older than ~5 minutes, after compensating (deleting the orphaned IAM user and
   tenant). `completed` rows are retained indefinitely. So a stalled registration
   is visible for about five minutes and then disappears — absence from this list
-  does not mean it never happened.
+  does not mean it never happened. **`failed` rows are reaped on the same rule**:
+  a `failure_reason` is a short-lived diagnostic for an operator watching the
+  board, not a durable failure history.
 
 Reads are not audited, matching `GET /plans`.
 
@@ -527,6 +556,257 @@ Success: forwards billing's `{ "data": { "changed": true|false }, "meta": {} }`.
 
 Success: forwards billing's `{ "data": { "changed": true|false }, "meta": {} }`.
 
+## Operator onboarding commands
+
+Three write endpoints that let an operator stand a school up and rescue one
+whose admin cannot get in, without touching SQL or the CLI. `POST /tenants`
+forwards to billing; the other two forward to IAM. Both targets are called over
+`X-Service-Token` at `BILLING_BASE_URL` / `IAM_BASE_URL`, and `operator_audit`
+is written only after a 2xx from the downstream service — a refused command
+leaves no audit row anywhere.
+
+> **Every endpoint in this section returns a live credential, and the response
+> is the only place it will ever exist.** IAM stores nothing but an Argon2 hash
+> of each token, so no endpoint can read one back. **The link is shown once and
+> is not retrievable afterwards.** It is therefore never logged, never persisted
+> client-side, and specifically never written into `operator_audit` — a durable
+> table any operator can read, where a link would be a standing account
+> takeover. The audit rows below record the *fact* of each action from named
+> fields, never the downstream envelope.
+>
+> A lost link cannot be recovered, only replaced: issue a fresh one with
+> `POST /tenants/{tenant_id}/invitations` for a school admin, or
+> `POST /users/{user_id}/reset-password` for any existing user. Note that the
+> public `POST /auth/set-password/resend` is **not** a recovery path here — it
+> refuses any account that is not `active`, which is every operator-created
+> admin who has not activated yet. That refusal is what
+> `POST /users/{user_id}/reset-password` exists to route around.
+
+### `POST /tenants`
+
+Creates a school and its first administrator, returning the one-time link that
+admin uses to set their own password.
+
+Request:
+
+```json
+{
+  "school_name": "SMA Harapan",
+  "admin_email": "kepala@harapan.test",
+  "admin_full_name": "Kepala Harapan",
+  "plan_id": "uuid"
+}
+```
+
+**There is no `admin_password` field, by construction.** The forwarded body is
+built explicitly from these four fields rather than round-tripped, and billing's
+`POST /internal/tenants` does not accept a password either, so the operator
+never chooses, sees, or transports a school's credential. The admin is created
+`pending` and activates themselves through the link.
+
+All four fields are forwarded and all four are validated by billing; an unknown
+`plan_id` comes back as `VALIDATION_ERROR` on field `plan_id`.
+
+Success (**201**) — billing's `RegisterTenantOutput` proxied verbatim:
+
+```json
+{
+  "data": {
+    "tenant_id": "uuid",
+    "user_id": "uuid",
+    "subscription_id": "uuid",
+    "plan_code": "premium",
+    "activation_link": "https://app.example/set-password?token=<token>"
+  },
+  "meta": {}
+}
+```
+
+`activation_link` is `skip_serializing_if = "Option::is_none"` in billing, so it
+is **absent from the wire** — not `null` — when no link was minted. Clients must
+type it as optional. On this route a 201 always carries one (the passwordless
+path is the only path), but the field is shared with billing's other
+registration entry points, one of which attaches an already-authenticated user
+and has no link to give. The URL points at `/set-password`, not
+`/invitations/accept`: it carries a set-password token, and the invitation page
+resolves a different table and would reject it.
+
+Errors:
+
+| Code                   | HTTP | Cause |
+|------------------------|------|-------|
+| `VALIDATION_ERROR`     | 400  | Billing's per-field map, forwarded intact (`school_name`, `admin_email`, `admin_full_name`, `plan_id`). |
+| `EMAIL_ALREADY_EXISTS` | 409  | IAM already knows `admin_email`. The fix is another address. |
+
+Audit: `tenant.create` on `target_type: "tenant"`, metadata `school_name` and
+`admin_email` only.
+
+### `POST /tenants/{tenant_id}/invitations`
+
+Invites an administrator into an **existing** school. This is the recovery path
+when the activation link minted at tenant creation is lost or has expired: IAM
+will not re-issue the original, but it will mint a fresh invitation.
+
+Request:
+
+```json
+{ "email": "admin2@harapan.test", "roles": ["tenant_admin"] }
+```
+
+`roles` accepts the five roles a tenant admin can assign — `teacher`,
+`homeroom_teacher`, `principal`, `parent`, `student` — **plus `tenant_admin`**.
+That last one is the operator's carve-out and the reason this route exists;
+re-issuing a lost tenant-admin handover is exactly what it is for. `super_admin`
+is assignable from neither path. A built-in role outside the operator's set
+returns `VALIDATION_ERROR` on field `roles`, worded for a platform operator
+rather than a tenant admin. Non-built-in (custom tenant) codes pass this check
+and are resolved against the `role` table when the invitation row is written.
+
+**Clients must not send `issued_by_operator`.** platform-service injects it from
+the caller's JWT (`auth.user_id`) when it builds the forwarded body, and the
+body is constructed field by field rather than round-tripped, so a
+client-supplied value is dropped. IAM records it on the `tenant_user.invited`
+event, which is how the invitation — whose `invited_by` column is a foreign key
+and must therefore name a real tenant member — is joined back to the
+`operator_audit` row naming the actual actor. See
+`events/tenant-user-events.md`.
+
+Success (**201**) — IAM's envelope proxied verbatim:
+
+```json
+{
+  "data": {
+    "invitation_id": "uuid",
+    "email": "admin2@harapan.test",
+    "roles": ["tenant_admin"],
+    "status": "pending",
+    "expires_at": "2026-09-21T12:00:00Z",
+    "tenant_id": "uuid",
+    "activation_link": "https://app.example/invitations/accept?token=<token>",
+    "token": "<token>"
+  },
+  "meta": {}
+}
+```
+
+`activation_link` here is **not** optional — every invitation mints a token, so
+an absent link would be a contract break. `token` is the same secret unwrapped;
+it is on the wire because IAM's tenant-scoped invitation response has always
+carried it, and the console deliberately never renders it. An operator hands
+over a link, not a bare token. This link points at `/invitations/accept`, the
+opposite of `POST /tenants` above.
+
+Errors:
+
+| Code                        | HTTP | Cause |
+|-----------------------------|------|-------|
+| `VALIDATION_ERROR`          | 400  | IAM's per-field map (`email`, `roles`), forwarded intact. |
+| `NOT_FOUND`                 | 404  | The school has no member who can be credited as the inviter. |
+| `MEMBERSHIP_ALREADY_EXISTS` | 409  | The address already belongs to a member of this school. Use that account. |
+| `PENDING_INVITATION_EXISTS` | 409  | The address already holds a pending invitation here. Revoke it, or hand over its link. |
+
+The two conflicts are distinct on purpose and neither is a retry: they have
+different operator fixes. The 404 is real, not theoretical — IAM must name a
+tenant member as `invited_by`, and it resolves one itself (preferring a
+`tenant_admin`, then an `active` account, then the oldest), which finds nothing
+for a school whose only member has been deleted.
+
+Audit: `tenant.invite` on `target_type: "tenant"`, metadata `email` and `roles`
+only.
+
+### `POST /users/{user_id}/reset-password`
+
+Hands the operator a set-password link for an existing user. **No request
+body.** The target is the path parameter; nothing about the account is
+client-supplied.
+
+Success (**200**):
+
+```json
+{
+  "data": {
+    "user_id": "uuid",
+    "set_password_link": "https://app.example/set-password?token=<token>"
+  },
+  "meta": {}
+}
+```
+
+The field is **`set_password_link`**, not `activation_link`. The two names mark
+two different token types in two different tables, and the invitation page would
+reject this one with `INVALID_INVITATION_TOKEN`.
+
+**IAM decides who can be reset, and it is not the obvious rule.** The command
+behind this route is `issue_operator_password_reset`, written specifically for
+the operator path rather than reusing the public
+`POST /auth/set-password/resend` — whose anti-abuse guard refuses any account
+that already has a password, which is precisely what a reset is for. Three
+outcomes:
+
+- **A `pending` (passwordless) user succeeds** and gets a link. This is the
+  stranded-admin recovery path and the main reason the endpoint exists; the
+  operator has no reason to know whether the account ever activated. Redeeming
+  the link activates them.
+- An `active` user succeeds, with or without an existing password.
+- A **`disabled`** account is the only refusal: `409 USER_DISABLED`. `login`
+  rejects a non-active user before it ever checks a password, so a link would
+  resolve successfully and still leave them locked out — a silent lie. The
+  operator's fix is to enable the account first.
+
+A `user_id` that does not exist is `404 NOT_FOUND`, kept distinct so a mistyped
+id does not read as a domain refusal.
+
+Issuing a link **revokes any set-password link still in flight** for that user,
+so a holder of an older one cannot race the operator. Refresh tokens are
+deliberately *not* revoked here: issuing a link does not yet change the
+password, and logging the user out before the operator has even delivered it
+would be a visible outage for a reset that may never be completed.
+`POST /auth/set-password` revokes them on redemption, which is when the
+credential actually changes.
+
+Errors:
+
+| Code            | HTTP | Cause |
+|-----------------|------|-------|
+| `NOT_FOUND`     | 404  | No such user. |
+| `USER_DISABLED` | 409  | The account is disabled; enable it first. |
+
+Audit: `user.reset_password` on `target_type: "user"`, metadata `user_id` only.
+
+### Downstream error mapping
+
+Every endpoint that forwards to billing or IAM normalises the reply through one
+function: any non-2xx becomes an error, so each caller's post-forward code
+(projection writes, audit rows) is unreachable after a downstream failure.
+
+Downstream codes are preserved by an **allowlist**, not passed through wholesale.
+The codes that survive verbatim are exactly:
+
+| Downstream code             | HTTP | Where it comes from |
+|-----------------------------|------|---------------------|
+| `FEATURE_NOT_AVAILABLE`     | 403  | Billing: plan does not entitle the feature. |
+| `SUBSCRIPTION_EXPIRED`      | 403  | Billing: no active subscription. |
+| `EMAIL_ALREADY_EXISTS`      | 409  | Billing/IAM: admin address already registered. |
+| `MEMBERSHIP_ALREADY_EXISTS` | 409  | IAM: invitee is already a member. |
+| `PENDING_INVITATION_EXISTS` | 409  | IAM: invitee already has a pending invitation. |
+| `USER_DISABLED`             | 409  | IAM: password reset on a disabled account. |
+
+Everything else is treated as an internal detail and flattened:
+
+- Any other 403 → `DOWNSTREAM_FORBIDDEN`.
+- **Any other 409 → `PLAN_CODE_EXISTS`.** This arm has no code check: it is the
+  trailing conflict case, and plan creation is the only *other* conflict this
+  service forwards. A downstream that introduces a new 409 on any forwarded
+  route will therefore report a plan-code conflict until it is given an arm of
+  its own. Adding one is not optional bookkeeping — it is what stops an
+  unrelated refusal from rendering as "a plan with this code already exists" on
+  a user or tenant screen.
+- 400 `VALIDATION_ERROR` → the downstream's `/error/fields` map, forwarded
+  intact so the console can highlight the offending input. A downstream that
+  sends no usable map falls back to a single `request` pseudo-field.
+- Any other 400 → `DOWNSTREAM_BAD_REQUEST`; 401 → `UNAUTHORIZED_SERVICE_CALL`;
+  404 → `NOT_FOUND`; anything else → `DOWNSTREAM_ERROR`.
+
 ## Plan catalog
 
 ### `GET /plans`
@@ -596,7 +876,11 @@ Request:
 { "plan_id": "uuid" }
 ```
 
-Success: `204`. Unknown plans surface billing's `UNKNOWN_PLAN` error.
+Success: `204`. An unknown plan is billing's `400 UNKNOWN_PLAN`, which reaches
+the operator as **`DOWNSTREAM_BAD_REQUEST`** carrying billing's message —
+`UNKNOWN_PLAN` is not on the allowlist under "Downstream error mapping" above,
+and only `VALIDATION_ERROR` is preserved among 400s. Clients must switch on
+`DOWNSTREAM_BAD_REQUEST` here, not on `UNKNOWN_PLAN`.
 
 Billing emits **only** `subscription.plan_changed` for this command, including
 when it has to INSERT a subscription row for a tenant that had none —

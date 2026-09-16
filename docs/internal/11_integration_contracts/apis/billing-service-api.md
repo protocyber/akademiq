@@ -49,10 +49,18 @@ Request:
   "school_name": "string",
   "plan_id": "uuid",
   "admin_email": "string",
-  "admin_password": "string (>=8 chars)",
+  "admin_password": "string (>=8 chars)?",
   "admin_full_name": "string"
 }
 ```
+
+**`admin_password` is optional.** Omitting it registers the school without
+anyone choosing, seeing, or transporting the admin's password: IAM creates a
+`pending` account and returns a one-time link, which this endpoint forwards as
+`activation_link`. A *supplied* password is still held to the eight-character
+minimum — the optionality widens what may be absent, not what may be weak — and
+`None` must never be replaced by a placeholder, since the missing password is
+exactly what makes IAM mint a set-password token instead of hashing one.
 
 Success (201):
 
@@ -62,23 +70,42 @@ Success (201):
     "tenant_id": "uuid",
     "user_id": "uuid",
     "subscription_id": "uuid",
-    "plan_code": "starter|standard|premium"
+    "plan_code": "starter|standard|premium",
+    "activation_link": "https://app.example/set-password?token=<token>"
   },
   "meta": {}
 }
 ```
 
+`activation_link` is serialised with `skip_serializing_if = "Option::is_none"`,
+so it is **absent from the wire** — not `null` — whenever no link was minted.
+Clients must type it as optional. It is present only for a passwordless
+registration; a password-bearing one has nothing to hand over, and
+`POST /tenants/register-for-user` attaches an already-authenticated account and
+never carries one.
+
+**The link is shown once and is not retrievable afterwards.** IAM stores only an
+Argon2 hash of the token and will not mint a second one for a `pending` user, so
+this response is the only place it exists. Billing forwards IAM's URL verbatim
+rather than re-deriving one — the token resolves only on the page IAM chose
+(`/set-password`, not `/invitations/accept`) — and neither logs nor persists it.
+`RegisterTenantOutput`'s hand-written `Debug` redacts the field so a `?out`
+trace cannot print it.
+
 Errors:
 
 | Code                  | HTTP | Cause |
 |-----------------------|------|-------|
-| `VALIDATION_ERROR`    | 400  | Per-field errors (`admin_email`, `admin_password`, `school_name`, `admin_full_name`, `plan_id`). |
-| `UNKNOWN_PLAN`        | 400  | `plan_id` does not exist. |
+| `VALIDATION_ERROR`    | 400  | Per-field errors (`admin_email`, `admin_password`, `school_name`, `admin_full_name`, `plan_id`). An unknown `plan_id` is reported here, as field `plan_id`. |
+| `UNKNOWN_PLAN`        | 400  | The plan disappeared between validation and subscription creation. |
 | `EMAIL_ALREADY_EXISTS`| 409  | IAM rejected the user creation; tenant row not committed. |
 
 The handler emits `tenant.registered` and `subscription.activated`
 events via the transactional outbox before returning 201. See
 `docs/internal/11_integration_contracts/events/`.
+
+Either failure parks the saga's `pending_registration` row in `failed` with a
+`failure_reason`, readable through `GET /internal/registrations` below.
 
 ## Authenticated endpoints
 
@@ -226,6 +253,55 @@ tokens. Missing or invalid service tokens return `401 UNAUTHORIZED_SERVICE_CALL`
 These endpoints are called by platform-service; billing remains the source of
 truth for tenant status, plans, and subscriptions.
 
+### `POST /internal/tenants`
+
+Operator-initiated school registration, behind platform-service's
+`POST /platform/tenants`. Routes through the same `register_tenant` command as
+the public `POST /tenants/register`, so validation, the IAM call, the
+subscription, the outbox events, and the compensating delete on failure are
+shared rather than reimplemented.
+
+Request:
+
+```json
+{
+  "school_name": "SMA Harapan",
+  "plan_id": "uuid",
+  "admin_email": "kepala@harapan.test",
+  "admin_full_name": "Kepala Harapan"
+}
+```
+
+**There is no `admin_password` field, and there is no way to supply one.** The
+request type simply does not have it, so this route can only ever take the
+passwordless path — a property of the type rather than a convention a future
+caller can ignore. The operator console must never choose, see, or transport a
+school's password; it receives a one-time link to hand over instead.
+
+Success (**201**) — the same `RegisterTenantOutput` envelope as
+`POST /tenants/register`, where `activation_link` is therefore always present:
+
+```json
+{
+  "data": {
+    "tenant_id": "uuid",
+    "user_id": "uuid",
+    "subscription_id": "uuid",
+    "plan_code": "premium",
+    "activation_link": "https://app.example/set-password?token=<token>"
+  },
+  "meta": {}
+}
+```
+
+**The link is shown once and is not retrievable afterwards.** See
+`POST /tenants/register` above for the full rule; the recovery path when it is
+lost is IAM's operator invitation, not a re-read of this response.
+
+Errors: as `POST /tenants/register`, plus `401 UNAUTHORIZED_SERVICE_CALL` for a
+missing or wrong `X-Service-Token`. A failed registration is parked in `failed`
+with a `failure_reason`.
+
 ### `POST /internal/tenants/{tenant_id}/suspend`
 
 Suspends the tenant and emits `tenant.suspended` when state changes. Repeated
@@ -344,12 +420,36 @@ signing up and are not tenant-scoped, so no tenant JWT can authorize them.
       "iam_user_id": "uuid|null",
       "tenant_id": "uuid|null",
       "state": "user_created|tenant_created|completed|failed",
-      "attempted_at": "timestamp"
+      "attempted_at": "timestamp",
+      "failure_reason": "string|null"
     }
   ],
   "meta": { "page": 1, "page_size": 20 }
 }
 ```
+
+`failure_reason` is why a `failed` row stopped, and `null` for every other
+state. It is written only by `domain::failure_reason`, never from a raw error
+string, which fixes three properties consumers can rely on:
+
+- It is **prefixed with the `AppError` code** — `CONFLICT: …`,
+  `VALIDATION_ERROR: …` — so an operator can classify it at a glance. The prefix
+  is for a human reader; `state` remains the machine-readable signal.
+- It is **sanitised**. An `AppError::Internal` never contributes its text: it is
+  replaced wholesale with
+  `INTERNAL_ERROR: registration failed unexpectedly; see service logs`. That
+  variant wraps an arbitrary `Box<dyn Error>` — a `sqlx` driver error, a
+  `reqwest` failure, an `anyhow` chain around a downstream response body — and a
+  downstream body on this path can contain a live activation link. Every other
+  variant carries a message this codebase or IAM's error envelope authored, so
+  those are kept. The dropped detail still reaches the service log.
+- It is **truncated to 300 bytes** on a character boundary, with the trailing
+  `…` charged against the budget rather than appended to it, so one pathological
+  downstream body cannot turn a stalled registration into an unbounded row.
+
+`mark_failed` deliberately leaves `attempted_at` alone: the janitor reaps on it,
+and bumping it would buy every failed row a fresh TTL and delay cleanup of the
+orphaned IAM user the saga just abandoned.
 
 `page` defaults to 1 (floor-clamped), `page_size` defaults to 20 and is clamped
 to 1-100. The offset is computed with saturating arithmetic because this endpoint
@@ -365,8 +465,13 @@ upstream by platform-service's `GET /registrations`, which returns
 
 Lifecycle caveats for consumers:
 
-- Only `user_created` and `completed` are written today. `tenant_created` and
-  `failed` are permitted by `pending_registration_state_chk` but have no producer.
+- `failed` **has a producer**: `register_tenant` parks the row there at both of
+  its failure points — when IAM refuses to create the admin, and when
+  tenant/subscription creation fails afterwards. The second one records the
+  reason *before* the compensating IAM delete, because that delete can itself
+  fail, and the reason is the only thing that tells an operator which of the two
+  happened. `tenant_created` is still permitted by
+  `pending_registration_state_chk` with no producer.
 - The janitor (`run_pending_registration_janitor`, every 60s) deletes any
   non-`completed` row older than 5 minutes after compensating the orphaned IAM
   user and tenant. `completed` rows are retained indefinitely.

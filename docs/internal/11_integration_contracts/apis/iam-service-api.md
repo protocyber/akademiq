@@ -295,13 +295,22 @@ Success (201):
 }
 ```
 
-The raw token is returned only once. IAM stores only an Argon2 hash, sends the
-activation email when `EMAIL_PROVIDER=resend`, and emits `tenant_user.invited`.
-The activation link is built from `PUBLIC_WEB_BASE_URL`, for example
+The raw token is returned only once — **the link is shown once and is not
+retrievable afterwards.** IAM stores only an Argon2 hash, sends the activation
+email when `EMAIL_PROVIDER=resend`, and emits `tenant_user.invited`. The
+activation link is built from `PUBLIC_WEB_BASE_URL`, for example
 `https://akademiq-web.vercel.app/invitations/accept?token=<token>`.
 
+A tenant admin may assign `teacher`, `homeroom_teacher`, `principal`, `parent`,
+and `student`, plus any custom role of their own tenant. `tenant_admin` is
+**not** assignable here — a school admin must not be able to mint another school
+admin. Only a platform operator can, through
+`POST /internal/tenants/{tenant_id}/invitations`. `super_admin` is assignable
+from neither path.
+
 Errors: `VALIDATION_ERROR` (400), `ROLE_NOT_ASSIGNABLE` (400),
-`PENDING_INVITATION_EXISTS` (409), `FORBIDDEN` (403).
+`MEMBERSHIP_ALREADY_EXISTS` (409), `PENDING_INVITATION_EXISTS` (409),
+`FORBIDDEN` (403).
 
 ### `GET /tenants/me/invitations`
 
@@ -695,7 +704,19 @@ Used by `billing-service` during the registration saga, and for admin-created
 accounts. `email` and `username` are both optional: an email-less account (e.g.
 an older teacher/parent) omits `email`, and a blank `username` is auto-generated.
 At least one of `email` or `username` must end up set (the server guarantees a
-username). A passwordless account omits `password`.
+username).
+
+**`password` is optional.** Omitting it creates a `pending` account with a NULL
+`password_hash`, and the response then carries a one-time set-password token and
+the link built from it. This is how a platform operator creates a school admin
+without ever choosing, seeing, or transporting that school's credential.
+
+Omission is the *only* way to take that path. A supplied password is still held
+to the eight-character minimum — the `Option` widens what may be absent, not
+what may be weak — and must never be replaced by a placeholder or an empty
+string, which would hash to a real credential and skip token issuance. Public
+self-service signup (`POST /auth/register`) always supplies a password and is
+unaffected.
 
 Request:
 
@@ -706,29 +727,229 @@ Request:
   "password": "string?",
   "full_name": "string",
   "tenant_id": "uuid",
+  "tenant_name": "string?",
   "role_code": "tenant_admin"
 }
 ```
 
+An absent `password` key and an explicit `"password": null` are accepted
+identically. Callers should omit the key; that is the form the wire contract is
+tested against.
+
+`tenant_name`, when present and non-blank, also upserts IAM's display-name row
+for the tenant — the same write as `POST /internal/tenants/{id}` below, folded
+into the saga's first call.
+
 Success (201):
 
 ```json
-{ "data": { "user_id": "uuid", "username": "string", "email": "string|null" }, "meta": {} }
+{
+  "data": {
+    "user_id": "uuid",
+    "username": "string",
+    "email": "string|null",
+    "set_password_token": "<single-use token>|null",
+    "activation_link": "https://app.example/set-password?token=<token>|null"
+  },
+  "meta": {}
+}
 ```
+
+| Field                | When it is non-null |
+|----------------------|---------------------|
+| `set_password_token` | Only when the request omitted `password`. |
+| `activation_link`    | Exactly when `set_password_token` is; it is that token rendered as a URL. |
+
+Both are `null` for a password-bearing creation — an account that can already
+log in needs no handover.
+
+**The link is shown once and is not retrievable afterwards.** IAM stores only an
+Argon2 hash of the token, and `POST /auth/set-password/resend` will not mint a
+replacement for a `pending` account — it answers 200 with
+`set_password_token: null`, so the caller sees a success carrying nothing. This
+response is therefore the one and only place the raw value exists, and a caller
+that drops it strands the account. Do not log it, persist it, or echo it into an
+audit trail. The recovery path is
+`POST /internal/users/{user_id}/reset-password` below.
+
+The link points at `/set-password`, built from `PUBLIC_WEB_BASE_URL`. That is
+deliberate and not interchangeable with the invitation link above:
+`/invitations/accept` resolves against `tenant_invitation`, a different table,
+and rejects a set-password token with `INVALID_INVITATION_TOKEN`.
 
 Errors:
 
 | Code                       | HTTP | Cause |
 |----------------------------|------|-------|
-| `VALIDATION_ERROR`         | 400  | Field-level errors. |
+| `VALIDATION_ERROR`         | 400  | Field-level errors. A supplied `password` under 8 characters is one of them. |
 | `EMAIL_ALREADY_EXISTS`     | 409  | `email` already in `user.email` (case-insensitive). |
 | `USERNAME_TAKEN`           | 409  | `username` already taken (case-insensitive). |
 | `UNAUTHORIZED_SERVICE_CALL`| 401  | Missing or wrong `X-Service-Token`. |
+
+### `POST /internal/tenants/{tenant_id}/invitations`
+
+Operator-initiated invitation, called by platform-service for
+`POST /platform/tenants/{tenant_id}/invitations`. Reuses the same
+`invite_tenant_user` command as the tenant-scoped
+`POST /tenants/me/invitations`: token minting, the single-pending-invitation
+constraint, the membership guard, the outbox event, and the email attempt are
+one implementation. Three things differ — `tenant_id` comes from the path rather
+than a JWT, authorization is the service token rather than `user.invite`, and
+the actor may assign a wider role set.
+
+Request:
+
+```json
+{
+  "email": "admin2@school.test",
+  "roles": ["tenant_admin"],
+  "invited_by": "uuid?",
+  "issued_by_operator": "uuid?"
+}
+```
+
+`tenant_id` is **not** a body field. A platform operator holds a token with no
+tenant claim, so there is no `AuthContext` to resolve one from; the service-token
+boundary is what makes an explicit tenant acceptable here.
+
+`roles` may contain the five roles a tenant admin can assign **plus
+`tenant_admin`** — the operator's carve-out, and the reason this route exists.
+`super_admin` is assignable from neither path. A built-in role outside that set
+is `VALIDATION_ERROR` on field `roles`, with a message naming platform operators
+rather than tenant admins.
+
+`invited_by` names the tenant member credited as the inviter.
+`tenant_invitation.invited_by` is a foreign key to `"user"` and an operator is a
+member of no tenant, so a real member must be named. **platform-service never
+sends it**, so the resolution path below is what every production request
+actually uses: IAM picks one itself, preferring a `tenant_admin`, then an
+`active` account, then the oldest. A school with no `active` or `pending` member
+at all returns `404` rather than writing a dangling reference.
+
+`issued_by_operator` carries the operator who really performed this, and is
+copied into the `tenant_user.invited` event so the invitation can be joined to
+the `operator_audit` row naming the true actor. platform-service injects it from
+the caller's JWT; direct callers of this internal route should send it when an
+operator is behind the request and omit it otherwise — the key's *presence* in
+the event is the signal, so it is never emitted as an explicit null. See
+`events/tenant-user-events.md`.
+
+Success (201) — the same shape as the tenant-scoped invitation response, plus
+`tenant_id`:
+
+```json
+{
+  "data": {
+    "invitation_id": "uuid",
+    "email": "admin2@school.test",
+    "roles": ["tenant_admin"],
+    "status": "pending",
+    "expires_at": "2026-09-21T12:00:00Z",
+    "tenant_id": "uuid",
+    "activation_link": "https://app.example/invitations/accept?token=<token>",
+    "token": "<token>"
+  },
+  "meta": {}
+}
+```
+
+**The link is shown once and is not retrievable afterwards** — only the token's
+Argon2 hash is stored. It points at `/invitations/accept`, the opposite page to
+`POST /internal/users` above.
+
+Errors:
+
+| Code                        | HTTP | Cause |
+|-----------------------------|------|-------|
+| `VALIDATION_ERROR`          | 400  | `email` invalid, `roles` empty, or a built-in role this actor may not assign. |
+| `NOT_FOUND`                 | 404  | No member of the tenant can be credited as the inviter. |
+| `MEMBERSHIP_ALREADY_EXISTS` | 409  | The address already belongs to a member of this tenant. |
+| `PENDING_INVITATION_EXISTS` | 409  | The address already holds a pending invitation here. |
+| `UNAUTHORIZED_SERVICE_CALL` | 401  | Missing or wrong `X-Service-Token`. |
+
+### `POST /internal/users/{user_id}/reset-password`
+
+Mints a set-password link for an existing user on an operator's behalf. Called
+by platform-service for `POST /platform/users/{user_id}/reset-password`.
+
+**No request body.** Success (200):
+
+```json
+{
+  "data": {
+    "user_id": "uuid",
+    "set_password_link": "https://app.example/set-password?token=<token>"
+  },
+  "meta": {}
+}
+```
+
+The field is `set_password_link`, **not** `activation_link`: the name says which
+of the two token types this is, and `/invitations/accept` would reject it with
+`INVALID_INVITATION_TOKEN`. **The link is shown once and is not retrievable
+afterwards.**
+
+This route is deliberately **not** `POST /auth/set-password/resend`. That
+endpoint is public and unauthenticated, and its guard — declining whenever
+`password_hash` is set or the account is not `active` — is anti-abuse: without
+it an anonymous caller could mint a live link for someone else's account. It
+must stay exactly as it is. Two consequences follow, and both are why this route
+exists: it declines a user who already *has* a password, which is what a reset
+is for; and it declines a `pending` user, which is every operator-created admin
+who has not activated yet. Worse, it declines by returning **200 with
+`set_password_token: null`** — an anti-enumeration measure there, and an empty
+success at an operator console. The authorization the public guard supplies by
+declining is supplied here by the caller instead: the service-token boundary,
+plus platform-service's platform-admin check. This route answers with a link or
+a real error, never a hollow success.
+
+Who can be reset:
+
+| Account state | Outcome |
+|---------------|---------|
+| Does not exist | `404 NOT_FOUND` — a mistyped id must not read as a domain refusal. |
+| `disabled`    | `409 USER_DISABLED`. |
+| `pending`     | **Succeeds.** |
+| `active`      | Succeeds, with or without an existing password. |
+
+`pending` succeeding is the point, not an oversight: it is the
+stranded-invited-admin recovery path, and redeeming the link activates the
+account. `disabled` is the only refusal because `login` rejects a non-active
+user *before* it checks a password and
+`set_password_hash_activating_pending` promotes only `Pending` — so a disabled
+user would redeem the link successfully and still be unable to log in. Issuing
+one would be a silent lie; the operator's fix is to enable the account first.
+
+Issuing supersedes any unconsumed set-password link for that user, so its holder
+cannot race the operator onto the account. Refresh tokens are **not** revoked
+here — issuing a link does not yet change the password, and
+`POST /auth/set-password` already revokes them at redemption, which is when the
+credential actually changes.
+
+Errors:
+
+| Code                        | HTTP | Cause |
+|-----------------------------|------|-------|
+| `NOT_FOUND`                 | 404  | No such user. |
+| `USER_DISABLED`             | 409  | The account is disabled; enable it before resetting. |
+| `UNAUTHORIZED_SERVICE_CALL` | 401  | Missing or wrong `X-Service-Token`. |
 
 ### `DELETE /internal/users/{id}`
 
 Idempotent. Returns 204 whether or not the row existed. Same auth as
 above.
+
+### `POST /internal/tenants/{id}`
+
+Upserts the tenant profile row IAM keeps for display purposes (`tenant_name`).
+Called by billing during registration. Returns 204. A blank `tenant_name` is
+`VALIDATION_ERROR`.
+
+### `POST /internal/users/{id}/tenant-membership`
+
+Attaches an existing user to a tenant with one role code. Used by billing's
+register-for-an-existing-user path. Returns 204; an unknown user is `404`, and a
+membership that already exists is `409 MEMBERSHIP_ALREADY_EXISTS`.
 
 ## Health
 
