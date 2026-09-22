@@ -404,12 +404,13 @@ Deactivates the plan and emits a plan-catalog event. Success: `204`.
 Overrides a tenant subscription to an existing `plan_id`. Unknown plans return
 `400 UNKNOWN_PLAN`. Success: `204`.
 
-### `GET /internal/registrations?state=&page=&page_size=`
+### `GET /internal/registrations?state=&sort=&page=&page_size=`
 
 Operator listing of registration saga rows from `pending_registration`, newest
-first (`attempted_at DESC, registration_id DESC`). Service-token guarded like the
-other `internal/` routes: these rows carry the email of a user who never finished
-signing up and are not tenant-scoped, so no tenant JWT can authorize them.
+first by default (`attempted_at DESC, registration_id DESC`). Service-token
+guarded like the other `internal/` routes: these rows carry the email of a user
+who never finished signing up and are not tenant-scoped, so no tenant JWT can
+authorize them.
 
 ```json
 {
@@ -455,6 +456,14 @@ orphaned IAM user the saga just abandoned.
 to 1-100. The offset is computed with saturating arithmetic because this endpoint
 is reachable directly by any service-token holder and cannot assume the caller
 bounded `page`.
+
+`sort` accepts `attempted_at`, `email`, `state` and their `-` forms; absent or
+blank means `-attempted_at`. Unlike `state`, an unrecognised value is **rejected**
+with `VALIDATION_ERROR` on field `sort` — the chosen clause is interpolated into
+the statement, so it must come from a closed set. Operator input never reaches
+SQL: it selects one of those variants or the request fails. Every ordering ends in
+`registration_id` so paging cannot drop or duplicate a row when several sagas
+share an `attempted_at`, which a batch of registrations routinely does.
 
 `state` narrows to a single value; absent or blank lists every state. It is bound
 as a query parameter and never interpolated, and `NULL` means "no filter", so a

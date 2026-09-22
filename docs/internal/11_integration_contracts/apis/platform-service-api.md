@@ -105,7 +105,7 @@ projection (events + `scripts/bootstrap-projections.sh` backfill).
 
 ## Tenant directory
 
-### `GET /tenants?search=&page=&page_size=`
+### `GET /tenants?search=&sort=&page=&page_size=`
 
 Returns the local cross-tenant projection from `platform_tenant`.
 
@@ -128,6 +128,20 @@ truncated, since truncating would answer a question the operator did not ask.
 > unknown fields, so this endpoint returned every tenant regardless of the
 > term. Clients that appeared to search were not searching.
 
+`sort` is an **optional** ordering, written as `field` or `-field` (leading `-`
+means descending). Accepted fields: `school_name`, `status`, `current_plan_code`,
+`user_count`, `teacher_count`, `student_count`, `registered_at`. Absent or blank
+means the default, `-registered_at` (newest first). An **unknown field is
+rejected** with `VALIDATION_ERROR` on field `sort` rather than ignored — an
+endpoint that answers in a different order than the client asked for is
+indistinguishable from the swallowed-`search` defect above. Every ordering breaks
+ties on `tenant_id`, so paging cannot drop or duplicate a row.
+
+`user_count`, `teacher_count`, and `student_count` are computed per row:
+the first counts `platform_user` memberships naming the tenant, the latter two
+come from `platform_tenant_stats`. All three are `0` for a tenant with no such
+rows, never `null`.
+
 ```json
 {
   "data": [
@@ -136,7 +150,10 @@ truncated, since truncating would answer a question the operator did not ask.
       "school_name": "string",
       "status": "active|suspended|cancelled",
       "current_plan_code": "premium",
-      "registered_at": "timestamp"
+      "registered_at": "timestamp",
+      "user_count": 12,
+      "teacher_count": 8,
+      "student_count": 240
     }
   ],
   "meta": { "page": 1, "page_size": 20 }
@@ -309,7 +326,7 @@ immediately rather than waiting on the projection.
 
 ## Registration troubleshooting
 
-### `GET /registrations?state=&page=&page_size=`
+### `GET /registrations?state=&sort=&page=&page_size=`
 
 Operator listing of registration saga rows, newest first. Proxied live from
 billing's `GET /api/v1/billing/internal/registrations` over `X-Service-Token`,
@@ -339,6 +356,12 @@ ones that just failed.
 
 `iam_user_id` and `tenant_id` are exposed so an operator can trace the orphaned
 resources a half-finished saga left behind.
+
+`sort` accepts `attempted_at`, `email`, `state` and their `-` forms; absent means
+`-attempted_at`. Like `state`, it is validated against a **closed set before it
+reaches the forwarded URL** — an arbitrary string there could smuggle extra query
+parameters into billing's internal API — and an unknown value is rejected with
+`VALIDATION_ERROR` on field `sort`. Orderings break ties on `registration_id`.
 
 `failure_reason` explains why a `failed` row stopped. It is `null` for every
 other state — a row still in flight has not failed, and a `completed` one never
@@ -393,7 +416,7 @@ Reads are not audited, matching `GET /plans`.
 
 ## User lookup
 
-### `GET /users?search=&tenant=&page=&page_size=`
+### `GET /users?search=&tenant=&sort=&page=&page_size=`
 
 Cross-tenant directory from `platform_user`. `search` is an **optional**
 filter. A term matches either:
@@ -421,6 +444,12 @@ cap, and literal wildcard handling; its errors are field-scoped to `tenant`.
 A user belonging to several tenants is matched by **any** of their
 memberships. A user with no memberships matches no tenant term — belonging to
 no tenant is not belonging to the one asked for.
+
+`sort` accepts `email` and `-email`; absent means `email` (ascending), which is
+the ordering this endpoint has always used. An unknown field is rejected with
+`VALIDATION_ERROR` on field `sort`. `display_name` is deliberately **not**
+sortable: it is nullable, so ordering by it would group every unnamed account
+into one indistinguishable block. Ties break on `user_id`.
 
 > **Depends on the memberships projection.** `platform_user.memberships` used
 > to be written **only** by `scripts/bootstrap-projections.sh`: the event
@@ -490,9 +519,16 @@ NOT_FOUND`.
 
 ## Audit
 
-### `GET /audit?tenant=&page=&page_size=`
+### `GET /audit?tenant=&sort=&page=&page_size=`
 
 Read-only operator audit listing. There is no mutate/delete endpoint.
+
+`sort` accepts `created_at`, `action`, `outcome` and their `-` forms; absent
+means `-created_at` (newest first). An unknown field is rejected with
+`VALIDATION_ERROR` on field `sort`. `target_name` is **not** sortable: it comes
+from the `LEFT JOIN` below and is null for every non-tenant target, so ordering
+by it would collapse most of the log into one block — operators narrow with the
+`tenant` filter instead. Ties break on `audit_id`.
 
 `tenant` is an **optional** filter narrowing to entries that target a matching
 tenant. A term matches either the tenant's `school_name` as a
@@ -809,7 +845,7 @@ Everything else is treated as an internal detail and flattened:
 
 ## Plan catalog
 
-### `GET /plans`
+### `GET /plans?sort=`
 
 Returns the subscription-plan catalog. The request is forwarded to
 billing-service's `GET /api/v1/billing/plans` over `X-Service-Token` —
@@ -819,6 +855,17 @@ the billing source of truth. Reads are not audited.
 The billing response is adapted to the platform plan contract: feature entries
 use `code` (billing's `feature_code`), and each plan carries an explicit
 `active: true` (billing lists active plans only).
+
+`sort` accepts `name`, `price_monthly`, `price_yearly`, `active` and their `-`
+forms; absent means `name` (ascending, case-insensitive). An unknown field is
+rejected with `VALIDATION_ERROR` on field `sort`. The ordering is applied
+**here**, over the forwarded catalog, rather than pushed to billing: the catalog
+is one row per plan, and `GET /api/v1/billing/plans` is a public endpoint the
+tenant-facing registration page also consumes, so it is left unchanged. A plan
+missing the sorted field is still listed, sorting never removes a row.
+
+There is **no `search` parameter.** The console filters the catalog client-side;
+that is a deliberate limit, not an omission — see `filterPlans` in `web-admin`.
 
 ```json
 {
