@@ -630,6 +630,128 @@ Errors: `NOT_FOUND` (404). Success: `204`.
 All-or-nothing bulk delete. Request: `{ "ids": ["uuid"] }`.
 Errors: `NOT_FOUND` (404). Success: `204`.
 
+## Grade Levels
+
+Ordered grade ladder for one academic year (e.g. Kelas X → XI → XII).
+`ordinal` is what makes promotion computable (next grade = `ordinal + 1`);
+`is_final` marks the grade whose students graduate rather than advance.
+Exactly one grade level per academic year may be final — a second returns
+`VALIDATION_ERROR` (400) on the `is_final` field. All grade-level endpoints
+are gated on `academic.config.read` (GETs) and `academic.config.write`
+(writes).
+
+### `POST /academic-years/{academic_year_id}/grade-levels`
+
+Request:
+
+```json
+{ "code": "X", "label": "Kelas X", "ordinal": 1, "is_final": false }
+```
+
+`code` and `label` are `VARCHAR(64)` and must be non-empty after trimming.
+`ordinal` must be ≥ 1 and strictly below 1,000,000 (see Invariants in the
+ERD doc for why).
+
+Success (201):
+
+```json
+{
+  "data": {
+    "grade_level_id": "uuid",
+    "tenant_id": "uuid",
+    "academic_year_id": "uuid",
+    "code": "X",
+    "label": "Kelas X",
+    "ordinal": 1,
+    "is_final": false,
+    "created_at": "2026-06-19T00:00:00Z",
+    "updated_at": "2026-06-19T00:00:00Z"
+  },
+  "meta": {}
+}
+```
+
+Errors:
+
+| Code | HTTP | Cause |
+|------|------|-------|
+| `GRADE_LEVEL_CODE_TAKEN` | 409 | `code` already used by another grade level in the year. |
+| `GRADE_LEVEL_ORDINAL_TAKEN` | 409 | `ordinal` already used by another grade level in the year. |
+| `VALIDATION_ERROR` | 400 | Field validation failed, or a second `is_final = true` is submitted for the year. |
+| `NOT_FOUND` | 404 | Parent academic year not found. |
+
+### `GET /academic-years/{academic_year_id}/grade-levels`
+
+Returns all grade levels for the selected academic year, ordered by
+`ordinal`. Unpaginated (a school has at most ~13 grade levels, and the
+reorder UI needs the whole ladder in one response).
+
+```json
+{
+  "data": [
+    {
+      "grade_level_id": "uuid",
+      "tenant_id": "uuid",
+      "academic_year_id": "uuid",
+      "code": "X",
+      "label": "Kelas X",
+      "ordinal": 1,
+      "is_final": false,
+      "created_at": "2026-06-19T00:00:00Z",
+      "updated_at": "2026-06-19T00:00:00Z"
+    }
+  ],
+  "meta": {}
+}
+```
+
+### `PATCH /grade-levels/{grade_level_id}`
+
+Updates `code`, `label`, `ordinal`, and `is_final` (full replace of these
+fields; there is no partial-field variant).
+
+```json
+{ "code": "X", "label": "Kelas X", "ordinal": 1, "is_final": false }
+```
+
+Success (200): the updated grade level envelope.
+
+Errors: `GRADE_LEVEL_CODE_TAKEN` / `GRADE_LEVEL_ORDINAL_TAKEN` (409),
+`VALIDATION_ERROR` (400), `NOT_FOUND` (404).
+
+### `DELETE /grade-levels/{grade_level_id}`
+
+Deletes a grade level.
+
+Errors:
+
+| Code | HTTP | Cause |
+|------|------|-------|
+| `GRADE_LEVEL_IN_USE` | 409 | A class template still references this grade level. |
+| `NOT_FOUND` | 404 | Grade level not found. |
+
+Success: `204 No Content`.
+
+### `PUT /academic-years/{academic_year_id}/grade-levels/order`
+
+Rewrites the ladder order. Request:
+
+```json
+{ "ordered_ids": ["<uuid>", "..."] }
+```
+
+`ordered_ids` must list every grade level in the academic year exactly
+once; position in the array (1-based) becomes the new `ordinal`. Applied as
+a two-phase update inside one transaction — every row is first parked at a
+temporary ordinal ≥ 1,000,000, then assigned its final ordinal — so a
+partial failure never leaves the ladder in a mixed state; this is also why
+real ordinals must stay below 1,000,000.
+
+Success (200): the full re-ordered list, same shape as the `GET` above.
+
+Errors: `VALIDATION_ERROR` (400) when `ordered_ids` does not exactly match
+the set of grade levels in the year.
+
 ## Health
 
 ### `GET /healthz`
