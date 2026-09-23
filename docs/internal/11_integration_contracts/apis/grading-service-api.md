@@ -339,6 +339,7 @@ List all report types for an academic year in `position` order. Optional `term_i
       "code": "Rapor UTS",
       "name": "Rapor Tengah Semester",
       "position": 0,
+      "is_promotion_source": false,
       "created_at": "2026-06-10T00:00:00Z",
       "updated_at": "2026-06-10T00:00:00Z"
     }
@@ -366,9 +367,16 @@ Create a report type. Requires `grading` entitlement and `tenant_admin` role.
 {
   "academic_year_id": "uuid",
   "code": "Rapor UTS",
-  "name": "Rapor Tengah Semester"
+  "name": "Rapor Tengah Semester",
+  "is_promotion_source": false
 }
 ```
+
+`is_promotion_source` defaults to `false` when omitted. Setting it `true`
+marks this report type as the one that decides grade promotion for its
+academic year; at most one report type per `(tenant, academic_year)` may
+carry the flag — enforced in the command layer, not by a database
+constraint. Copying report types between terms does not propagate this flag.
 
 **Response 201** — report type shape (see GET above).
 
@@ -386,7 +394,7 @@ unchanged. Requires `grading` entitlement and `tenant_admin` role.
 **Request**
 
 ```json
-{ "code": "Rapor UTS", "name": "Rapor Tengah Semester", "position": 1 }
+{ "code": "Rapor UTS", "name": "Rapor Tengah Semester", "position": 1, "is_promotion_source": true }
 ```
 
 **Response 200** — updated report type shape.
@@ -396,6 +404,8 @@ unchanged. Requires `grading` entitlement and `tenant_admin` role.
 - `403 WRONG_APPROVER_ROLE`
 - `404` when the report type is not found.
 - `409 DUPLICATE_REPORT_TYPE_CODE`
+- `409 REPORT_TYPE_PROMOTION_SOURCE_TAKEN` when setting `is_promotion_source: true`
+  and another report type already holds the flag for the same academic year.
 
 ## DELETE /report-types/{id}
 
@@ -618,7 +628,10 @@ homeroom teacher.
 ## PATCH /report-cards/{id}/principal-approve
 
 Move `PrincipalApproval` → `Published`. Allowed for the principal. Emits
-`report_card.approved`.
+`report_card.published` (see
+`docs/internal/11_integration_contracts/events/report-card-published.md`),
+including the frozen per-subject scores and a publish-time
+`is_promotion_source` snapshot for the report type.
 
 ## PATCH /report-cards/{id}/reject
 

@@ -144,6 +144,24 @@ TIMETABLE {
   string end_time
 }
 
+KNOWN_REPORT_SCORE {
+  uuid tenant_id PK
+  uuid report_type_id PK
+  uuid student_id PK
+  uuid subject_id PK
+  uuid academic_year_id
+  float final_score
+  boolean is_promotion_source
+  datetime updated_at
+}
+
+KNOWN_GRADING_POLICY {
+  uuid tenant_id PK
+  uuid academic_year_id PK
+  float minimum_passing_score
+  datetime updated_at
+}
+
 STUDENT ||--o{ ENROLLMENT : has
 HOMEROOM ||--o{ ENROLLMENT : contains
 TEACHER ||--o{ TEACHING_ASSIGNMENT : teaches
@@ -153,6 +171,7 @@ TEACHER ||--o{ TIMETABLE : teaches
 STUDENT ||--o{ STUDENT_FAMILY_LINK : "linked to"
 FAMILY_PROFILE ||--o{ STUDENT_FAMILY_LINK : "linked to"
 GUARDIAN }o--|| STUDENT : "portal access for"
+STUDENT ||--o{ KNOWN_REPORT_SCORE : "scores for"
 ```
 
 ## 🧠 What This Database Owns
@@ -171,6 +190,8 @@ complete operational master data: students, teachers, family profiles, and their
 | Enrollment | Student ↔ Homeroom relationship per year |
 | TeachingAssignment | Which teacher teaches which subject in which class |
 | Timetable | Weekly schedule for classes |
+| KnownReportScore | Projection of published report-card scores, fed by `report_card.published` |
+| KnownGradingPolicy | Projection of the minimum passing score per academic year, fed by `grading_policy.configured` |
 
 ## 🔗 Important Relationships
 
@@ -191,6 +212,45 @@ lives-with-student, active/inactive status).
 - **Guardian** = explicit portal/report-card authorization grant for an IAM user to a
   student. Managed independently; creating/removing a family link must never mutate
   guardian access rows.
+
+### Promotion status values (migration V12)
+`enrollment.status` and `student.status` were widened to support grade
+promotion:
+- `enrollment.status` (and the `enrolled_student` projection mirrored in
+  grading-service, migration V13) now accepts `'promoted'` alongside
+  `'active'`, `'transferred'`, `'unenrolled'`.
+- `student.status` now accepts `'lulus'` and `'alumni'` alongside `'aktif'`,
+  `'nonaktif'`, `'arsip'`. The two are deliberately distinct: execution sets
+  `'lulus'`, and `'alumni'` follows only once the academic year is `Closed`.
+
+Grading's `enrolled_student` constraint ships in lockstep with this
+migration because it is a projection of `enrollment`; a lagging `CHECK`
+there would silently reject `promoted` events with no visible error.
+
+### Report score & grading policy projections (migration V13)
+`known_report_score` and `known_grading_policy` are local read models fed
+by RabbitMQ events (`report_card.published` and `grading_policy.configured`
+respectively) — CONVENTIONS.md forbids cross-service HTTP calls, so both
+facts arrive as events rather than live queries to grading-service /
+academic-config-service.
+
+- `known_report_score` primary key is `(tenant_id, report_type_id,
+  student_id, subject_id)` — the PK deliberately includes `report_type_id`
+  so scores from several report cards for the same student/subject coexist,
+  since a school may move the promotion-source flag to a different report
+  type after a card is published. Its `is_promotion_source` column is a
+  **snapshot taken at publish time**, not the source of truth at evaluation
+  time; the promotion engine must re-resolve the current flag from
+  academic-config rather than trust this stored value.
+- `known_grading_policy` primary key is `(tenant_id, academic_year_id)` and
+  stores `minimum_passing_score` as `DOUBLE PRECISION`, matching the
+  producer (academic-config-service) and the existing grading-service
+  projection — never `NUMERIC`.
+- `academic-ops-service` also exposes a `promotion_score_readiness` query
+  (not a table) that reports which actively-enrolled students have no row
+  in `known_report_score` for a given report type, so a future promotion
+  engine can refuse to run rather than silently treating a missing score as
+  a zero — which would mean the student repeats the year.
 
 ### Photo storage
 Student, teacher, and family profile photos are stored as a single active photo per

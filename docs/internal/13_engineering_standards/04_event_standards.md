@@ -8,7 +8,7 @@ RabbitMQ (initial implementation)
 
 Example:
 `student.enrolled`
-`report_card.approved`
+`report_card.published`
 
 ## Envelope Format
 ```json

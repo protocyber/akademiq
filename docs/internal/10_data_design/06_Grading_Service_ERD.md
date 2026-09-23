@@ -46,6 +46,7 @@ REPORT_TYPE {
   string code
   string name
   int position
+  boolean is_promotion_source
 }
 
 REPORT_FORMULA {
@@ -128,7 +129,7 @@ This service manages evaluations, grading records, report types, and report card
 | Evaluation | A scored activity (quiz, exam) scoped to `(homeroom, subject, year, term)` |
 | Evaluation Template | Per-term master evaluation list used to seed concrete evaluations |
 | Grade | Individual student score for an evaluation |
-| Report Type | A report card type scoped to `(year, term)` |
+| Report Type | A report card type scoped to `(year, term)`; at most one per `(tenant, academic_year)` may carry `is_promotion_source` |
 | Report Formula | Weight mapping of evaluations to a report type per subject |
 | Report Formula Template | Weight mapping of template evaluations to a report type |
 | Subject Report Score | Live computed score per `(report_type, subject, student)` |
@@ -149,3 +150,28 @@ Evaluation templates are term-scoped seeds. On `teacher.assigned`, grading mater
 - Evaluation template: `(tenant_id, term_id, code)` — one template column code per term.
 - Report type: `(academic_year_id, term_id, code)` — allows same code across terms.
 - Report formula template: `(report_type_id, evaluation_template_id)` — one template weight per report type/template evaluation.
+
+## Promotion Source Flag (`report_type.is_promotion_source`)
+Added in migration V12 as `BOOLEAN NOT NULL DEFAULT FALSE`. Marks which
+report type decides grade promotion for its academic year. Note the scope
+mismatch worth remembering: `report_type` itself is **term-scoped**
+(`UNIQUE (academic_year_id, term_id, code)`), but this flag is
+**year-scoped** — a year has several terms, each with its own report types,
+and at most one report type across the *whole year* may carry the flag.
+There is a partial index on `(tenant_id, academic_year_id) WHERE
+is_promotion_source` for lookups, but it is deliberately **not** a unique
+index; uniqueness is enforced in the command layer
+(`REPORT_TYPE_PROMOTION_SOURCE_TAKEN` on conflict), mirroring
+`grade_level.is_final` in academic-config-service. Copying report types
+between terms does not propagate this flag.
+
+## Report Card Published Event
+On the `Published` transition, `grading-service` emits `report_card.published`
+(see `docs/internal/11_integration_contracts/events/report-card-published.md`)
+in the same transaction as the status write and the approval-audit row. The
+`scores` payload is read from `report_subject_score` (frozen at generation
+time), and the event carries a publish-time snapshot of
+`is_promotion_source` for the card's report type. Academic Operations
+Service consumes this event to populate its `known_report_score` and
+`known_grading_policy` projections — see
+`docs/internal/10_data_design/04_Academic_Operations_ERD.md`.

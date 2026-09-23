@@ -49,5 +49,5 @@ key matches `event_type`. Breaking changes use `event_type_v2`.
 | `subscription-upgraded`   | billing-service     | [`events/subscription-upgraded.md`](./events/subscription-upgraded.md) |
 | `student.enrolled`        | academic-ops        | [`events/student-enrolled.md`](./events/student-enrolled.md) |
 | `attendance.recorded`     | attendance          | [`events/attendance-recorded.md`](./events/attendance-recorded.md) |
-| `report_card.approved`    | grading             | [`events/report-card-approved.md`](./events/report-card-approved.md) |
+| `report_card.published`   | grading             | [`events/report-card-published.md`](./events/report-card-published.md) |
 | `academic_year.closed`    | academic-config     | [`events/academic-year-closed.md`](./events/academic-year-closed.md) |

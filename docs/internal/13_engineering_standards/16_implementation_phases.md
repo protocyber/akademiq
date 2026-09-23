@@ -185,7 +185,9 @@ phase that satisfies the demo, not as a flag-day mega-PR.
 - State-machine enforcement for `Draft`, `HomeroomReview`, `PrincipalApproval`, `Published`, and `Archived` report cards.
 - Grade edit-lock: grades are locked once a report card leaves `Draft`; returning the card to `Draft` re-opens editing.
 - Year-close archival: consuming `academic_year.status_changed` with status `Archived` transitions all `Published` cards for that year to `Archived`.
-- Event emitted: `report_card.approved` (via transactional outbox).
+- Event emitted: `report_card.published` (via transactional outbox), carrying
+  frozen per-subject scores and a publish-time `is_promotion_source` snapshot
+  for the promotion projections built in the Academic Operations phase.
 - Web workflow board (`/grading/report-cards`), detail page (`/grading/report-cards/{id}`), and parent/student read-only portal (`/portal/report-card`).
 
 **Exit criteria:**
@@ -193,7 +195,7 @@ phase that satisfies the demo, not as a flag-day mega-PR.
 - A homeroom teacher can generate drafts, submit, get homeroom and principal approval, and the card is Published.
 - The approval workflow rejects illegal state transitions (409) and wrong roles (403).
 - Grades are locked once a card leaves Draft; returning unlocks them.
-- `report_card.approved` event emitted with the correct payload on principal approval.
+- `report_card.published` event emitted with the correct payload on principal approval.
 - Integration tests covering all state transitions; e2e tests cover the full chain and reject/return loop.
 
 ## Phase 6 — Tenant User Management 🚧
