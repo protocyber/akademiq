@@ -24,7 +24,7 @@
 - `min_attendance_percent` non-NULL → `VALIDATION_ERROR` (spec §2.1).
 - Commit per task, message only, **no trailers** (no `Co-authored-by`, no tool names).
 - Test baseline that must not grow: academic-config 56/1, academic-ops 65/2, iam 105/0. Known failures: `status_transition_legal_and_illegal_paths`, `import_valid_sheet_and_bad_sheet_rolls_back`, `photo_upload_validates_type_and_size_and_sets_photo_url`.
-- Run integration suites with `-- --test-threads=4`. The workstation is memory-constrained; do not run all suites in parallel.
+- Test cadence per `apps/backend/CONVENTIONS.md` §7.1: each task runs `cargo check --workspace` plus **only its own tests** by name filter (RED then GREEN). **No full service suite inside Tasks 1–8** — full suites run once, in Task 9. Integration tests always use `-- --test-threads=4`; never run suites in parallel (memory-constrained workstation).
 
 ## Review Focus
 
@@ -203,7 +203,7 @@ In `update_report_type`: `let changed = input.is_promotion_source.filter(|v| *v 
 
 In `delete_report_type`: keep the `get_report_type` lookup as `current`; open tx, `delete_report_type_on`, `if current.is_promotion_source { enqueue…(…, false) }`, commit.
 
-- [ ] **Step 5: Run the new tests + the five existing `promotion_source` tests, expect PASS.** Then the full grading suite once: `cargo test -p grading-service --test integration -- --test-threads=4` (record pass/fail counts in your report).
+- [ ] **Step 5: Run the new tests + the five existing `promotion_source` tests, expect PASS:** `cargo test -p grading-service --test integration promotion_source -- --test-threads=4`. Also run `report_card` (the publish path shares `GradeRepo`): `cargo test -p grading-service --test integration report_card -- --test-threads=4`. Do NOT run the full grading suite here — that is Task 9.
 - [ ] **Step 6: Commit** `feat(grading): publish report type promotion source changes`
 
 ---

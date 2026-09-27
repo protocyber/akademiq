@@ -37,6 +37,10 @@ ends with the human approving intent before code is written.
 Debugging starts with `systematic-debugging`. Implementation follows
 `test-driven-development`.
 
+Backend test cadence (targeted tests per task, full suites only once at the
+final gate) is defined in `apps/backend/CONVENTIONS.md` §7.1. Plans written with
+`writing-plans` must follow it.
+
 Superpowers ships as a per-harness plugin and is **not** vendored here. Install
 it once for the harness you use (<https://github.com/obra/superpowers>). The
 workflow above is a process, so it still holds if you run it by hand.
