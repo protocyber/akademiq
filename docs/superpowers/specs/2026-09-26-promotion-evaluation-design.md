@@ -71,7 +71,11 @@ was no path to ask: grading-service published exactly one event
 (`report_card.published`), and academic-ops had no `known_report_type`
 projection. Direct HTTP between services is forbidden by
 `apps/backend/CONVENTIONS.md`, so the instruction in that comment was
-unreachable. **Fix the comment as part of this plan.**
+unreachable. **Correct the record in V17, not in V13.** V13 is already applied,
+and refinery validates checksums of applied migrations — editing even a comment
+in V13 makes every existing database fail with a divergent-migration error. The
+correction lives in V17's header comment and in the `KnownReportTypeRepo` doc
+comment.
 
 So this plan builds the missing path:
 
@@ -274,6 +278,13 @@ outbox in the same transaction as the flag write:
   "is_promotion_source": true
 }
 ```
+
+It is published whenever the flag's effective value changes: create with
+`is_promotion_source = true`, an update that flips the value, and **delete of a
+report type that was the promotion source** (published with `false`). Without the
+delete case the projection would keep pointing at a report type that no longer
+exists. Copying report types never sets the flag (grading-service already
+guarantees this), so copy publishes nothing.
 
 `academic-ops` must add the routing key to `ROUTING_KEYS`
 (`services/academic-ops-service/src/events.rs`). **A match arm without an entry
