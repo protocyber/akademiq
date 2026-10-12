@@ -2361,7 +2361,7 @@ async fn closing_a_year_turns_its_graduates_into_alumni_only() {
     let other_tenant_year = seed_year(&pool, other_tenant, "Active").await;
     let other_tenants_graduate = seed_graduate(&pool, other_tenant, other_tenant_year).await;
 
-    let moved = state.known_years.apply_status_change(tenant_id, year, "Locked").await.unwrap();
+    let moved = state.known_years.apply_status_change(tenant_id, year, "Draft").await.unwrap();
     assert_eq!(moved, 0, "only Closed moves graduates");
     assert_eq!(student_status(&pool, mine).await, "lulus");
 

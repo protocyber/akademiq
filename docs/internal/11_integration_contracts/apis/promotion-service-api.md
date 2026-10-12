@@ -8,7 +8,10 @@ envelopes from `13_engineering_standards/03_api_conventions.md`, resolve
 the existing `academic_ops` entitlement (a tenant without it gets
 `403 FEATURE_NOT_AVAILABLE`). There is no separate `promotion` feature code.
 
-Design: `docs/superpowers/specs/2026-09-26-promotion-evaluation-design.md`.
+Design: `docs/superpowers/specs/2026-09-26-promotion-evaluation-design.md`
+(evaluation, Plan 3b) and
+`docs/superpowers/specs/2026-09-29-promotion-execution-design.md`
+(execution, Plan 3c).
 
 ## Model
 
@@ -18,8 +21,11 @@ report type (`known_report_type`), and writes one **decision** per evaluable
 student. At most one run per tenant and academic year may be open (status
 other than `executed`); a partial unique index enforces this.
 
-Run status: `draft` → `submitted` → `approved`. `return` sends a submitted
-run back to `draft`. Execution (`executed`) is Plan 3c and has no endpoint yet.
+Run status: `draft` → `submitted` → `approved` → `executed`. `return` sends a
+submitted run back to `draft`. Once a run is `approved`, the admin sets its
+target academic year and each promoted or retained student's target homeroom,
+then executes it. Execution moves every student in one transaction and is
+final: there is no undo, and an executed run cannot be executed again.
 
 Each decision keeps the engine's `recommended` result and the effective
 `result`. An override changes `result` only and requires a reason;
@@ -29,7 +35,7 @@ Each decision keeps the engine's `recommended` result and the effective
 
 | Permission | Granted to | Endpoints |
 |---|---|---|
-| `promotion.manage` | `tenant_admin` | create, re-evaluate, override, submit |
+| `promotion.manage` | `tenant_admin` | create, re-evaluate, override, submit, set target year, assign targets, execute |
 | `promotion.approve` | `principal` | approve, return |
 | `promotion.manage` **or** `promotion.approve` | both | every `GET` |
 
@@ -131,10 +137,16 @@ Run shape (also used by the transition endpoints):
   "status": "draft",
   "created_by": "uuid",
   "approved_by": null,
+  "target_academic_year_id": null,
+  "executed_by": null,
+  "executed_at": null,
   "created_at": "datetime",
   "updated_at": "datetime"
 }
 ```
+
+`target_academic_year_id` is set by `PUT .../target`; `executed_by` and
+`executed_at` are set by execution (an `executed` run always has all three).
 
 ### `GET /promotion-runs/:run_id`
 
@@ -148,7 +160,19 @@ Run detail:
     "kkm": 75,
     "counts": { "promote": 119, "retain": 5, "graduate": 0 },
     "overridden": 1,
-    "cannot_evaluate": ["student-uuid"]
+    "cannot_evaluate": ["student-uuid"],
+    "placement": [
+      {
+        "homeroom_id": "uuid",
+        "name": "XI IPA 1",
+        "capacity": 36,
+        "existing_active": 2,
+        "assigned": 35,
+        "total": 37,
+        "over_capacity": true
+      }
+    ],
+    "unassigned": 4
   },
   "meta": {}
 }
@@ -157,6 +181,14 @@ Run detail:
 `criteria` and `kkm` come from the run's current rule snapshot. `counts`
 group decisions by effective `result`. `cannot_evaluate` is recomputed on
 each request. Unknown or foreign run → `404`.
+
+`placement` has one entry per homeroom that is some decision's target,
+ordered by name. `existing_active` counts the homeroom's `active` enrollments
+that this run did not create; `assigned` counts the decisions targeting it;
+`total = existing_active + assigned`; `over_capacity = total > capacity`.
+`unassigned` counts `promote` / `retain` decisions without a target. Both are
+informational: capacity never blocks assignment or execution. Before any
+target is set, `placement` is `[]`.
 
 ### `GET /promotion-runs/:run_id/decisions?homeroom_id=`
 
@@ -180,11 +212,16 @@ Decision shape:
     "average": 71.4,
     "kkm_used": 75,
     "criteria": { "min_average": 70, "max_subjects_below_kkm": 2, "min_attendance_percent": null }
-  }
+  },
+  "target_homeroom_id": null,
+  "target_enrollment_id": null
 }
 ```
 
 `result` and `recommended` are always one of `promote`, `retain`, `graduate`.
+`target_homeroom_id` is set by `PATCH .../targets` (always null for
+`graduate`); `target_enrollment_id` is the enrollment execution created for a
+promoted or retained student.
 
 ### `POST /promotion-runs/:run_id/evaluate`
 
@@ -248,9 +285,150 @@ Errors:
 | — | 404 | Unknown or foreign run. |
 | `PROMOTION_RUN_INVALID_STATUS` | 409 | Run is not in the expected status; message `promotion run must be in <expected> status`. |
 
+## Execution endpoints
+
+All three require `promotion.manage` and a run in status `approved`; any
+other status → `409 PROMOTION_RUN_INVALID_STATUS` with message
+`promotion run must be in approved status`. Each locks the run row for its
+whole transaction, so they serialise against each other and against a second
+execution. Unknown or foreign run → `404`.
+
+Grade levels are matched across years by `ordinal`, because each year has its
+own grade-level ids: a `promote` decision needs a target homeroom whose grade
+level has the source ordinal + 1, a `retain` decision the same ordinal.
+`graduate` decisions have no target.
+
+### `PUT /promotion-runs/:run_id/target`
+
+Sets the run's target academic year.
+
+Request:
+
+```json
+{ "target_academic_year_id": "uuid" }
+```
+
+Validated together; every failure is reported under field
+`target_academic_year_id` in one `400 VALIDATION_ERROR`:
+
+| Message | Failure |
+|---|---|
+| `academic year not found` | Not a known year of this tenant. |
+| `target academic year must not be Closed or Archived` | |
+| `target academic year must differ from the run's academic year` | |
+| `target academic year has no grade level with ordinal <n>` | One per ordinal the decisions need and the year lacks. |
+
+Changing the year clears every decision's `target_homeroom_id` in the same
+transaction; setting the same year again clears nothing.
+
+Success (200): the run shape plus `cleared_targets` (number of targets
+cleared).
+
+### `PATCH /promotion-runs/:run_id/targets`
+
+Assigns target homerooms in bulk.
+
+Request:
+
+```json
+{
+  "assignments": [
+    { "decision_id": "uuid", "homeroom_id": "uuid" },
+    { "decision_id": "uuid", "homeroom_id": null }
+  ]
+}
+```
+
+`homeroom_id: null` clears that decision's target. At most 2,000 items.
+All or nothing: one bad item rejects the whole batch, and every problem is
+reported under field `assignments` in one `400 VALIDATION_ERROR`:
+
+| Message | Failure |
+|---|---|
+| `at most 2000 assignments per request` | Batch too large (checked first, alone). |
+| `decision <id>: assigned more than once` | Same decision twice in the batch. |
+| `decision <id>: not in this run` | Unknown decision, or one of another run or tenant. |
+| `decision <id>: graduating students have no target homeroom` | Non-null homeroom on a `graduate` decision. |
+| `decision <id>: homeroom <homeroom_id> not found` | Unknown homeroom, or one of another tenant. |
+| `decision <id>: homeroom <name> is not in the target academic year` | |
+| `decision <id>: homeroom <name> is not linked to a grade level` | |
+| `decision <id>: its source homeroom is not linked to a grade level` | The decision's own homeroom lost its grade level after evaluation, so no expected ordinal exists. |
+| `decision <id>: homeroom <name> is ordinal <actual>, expected <expected>` | Ordinal rule above. |
+
+A run without a target year → `400 VALIDATION_ERROR` on field
+`target_academic_year_id`: `set the target academic year first`.
+
+Success (200): `{ "updated": 12 }`.
+
+### `POST /promotion-runs/:run_id/execute`
+
+No body. Executes the run in one transaction. For each decision, ordered by
+homeroom then student:
+
+- the student's enrollment in the run's year → `promoted`;
+- `promote` / `retain`: a new `active` enrollment in the target homeroom,
+  recorded on the decision as `target_enrollment_id`; `retain` also writes a
+  `retention_record` whose reason is the override reason, or the failed
+  criteria (e.g. `average 65.2 below 70; 3 subjects below KKM (max 2)`);
+- `graduate`: a `graduation_record` dated today (UTC) and
+  `student.status` → `lulus`;
+- one event through the outbox (see Events).
+
+Finally the run becomes `executed` with `executed_at` and `executed_by`.
+
+Success (200): the run shape (now `executed`) plus counts:
+
+```json
+{
+  "data": {
+    "run_id": "uuid",
+    "status": "executed",
+    "target_academic_year_id": "uuid",
+    "executed_by": "uuid",
+    "executed_at": "datetime",
+    "...": "rest of the run shape",
+    "counts": { "promoted": 118, "retained": 5, "graduated": 0 }
+  },
+  "meta": {}
+}
+```
+
+Preconditions are checked inside the transaction and reported together as
+`400 VALIDATION_ERROR`; nothing is written:
+
+| Field key | Message |
+|---|---|
+| `target_academic_year` | `set the target academic year first`, or `target academic year must not be Closed or Archived`. |
+| `targets` | `student <id> has no target homeroom` — one per `promote` / `retain` decision without a target. |
+| `enrollments` | `student <id> is already enrolled in the target academic year`, or `student <id>'s enrollment is no longer active` (e.g. transferred after evaluation). |
+| `target_homerooms` | `student <id>'s target homeroom is no longer valid` — homeroom deleted, moved to another year, or its grade level relinked or renumbered since assignment. |
+
+If a conflicting enrollment is created concurrently, after the checks pass,
+the unique index `enrollment_one_active_per_student_year_uidx` rejects it and
+the whole execution rolls back as `400 VALIDATION_ERROR` on `enrollments`.
+Any other database failure is `500` and also rolls everything back.
+
+Capacity is never checked; see `placement` in the run detail.
+
+Errors:
+
+| Code | HTTP | Cause |
+|------|------|-------|
+| `VALIDATION_ERROR` | 400 | Failed preconditions (see above). |
+| `FORBIDDEN` | 403 | Missing `promotion.manage`. |
+| — | 404 | Unknown or foreign run. |
+| `PROMOTION_RUN_INVALID_STATUS` | 409 | Run is not `approved`, including a second execution, and the loser of two concurrent executions. |
+
 ## Events
 
-The promotion endpoints publish no events yet (execution, Plan 3c, will).
-They consume, through academic-ops projections:
-`report_card.published`, `grading_policy.configured`, `grade_level.*` and
-`report_type.promotion_source_changed` — see `../events/`.
+Execution publishes, through the outbox and in the same transaction, one
+event per decision: `student.promoted`, `student.retained` or
+`student.graduated` — see `../events/student-promotion-events.md`. It does
+not publish `student.enrolled` / `student.unenrolled`. The other promotion
+endpoints publish nothing.
+
+The promotion endpoints consume, through academic-ops projections:
+`report_card.published`, `grading_policy.configured`, `grade_level.*`,
+`report_type.promotion_source_changed` and `academic_year.*` — see
+`../events/`. Closing a year (`academic_year.status_changed` → `Closed`)
+turns that year's `lulus` graduates into `alumni`.
