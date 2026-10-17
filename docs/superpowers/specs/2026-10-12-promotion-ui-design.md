@@ -1,7 +1,7 @@
 # Design Spec: Promotion UI (Plan 3d)
 
 Date: 2026-10-12
-Topic: the `/promotion` web flow for promotion runs, plus the read fields it needs from academic-ops
+Topic: the `/promotion` web flow for promotion runs, the homeroom ↔ grade level link, and the read fields the flow needs from academic-ops
 Status: approved (design) — ready for `writing-plans`
 Parent spec: `docs/superpowers/specs/2026-09-23-promotion-design.md` §7
 Builds on: Plan 3b (evaluation, `2026-09-26-promotion-evaluation-design.md`) and
@@ -20,7 +20,10 @@ school admin and principal can run promotion end to end in the browser.
 Done means: on a seeded tenant, an admin creates a run, overrides a decision,
 submits; the principal approves; the admin picks the target year, fills target
 homerooms per class, sees placement against capacity, and executes — without
-leaving the web app.
+leaving the web app. That includes linking homerooms to grade levels (§3.0):
+without it no real tenant can evaluate or place anyone, because nothing in the
+product sets `homeroom.grade_level_id` today (in dev data 6 of 6 homerooms are
+unlinked).
 
 ### 1.1 What this plan deliberately does NOT do
 
@@ -47,6 +50,7 @@ leaving the web app.
 | # | Question | Decision |
 |---|---|---|
 | 1 | Scope split | **3d** = UI flow + decision/homeroom read fields; **3e** = printing |
+| 1b | Linking homerooms to grade levels | **In 3d, first task** (§3.0) — found while planning; 3d's "done" is unreachable without it |
 | 2 | Run detail structure | **One status-driven page** with tabs, not a per-stage wizard |
 | 3 | Filling target homerooms | **Per source class default + per-student correction**, saved in one PATCH |
 | 4 | Execute confirmation | **Summary dialog + typed confirmation** (target year name) |
@@ -55,7 +59,47 @@ leaving the web app.
 
 ---
 
-## 3. Backend: read fields (academic-ops-service)
+## 3. Backend (academic-ops-service)
+
+### 3.0 Homerooms carry a grade level link
+
+Today `homeroom.grade_level_id` (V15) is only ever set by V15's one-time
+backfill; `POST` / `PATCH /homerooms` accept only the free-text `grade_level`.
+Plan 3b deferred the reconciliation as "a human decision" (3b spec §7); this
+gives the human the tool.
+
+- `POST /homerooms` and `PATCH /homerooms/:id` accept an optional
+  `grade_level_id` (uuid or null).
+- When present it must be a `known_grade_level` row of the same tenant **and**
+  the homeroom's academic year; otherwise `400 VALIDATION_ERROR` on field
+  `grade_level_id`: `grade level not found in this academic year`.
+- When a grade level is set, the stored text `grade_level` is set to that
+  level's `code`, so existing screens, search and sort keep working. The
+  request's `grade_level` text is then ignored, and it may be omitted.
+- When `grade_level_id` is absent, behaviour is unchanged (text required, link
+  untouched). `null` on PATCH clears the link and keeps the text.
+- No migration: the column exists. No FK (V15's reason stands: the projection
+  is eventually consistent).
+
+Web, homeroom form (`homerooms-screen.tsx`): the free-text "Tingkat" input is
+replaced by a select of the year's grade levels (`useGradeLevels(yearId)`,
+label `label (code)`), sending `grade_level_id`. If the year has no grade
+levels yet, the select is empty with a link to Pengaturan → Akademik → Tingkat
+Kelas. The homeroom table shows a badge "Belum tertaut" for homerooms whose
+`grade_level_id` is null, so old homerooms can be fixed via Edit.
+
+Read fields used by the rest of this plan follow.
+
+### 3.0.1 Tests
+
+- Create with a valid `grade_level_id` stores the link and `grade_level` =
+  the level's code.
+- Create/patch with a grade level of another year, or of another tenant →
+  `400` on `grade_level_id`; nothing written.
+- Patch with `grade_level_id: null` clears the link.
+- Create without `grade_level_id` behaves as before.
+
+## 3a. Backend: read fields
 
 Additive fields only. No migration, no new endpoint, no new error code, no
 event.
@@ -250,7 +294,7 @@ homeroom — capacity, existing active, assigned, total, and a yellow
 
 ### 7.1 Backend
 
-§3.3, per the test cadence in `apps/backend/CONVENTIONS.md` §7.1 (targeted
+§3.0.1 and §3.3, per the test cadence in `apps/backend/CONVENTIONS.md` §7.1 (targeted
 `--exact` tests per task, full suites once at the final gate).
 
 ### 7.2 Web (Vitest, `apps/web/CONVENTIONS.md` §8)
