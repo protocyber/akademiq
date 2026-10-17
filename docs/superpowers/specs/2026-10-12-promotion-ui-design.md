@@ -135,6 +135,11 @@ Ordering stays `homeroom_id, student_id` (the web groups and sorts by name).
 The web filters target-homeroom dropdowns with the same ordinal the backend
 validates against, so the two cannot disagree.
 
+`GET /homerooms` also accepts an optional `academic_year_id` filter (added
+while planning): the existing dropdown hook reads one page of at most 100
+homerooms across every year, which silently truncates for a tenant with a few
+years of history. The placement tab and the homeroom form read one year.
+
 ### 3.3 Backend tests
 
 - Decisions list carries `full_name`, `nis`, `homeroom_name`, `source_ordinal`,
