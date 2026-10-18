@@ -292,16 +292,57 @@ Request:
 { "name": "7A", "grade_level": "7", "capacity": 32, "academic_year_id": "uuid" }
 ```
 
+or, linked to a grade level of the same year (`grade_level` may then be
+omitted; it is set to the level's `code`):
+
+```json
+{ "name": "7A", "grade_level_id": "uuid", "capacity": 32, "academic_year_id": "uuid" }
+```
+
+When `grade_level_id` is absent the old behaviour holds: `grade_level` text is
+required and the homeroom stays unlinked.
+
+Response (also the shape of every homeroom in `GET /homerooms` and of
+`PATCH /homerooms/{homeroom_id}`):
+
+```json
+{
+  "homeroom_id": "uuid", "tenant_id": "uuid", "name": "7A", "grade_level": "7",
+  "capacity": 32, "academic_year_id": "uuid", "homeroom_teacher_id": "uuid|null",
+  "grade_level_id": "uuid|null", "ordinal": 1, "enrolled_count": 0,
+  "created_at": "…", "updated_at": "…"
+}
+```
+
+`ordinal` is the linked level's `ordinal` (read-only); it is `null` when the
+homeroom is unlinked. Promotion target placement matches on it.
+
 Errors:
 
 - `400 UNKNOWN_ACADEMIC_YEAR` when the year is missing from the local projection or is not active.
+- `400 VALIDATION_ERROR` on `grade_level_id` ("grade level not found in this academic year") when the level is not a known grade level of this tenant and academic year. Nothing is written.
 - `403 SUBSCRIPTION_INACTIVE` when the tenant subscription projection is inactive.
+
+### PATCH `/homerooms/{homeroom_id}`
+
+Request: `{ "name", "grade_level", "capacity", "homeroom_teacher_id"?, "grade_level_id"? }`.
+
+The two optional ids distinguish an absent key from `null`:
+
+| Key | Absent | `null` | uuid |
+|---|---|---|---|
+| `grade_level_id` | link unchanged | link cleared | linked (must be a grade level of the homeroom's own academic year, else `400` on `grade_level_id`); `grade_level` is set to its `code` |
+| `homeroom_teacher_id` | teacher unchanged | teacher cleared | teacher set |
+
+Before Plan 3d, `homeroom_teacher_id: null` was treated as absent and did not
+clear the teacher; it now clears it.
 
 ### GET `/homerooms`
 
 Lists tenant-scoped homerooms. Accepts `search`, `sort`, `page`, `page_size`
-(see [Lists, pagination, and sorting](#lists-pagination-and-sorting)) and
-returns the paginated envelope.
+(see [Lists, pagination, and sorting](#lists-pagination-and-sorting)) and an
+optional `academic_year_id` filter (applied to both the rows and
+`meta.total`), and returns the paginated envelope.
 
 ### GET `/homerooms/{homeroom_id}/students`
 

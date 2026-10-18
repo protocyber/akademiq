@@ -214,9 +214,21 @@ Decision shape:
     "criteria": { "min_average": 70, "max_subjects_below_kkm": 2, "min_attendance_percent": null }
   },
   "target_homeroom_id": null,
-  "target_enrollment_id": null
+  "target_enrollment_id": null,
+  "full_name": "Siti Aminah",
+  "nis": "2024001",
+  "homeroom_name": "VII-A",
+  "source_ordinal": 1
 }
 ```
+
+`full_name`, `nis` (from the student), `homeroom_name` and `source_ordinal`
+(from the source homeroom and its linked grade level) are read through
+tenant-scoped joins and stay filled after execution, when the source
+enrollment is no longer active. Each is `null` when the row it comes from is
+missing; `source_ordinal` is `null` when the source homeroom is not linked to
+a grade level. The override response (`PATCH .../decisions/:decision_id`)
+returns the same shape.
 
 `result` and `recommended` are always one of `promote`, `retain`, `graduate`.
 `target_homeroom_id` is set by `PATCH .../targets` (always null for
