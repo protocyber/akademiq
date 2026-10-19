@@ -32,6 +32,8 @@ re-proposed without a new reason).
 | Dedicated `promotion.letters` permission | open | 3e spec, out of scope (Q6) | 3e uses `promotion.manage` to issue, manage-or-approve to print. |
 | Letter for retained students | not planned | 3e spec, out of scope | They appear on their class SK. |
 | Grade transcript attached to the graduation certificate | open | 3e spec, out of scope | |
+| Academic-year rename does not reach academic-ops (`known_academic_year.name`) | open | 3e spec §2.3 | academic-config emits no rename event; letters keep the name projected at creation. Add `academic_year.updated` when renames matter. |
+| Principal sees "—" for the target year name on the 3d placement tab | open | found while planning 3e | `placement-tab` reads year names via `useAcademicYears` (`academic.config.read`), which the principal lacks. Fix by reading `known_academic_year.name` through academic-ops once 3e adds it. |
 
 ## Promotion (A1) — accepted UI gaps from Plan 3d
 

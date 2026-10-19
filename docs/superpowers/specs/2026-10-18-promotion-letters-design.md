@@ -63,7 +63,7 @@ Sekolah" section with Nama and NIP.
 
 Written to billing's outbox in the same transaction as every successful
 school-profile PATCH and every logo upload/delete. It always carries the full
-current letter-relevant state, not a diff:
+current letterhead state, not a diff:
 
 ```json
 {
@@ -72,28 +72,54 @@ current letter-relevant state, not a diff:
   "npsn": "20531234",
   "principal_name": "Dra. Siti Rahayu, M.Pd.",
   "principal_nip": "196805121993032004",
-  "city_regency": "Surabaya",
   "address_line": "Jl. Pemuda 1",
+  "village": "Embong Kaliasin",
+  "subdistrict": "Genteng",
+  "city_regency": "Surabaya",
+  "province": "Jawa Timur",
+  "postal_code": "60271",
+  "phone_number": "031-123456",
+  "email": "info@smpn1.sch.id",
+  "logo_url": "/api/v1/billing/media/school/<media_id>",
   "updated_at": "RFC3339"
 }
 ```
 
-All fields except `tenant_id` and `updated_at` may be `null` (except
-`school_name`). The logo is not carried; print pages read it from billing.
+Every field except `tenant_id`, `school_name` and `updated_at` may be `null`.
+`logo_url` is the resolved public serve path (the same value
+`GET /school-profile` returns; `GET /media/...` needs no token), so a print
+page can render it without billing permissions.
 Exchange `akademiq.events`, routing key `tenant.school_profile_updated`.
 Consumer: academic-ops.
 
-### 2.3 Academic-ops projection `known_school_profile`
+### 2.3 Academic-ops projections
 
-One row per tenant with the payload fields. Upsert only when the incoming
-`updated_at` is newer than the stored one, so a late, older event never
-overwrites a newer one. No dependency on other projections.
+**`known_school_profile`** — one row per tenant with the payload fields.
+Upsert only when the incoming `updated_at` is newer than the stored one, so a
+late, older event never overwrites a newer one. No dependency on other
+projections.
+
+**`known_academic_year.name`** — new nullable column, set from
+`academic_year.created` (its payload already carries `name`). Letters and
+print data need the source and target year names, and the principal holds
+no `academic.config.read`. A rename in academic-config emits no event today,
+so a renamed year keeps its old name here (recorded in the backlog).
 
 `scripts/bootstrap-projections.sh` gains a `run_upsert` step copying
-`billing.tenant` into `academic_ops.known_school_profile` for existing tenants
-(same pattern as `known_grade_level`).
+`billing.tenant` into `academic_ops.known_school_profile`, and its existing
+`known_academic_year` step also copies `name`.
 
-### 2.4 No principal → no letter
+### 2.4 Why the print pages read only academic-ops
+
+The principal prints letters (Q6) but holds neither `billing.manage` (school
+profile) nor `academic.config.read` (year names). Every fact a print page
+needs — letterhead, year names, student identity, letter snapshot — is
+therefore returned by the academic-ops print endpoints from the two
+projections above. The letterhead (logo, address, contact) is read live from
+`known_school_profile`; only `school_name`, `principal_name`, `principal_nip`
+are snapshotted on the letter (Q1).
+
+### 2.5 No principal → no letter
 
 Issuing a letter (first issue or refresh) when the projection has no row or a
 blank `principal_name` is rejected with `400 VALIDATION_ERROR` on field
@@ -111,10 +137,19 @@ CREATE TABLE IF NOT EXISTS known_school_profile (
   npsn           VARCHAR(32),
   principal_name VARCHAR(200),
   principal_nip  VARCHAR(64),
-  city_regency   VARCHAR(200),
   address_line   VARCHAR(500),
+  village        VARCHAR(200),
+  subdistrict    VARCHAR(200),
+  city_regency   VARCHAR(200),
+  province       VARCHAR(200),
+  postal_code    VARCHAR(16),
+  phone_number   VARCHAR(64),
+  email          VARCHAR(320),
+  logo_url       VARCHAR(500),
   updated_at     TIMESTAMPTZ NOT NULL
 );
+
+ALTER TABLE known_academic_year ADD COLUMN IF NOT EXISTS name VARCHAR(100);
 
 CREATE TABLE IF NOT EXISTS promotion_class_letter (
   letter_id      UUID PRIMARY KEY,
@@ -167,9 +202,9 @@ PROMOTION_RUN_INVALID_STATUS`. Unknown or foreign run → `404`.
 | Endpoint | Permission | Behaviour |
 |---|---|---|
 | `GET /promotion-runs/:run_id/letters` | manage or approve | Summary: `school_profile` (projection row or `null`), `class_letters[]` (one per source homeroom: `homeroom_id`, `homeroom_name`, counts by result, `letter` or `null`), `certificates { graduates, issued }` |
-| `GET /promotion-runs/:run_id/class-letters/:homeroom_id` | manage or approve | Print data: the letter (or `null` → web shows "belum terbit"), academic year names (source, target), and rows `{student_id, full_name, nis, nisn, result, target_homeroom_name}` ordered by name |
+| `GET /promotion-runs/:run_id/class-letters/:homeroom_id` | manage or approve | Print data: `letterhead` (live `known_school_profile` row or `null`), `source_year_name`, `target_year_name`, `homeroom_name`, the letter (or `null` → web shows "belum terbit"), and rows `{student_id, full_name, nis, nisn, result, target_homeroom_name}` ordered by name |
 | `PUT /promotion-runs/:run_id/class-letters/:homeroom_id` | manage | Body `{letter_number, letter_date, city?}`. First call inserts with a snapshot and `issued_*` = `updated_*`. Later calls change number/date/city and `updated_*` only. Response: the letter |
-| `GET /promotion-runs/:run_id/certificates?student_id=` | manage or approve | Print data per graduate: `{student_id, full_name, nis, nisn, birth_place, birth_date, last_homeroom_name, graduation_date, certificate_number, letter_date, city, school_name, principal_name, principal_nip}`; optional filter to one student |
+| `GET /promotion-runs/:run_id/certificates?student_id=` | manage or approve | `{letterhead, source_year_name, certificates: [...]}`; each certificate `{student_id, full_name, nis, nisn, birth_place, birth_date, last_homeroom_name, graduation_date, certificate_number, letter_date, city, school_name, principal_name, principal_nip}` (letter fields `null` until issued); optional filter to one student |
 | `PUT /promotion-runs/:run_id/certificates` | manage | Body `{letter_date, city?, items:[{student_id, certificate_number}]}`, 1–2,000 items, all-or-nothing. Graduates issued for the first time get a snapshot and `issued_*`; already-issued ones get number/date/city and `updated_*`. Response `{updated: n}` |
 | `POST /promotion-runs/:run_id/letters/refresh-principal` | manage | Re-snapshots `school_name`, `principal_name`, `principal_nip` on every issued letter of the run (class letters and certificates), sets `updated_*`. Response `{updated: n}` |
 
@@ -185,7 +220,7 @@ both blank → `400` on `city`.
 | `letter_number` | `is already used by another letter` | 23505 on `promotion_class_letter_number_uidx` |
 | `letter_date` | `is required` | Missing |
 | `city` | `is required` | No value and no profile city |
-| `principal` | `school profile has no principal name` | §2.4 |
+| `principal` | `school profile has no principal name` | §2.5 |
 | `items` | `must contain between 1 and 2000 items` | Size |
 | `items` | `student <id>: not a graduate of this run` | No `graduate` decision for that student in this run |
 | `items` | `student <id>: listed more than once` | Duplicate student in batch |
@@ -232,10 +267,12 @@ map to rows. "Cetak semua" opens `/promotion/[runId]/print/certificates`
 
 Both reuse `ReportCardPrintStyles` (A4, `@media print`) and the report-card
 print page pattern: load, then `window.print()`, with a Back button that does
-not print. Every letter fact comes from the stored snapshot.
+not print. Each page makes one academic-ops call (§2.4); no billing or
+academic-config request. Letter facts come from the stored snapshot; the
+letterhead comes from `letterhead`.
 
-**SK Kenaikan Kelas:** letterhead (logo from the school profile, school name,
-NPSN, address), title "SURAT KEPUTUSAN KEPALA SEKOLAH", number, subject
+**SK Kenaikan Kelas:** letterhead (logo, NPSN, address and contact from the
+response's `letterhead`; school name from the letter snapshot), title "SURAT KEPUTUSAN KEPALA SEKOLAH", number, subject
 "Kenaikan Kelas Tahun Ajaran <source year>", a fixed decision paragraph, a
 table (No, Nama, NIS / NISN, Hasil: "Naik ke kelas <target>", "Tinggal di
 kelas <target>", "Lulus"), "<city>, <date>", signature block (Kepala Sekolah,
@@ -277,7 +314,9 @@ Backend (targeted per task; full suites once at the final gate, §7.1):
   first issue vs correction.
 - Refresh: replaces snapshots on this run's letters only.
 - Print data: class rows survive closed source enrollments; certificate data
-  carries birth place/date.
+  carries birth place/date; both carry the letterhead and year names, and a
+  principal (approve-only) token reads them.
+- `academic_year.created` stores `name` on `known_academic_year`.
 - Every endpoint rejects a foreign tenant.
 - E2E (RabbitMQ): billing PATCH → `known_school_profile` row.
 
@@ -295,7 +334,9 @@ fields. No Playwright.
 - `apis/promotion-service-api.md`: "Letters" section (six endpoints, §3.3 table).
 - `10_data_design/02_Billing_Service_ERD.md` (principal) and the academic-ops /
   promotion ERD (letter tables).
-- `scripts/bootstrap-projections.sh` comment for the new step.
+- `scripts/bootstrap-projections.sh`: the new `known_school_profile` step and
+  `name` in the `known_academic_year` step.
+- `events/academic-year-created.md`: academic-ops now projects `name`.
 
 ## 7. Out of scope
 
