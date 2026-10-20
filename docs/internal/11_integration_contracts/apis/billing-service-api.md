@@ -155,7 +155,11 @@ Errors:
 
 All require `Authorization: Bearer <access_token>` and the `billing.manage`
 permission. `tenant_id` is resolved from the JWT; body-supplied `tenant_id` is
-ignored. The profile does **not** include kepala sekolah / head-teacher linkage.
+ignored. The profile carries the principal (kepala sekolah) as free text
+(`principal_name`, `principal_nip`) for letters; it is not linked to a teacher
+record. Every successful PATCH, logo upload and logo delete publishes
+[`tenant.school_profile_updated`](../events/tenant.school_profile_updated.md)
+in the same transaction.
 
 ### `GET /tenants/me/school-profile`
 
@@ -179,7 +183,9 @@ Returns the complete school profile for the current tenant.
     "subdistrict": "Kecamatan Maju",
     "city_regency": "Kota Surabaya",
     "province": "Jawa Timur",
-    "postal_code": "60111"
+    "postal_code": "60111",
+    "principal_name": "string|null",
+    "principal_nip": "string|null"
   },
   "meta": {}
 }
@@ -204,13 +210,21 @@ Request (partial):
 }
 ```
 
+`principal_name` and `principal_nip` distinguish a missing key from `null`:
+
+| Body | Effect |
+|---|---|
+| key absent | unchanged |
+| `null` or blank string | cleared |
+| text | trimmed and stored (`principal_name` ≤ 200 chars, `principal_nip` ≤ 64 chars) |
+
 Success (200): the updated school profile (same shape as `GET`).
 
 Errors:
 
 | Code              | HTTP | Cause |
 |-------------------|------|-------|
-| `VALIDATION_ERROR`| 400  | Per-field errors (`school_level`, `school_status`, `accreditation`, `email`, etc.). |
+| `VALIDATION_ERROR`| 400  | Per-field errors (`school_level`, `school_status`, `accreditation`, `email`, etc.; `principal_name must be at most 200 characters`, `principal_nip must be at most 64 characters`). |
 | `FORBIDDEN`       | 403  | Caller lacks `billing.manage`. |
 
 ## School profile logo

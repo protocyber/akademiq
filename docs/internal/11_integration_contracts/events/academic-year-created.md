@@ -2,7 +2,10 @@
 
 Event published by `academic-config-service` after a tenant successfully
 creates an academic year through `POST /api/v1/academic-config/academic-years`.
-Academic Operations consumes this event before creating year-scoped homerooms.
+Academic Operations consumes this event before creating year-scoped homerooms,
+and stores `name` in `known_academic_year.name` for promotion letters ("Tahun
+Ajaran 2025/2026"). Renames are not propagated: academic-config publishes no
+rename event, so a renamed year keeps its original name in academic-ops.
 
 ## Envelope
 

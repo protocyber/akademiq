@@ -66,9 +66,10 @@ and owns the **school profile** (identity/contact/address/branding) for the tena
 ## 🔗 Important Relationships
 Tenants subscribe to plans via subscriptions, which generate invoices for payments.
 The tenant row carries the complete school profile (school level, NPSN, accreditation,
-address components, public/private status). School profile does **not**
-include kepala sekolah / head-teacher linkage in the current design — that coupling is
-deferred until document/signature requirements need it.
+address components, public/private status) and the principal (kepala sekolah) as free
+text — `principal_name VARCHAR(200)`, `principal_nip VARCHAR(64)`, both nullable (V5) — used
+to sign promotion letters. It is not linked to a teacher record. Profile changes are
+published as `tenant.school_profile_updated` through the outbox.
 
 ## School logo storage
 The `tenant.logo_url` column stores a host-agnostic `media://{owner_id}/{media_id}.{ext}`

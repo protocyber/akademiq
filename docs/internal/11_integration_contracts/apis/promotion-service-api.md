@@ -431,6 +431,178 @@ Errors:
 | — | 404 | Unknown or foreign run. |
 | `PROMOTION_RUN_INVALID_STATUS` | 409 | Run is not `approved`, including a second execution, and the loser of two concurrent executions. |
 
+## Letters endpoints
+
+SK Kenaikan Kelas (one per source homeroom) and Surat Keterangan Lulus (one per
+graduate) for an **executed** run. Every endpoint below returns
+`409 PROMOTION_RUN_INVALID_STATUS` ("promotion run must be in executed status")
+for any other status, and 404 for an unknown or foreign run.
+
+| Endpoint | Permission |
+|---|---|
+| `GET /promotion-runs/:run_id/letters` | `promotion.manage` or `promotion.approve` |
+| `GET /promotion-runs/:run_id/class-letters/:homeroom_id` | `promotion.manage` or `promotion.approve` |
+| `PUT /promotion-runs/:run_id/class-letters/:homeroom_id` | `promotion.manage` |
+| `GET /promotion-runs/:run_id/certificates?student_id=` | `promotion.manage` or `promotion.approve` |
+| `PUT /promotion-runs/:run_id/certificates` | `promotion.manage` |
+| `POST /promotion-runs/:run_id/letters/refresh-principal` | `promotion.manage` |
+
+**Snapshot vs live.** A letter stores `school_name`, `principal_name`,
+`principal_nip` from `known_school_profile` when it is first issued. A
+correction (second PUT) changes only number, date and city, and records
+`updated_by` / `updated_at`; previous numbers are not kept. Only
+`refresh-principal` re-reads the snapshot. The `letterhead` object (logo,
+address, NPSN, contact), student facts and year names are always read live
+from academic-ops projections, so the print pages need no billing or
+academic-config call.
+
+`letterhead` / `school_profile` objects have the shape of the
+[`tenant.school_profile_updated`](../events/tenant.school_profile_updated.md)
+payload (`null` when the tenant has no projected profile yet).
+
+### `GET /promotion-runs/:run_id/letters`
+
+```json
+{
+  "data": {
+    "school_profile": { "tenant_id": "uuid", "school_name": "…", "principal_name": "…|null", "…": "…" },
+    "class_letters": [
+      {
+        "homeroom_id": "uuid",
+        "homeroom_name": "VII-A",
+        "counts": { "promote": 30, "retain": 2, "graduate": 0 },
+        "letter": null
+      }
+    ],
+    "certificates": { "graduates": 96, "issued": 0 }
+  },
+  "meta": {}
+}
+```
+
+`letter`, when issued:
+
+```json
+{
+  "homeroom_id": "uuid",
+  "letter_number": "421/001/SK/2026",
+  "letter_date": "2026-06-20",
+  "city": "Surabaya",
+  "school_name": "SMP Negeri 1",
+  "principal_name": "Dra. Siti Rahayu",
+  "principal_nip": "string|null",
+  "issued_by": "uuid", "issued_at": "timestamp",
+  "updated_by": "uuid", "updated_at": "timestamp"
+}
+```
+
+### `GET /promotion-runs/:run_id/class-letters/:homeroom_id`
+
+Print data for one class. 404 when the homeroom is not a source homeroom of
+the run.
+
+```json
+{
+  "data": {
+    "letterhead": { "…": "…" },
+    "source_year_name": "2025/2026",
+    "target_year_name": "2026/2027",
+    "homeroom_id": "uuid",
+    "homeroom_name": "VII-A",
+    "letter": { "…": "…" },
+    "students": [
+      { "student_id": "uuid", "full_name": "…", "nis": "…", "nisn": "…|null",
+        "result": "promote|retain|graduate", "target_homeroom_name": "VIII-A|null" }
+    ]
+  },
+  "meta": {}
+}
+```
+
+`letter` is `null` until issued. Year names are `null` when the year was
+created before academic-ops stored names and the bootstrap has not run.
+
+### `PUT /promotion-runs/:run_id/class-letters/:homeroom_id`
+
+Issues or corrects the class letter.
+
+```json
+{ "letter_number": "421/001/SK/2026", "letter_date": "2026-06-20", "city": "Surabaya" }
+```
+
+`city` may be omitted or `null`; it then defaults to the projected
+`city_regency`. Success (200): the `letter` object.
+
+| Field | Message |
+|---|---|
+| `letter_number` | `is required` · `must be at most 64 characters` · `is already used by another letter` |
+| `letter_date` | `is required` |
+| `city` | `is required` (no city given and none on the school profile) |
+| `principal` | `school profile has no principal name` (first issue only) |
+
+### `GET /promotion-runs/:run_id/certificates?student_id=`
+
+Every graduate of the run, ordered by last class then name, issued or not;
+`student_id` narrows to one graduate.
+
+```json
+{
+  "data": {
+    "letterhead": { "…": "…" },
+    "source_year_name": "2025/2026",
+    "certificates": [
+      {
+        "student_id": "uuid", "full_name": "…", "nis": "…", "nisn": "…|null",
+        "birth_place": "…|null", "birth_date": "2011-03-04|null",
+        "last_homeroom_name": "IX-A", "graduation_date": "2026-06-15",
+        "certificate_number": "421.3/001/SKL/2026|null",
+        "letter_date": "date|null", "city": "…|null",
+        "school_name": "…|null", "principal_name": "…|null", "principal_nip": "…|null",
+        "issued_at": "timestamp|null", "updated_at": "timestamp|null"
+      }
+    ]
+  },
+  "meta": {}
+}
+```
+
+### `PUT /promotion-runs/:run_id/certificates`
+
+Issues or corrects certificate numbers for 1–2,000 graduates in one
+all-or-nothing transaction. Rows not listed are untouched.
+
+```json
+{
+  "letter_date": "2026-06-22",
+  "city": "Surabaya",
+  "items": [ { "student_id": "uuid", "certificate_number": "421.3/001/SKL/2026" } ]
+}
+```
+
+Numbers held by other students **in the same request** are not conflicts: the
+batch clears its own rows' numbers before writing, so two graduates can swap
+numbers. Success (200): `{ "data": { "updated": 2 }, "meta": {} }`.
+
+| Field | Message |
+|---|---|
+| `items` | `must contain between 1 and 2000 items` |
+| `items` | `student <id>: not a graduate of this run` · `student <id>: listed more than once` · `student <id>: certificate number is required` · `student <id>: certificate number must be at most 64 characters` · `student <id>: certificate number <n> is used twice in this request` · `student <id>: certificate number <n> is already used by another letter` |
+| `items` | `a certificate number is already used by another letter` (unique-index race) |
+| `letter_date` | `is required` |
+| `city` | `is required` |
+| `principal` | `school profile has no principal name` (only when the batch contains a first issue) |
+
+### `POST /promotion-runs/:run_id/letters/refresh-principal`
+
+Re-reads `known_school_profile` and overwrites `school_name`,
+`principal_name`, `principal_nip` on every issued class letter and certificate
+of the run. Numbers, dates and cities are unchanged. Success (200):
+`{ "data": { "updated": 7 }, "meta": {} }`. `400 VALIDATION_ERROR` on
+`principal` when the profile has no principal name.
+
+The letters endpoints publish no events. A database error other than the two
+letter-number unique indexes stays `500`.
+
 ## Events
 
 Execution publishes, through the outbox and in the same transaction, one

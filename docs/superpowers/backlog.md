@@ -78,6 +78,21 @@ Plan 3d (web):
 - `execute-dialog` uses `key={m}` in the field-group list; identical messages would collide — use an index key.
 - No test for the execute dialog's 409 path.
 
+Plan 3e (letters):
+- billing `repo.rs` builds the school-profile SQL with `format!` over a const column list; `concat!` would avoid the allocation.
+- billing `school_profile_event_payload` spells out `crate::domain::SchoolProfile`.
+- academic-ops `known_academic_year` upsert has no tenant guard on `ON CONFLICT (academic_year_id)` (pre-existing pattern; ids are global UUIDs).
+- `bootstrap-projections.sh` `known_school_profile` step rewrites an identical row on re-run (`<=`).
+- `class_letter_print` re-runs the whole source-homeroom aggregate to resolve one homeroom.
+- Letter writes lock the run row, serialising issuance across homerooms of one run.
+- `issue_certificates` answers 404 for a missing run before reporting validation errors.
+- No concurrent-race test for the 23505 → 400 mapping on the letter-number indexes.
+- `letters/commands.rs:274,291`: clippy `map_or` can be simplified.
+- web: principal fields use a bespoke Zod optional string instead of `optionalString`.
+- web: `mapStudentErrors` checks the UUID by charset/length only.
+- web: `class-letter-dialog` hand-rolls server field-error mapping (keeps `principal` out of form fields); `set-state-in-effect` warning as in `execute-dialog`.
+- web: `certificates-section` default letter-date comment says "last issued" but takes the first row.
+
 ## Pre-existing test failures (not caused by promotion work)
 
 Seen at every promotion final gate; tracked here until someone owns them.
@@ -85,4 +100,5 @@ Seen at every promotion final gate; tracked here until someone owns them.
 - academic-ops: `import_valid_sheet_and_bad_sheet_rolls_back`, `photo_upload_validates_type_and_size_and_sets_photo_url` (`integration.rs:1960`).
 - academic-config: `status_transition_legal_and_illegal_paths`.
 - grading: `grade_read_permits_teacher_and_denies_super_admin`, `report_read_permits_teacher_and_denies_super_admin` (409 vs 200; failing since `3c07572`).
+- academic-ops: the end-to-end consumer tests (`grade_level_created_event_is_consumed_end_to_end`, `report_type_promotion_source_event_is_consumed_end_to_end`, `school_profile_event_is_consumed_end_to_end`) are flaky under load: a fixed 3 s sleep before publishing plus a 10 s poll. Each passes alone; in the same run one or another times out. Wait for the consumer's queue binding instead of sleeping.
 - web lint: 7 unused-import errors in `src/app/grading/entry/page.tsx`, `src/app/settings/academic/terms/page.tsx`, `src/app/settings/roles/page.tsx`, `src/components/ui/form.tsx`.
