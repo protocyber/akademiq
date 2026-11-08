@@ -1,0 +1,44 @@
+# Manual-test hub container. Started by `make up` in this folder.
+# Traefik reaches it on the shared `proxy`
+# network as http://akademiq-test-hub:8090.
+#
+# The repository's docs/manual-tests is mounted read-only, so test documents
+# stay tracked in git; hub.yaml is mounted read-only too (edits on the host are
+# picked up live). Progress lives in the named volume.
+name: akademiq-test-hub
+
+services:
+  test-hub:
+    image: oven/bun:1-alpine
+    container_name: akademiq-test-hub
+    restart: unless-stopped
+    working_dir: /app
+    command: ["bun", "run", "server.ts"]
+    environment:
+      HUB_CONFIG: /config/hub.yaml
+      REPO_DIR: /repo
+      STATE_DIR: /state
+      PORT: "8090"
+      TZ: Asia/Jakarta
+    volumes:
+      - ./server.ts:/app/server.ts:ro
+      - ./config.ts:/app/config.ts:ro
+      - ./public:/app/public:ro
+      - ./:/config:ro
+      - ../../docs/manual-tests:/repo/docs/manual-tests:ro
+      - state:/state
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8090/healthz"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+    networks:
+      - proxy
+
+volumes:
+  state:
+
+networks:
+  proxy:
+    external: true
+    name: proxy

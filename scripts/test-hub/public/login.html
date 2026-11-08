@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masuk · {{TITLE}}</title>
+<script>try{var t=localStorage.getItem("test-hub-theme");document.documentElement.dataset.theme=t||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<link rel="stylesheet" href="/assets/hub.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<div class="login-wrap">
+  <form class="login" method="post" action="/login">
+    <div style="display:flex;gap:12px;align-items:center">
+      <span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3 8-8"/><path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9"/></svg></span>
+      <div><h1>{{TITLE}}</h1><p>Masuk untuk melanjutkan tes kamu.</p></div>
+    </div>
+    {{ERROR}}
+    <input type="hidden" name="next" value="{{NEXT}}">
+    <label class="field">Nama pengguna
+      <input name="username" value="{{USERNAME}}" autocomplete="username" autocapitalize="none" spellcheck="false" required autofocus>
+    </label>
+    <label class="field">Kata sandi
+      <input name="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button class="btn primary" type="submit">Masuk</button>
+  </form>
+</div>
+</body>
+</html>

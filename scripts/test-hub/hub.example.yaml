@@ -1,0 +1,39 @@
+# AkademiQ manual-test hub — configuration (compose-style YAML).
+#
+# Copy to hub.yaml (gitignored) or run `make init`. The hub re-reads this file
+# whenever it changes; no restart needed for users or titles.
+#
+# ${VAR} and ${VAR:-default} are filled from the environment and from a `.env`
+# file next to hub.yaml, like docker compose. `$$` is a literal `$`.
+#
+# Passwords are stored ONLY as argon2id hashes. Never write a plain password
+# here. Manage users with:
+#   make user-add U=fitrah NAME="Fitrah" ROLE=admin
+#   make passwd U=fitrah
+#   make users
+#
+# Progress is kept per user and per document on the server, so logging in as
+# the same user on another device continues where you left off.
+
+server:
+  title: ${HUB_TITLE:-AkademiQ Test Hub}
+  port: 8090
+  public_url: ${HUB_PUBLIC_URL:-https://akademiq-testing.oracle.fitrah.web.id}
+  timezone: Asia/Jakarta
+
+docs:
+  # Relative to the repository root (mounted read-only into the container).
+  dir: docs/manual-tests
+
+users:
+  # <id>:                 login name (lowercase, digits, . _ -)
+  #   name: "Shown name"
+  #   role: admin | tester   admin can view and reset other users' progress
+  #   password_hash: "$argon2id$..."   written by `make user-add` / `make passwd`
+  #   disabled: true         optional; blocks login, keeps progress
+  #
+  # Example (hash below is a placeholder and cannot sign in):
+  # fitrah:
+  #   name: "Fitrah"
+  #   role: admin
+  #   password_hash: "$argon2id$v=19$m=65536,t=2,p=1$REPLACE$ME"

@@ -39,6 +39,8 @@
 #   make supabase-sync # copy prod→dev Supabase DB (schema-per-service)
 #   make db-switch     # switch DB context (local ↔ dev-supabase) + purge broker
 #   make rabbitmq-purge # full reset RabbitMQ local (wipe all data)
+#   make hub-up        # start the manual-test hub (scripts/test-hub); also hub-down, hub-status, hub-logs
+#   make hub-user-add U=<id> NAME="…" ROLE=admin|tester / hub-passwd U=<id> / hub-users
 #   make help          # this help screen
 #
 # Per-machine config lives in `.env` (root, gitignored). Per-app config
@@ -61,7 +63,8 @@ TMUX_SESSION ?= akademiq
         submodules \
         up down build test test-e2e test-web test-web-admin seed migrate ps stop \
         clean clean-storage clean-storage-incremental purge doctor supabase-sync db-sync \
-        rabbitmq-purge db-switch
+        rabbitmq-purge db-switch \
+        hub-up hub-down hub-status hub-logs hub-users hub-user-add hub-passwd
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -298,3 +301,28 @@ db-switch: ## Switch DB context (local|dev-supabase). Stops services + purges br
 		exit 1; \
 	fi
 	@bash scripts/db-switch.sh $(TARGET)
+
+# -----------------------------------------------------------------------------
+# Manual-test hub (scripts/test-hub) — thin delegators
+# -----------------------------------------------------------------------------
+
+hub-up: ## Start the manual-test hub container
+	@$(MAKE) --no-print-directory -C scripts/test-hub up
+
+hub-down: ## Stop the manual-test hub (progress is kept)
+	@$(MAKE) --no-print-directory -C scripts/test-hub down
+
+hub-status: ## Manual-test hub: container, users, URL
+	@$(MAKE) --no-print-directory -C scripts/test-hub status
+
+hub-logs: ## Follow manual-test hub logs
+	@$(MAKE) --no-print-directory -C scripts/test-hub logs
+
+hub-users: ## List manual-test hub users
+	@$(MAKE) --no-print-directory -C scripts/test-hub users
+
+hub-user-add: ## Add a hub user: U=<id> NAME="Name" ROLE=admin|tester
+	@$(MAKE) --no-print-directory -C scripts/test-hub user-add U="$(U)" NAME="$(NAME)" ROLE="$(or $(ROLE),tester)"
+
+hub-passwd: ## Change a hub user's password: U=<id>
+	@$(MAKE) --no-print-directory -C scripts/test-hub passwd U="$(U)"

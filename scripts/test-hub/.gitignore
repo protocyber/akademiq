@@ -1,0 +1,5 @@
+hub.yaml
+.env
+.state/
+backup-*.tar.gz
+*.tmp

@@ -1,0 +1,475 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<title>Tes Manual Kenaikan Kelas (Promotion) — ujung ke ujung</title>
+<meta name="description" content="Plan 1–3e: prasyarat, evaluasi, override, persetujuan, penempatan, eksekusi, SK Kenaikan Kelas dan Surat Keterangan Lulus. Tenant TPQ BAITUR ROCHMAN.">
+<style>
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+  .acct { padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+  .acct b { display: block; margin-bottom: 2px; }
+  .acct small { color: var(--muted); }
+  .flow { font-family: var(--mono); font-size: 13px; background: var(--code-bg); padding: 8px 12px; border-radius: 9px; }
+</style>
+</head>
+<body>
+<!--
+  Manual test for the promotion feature (A1, plans 1–3e). Markup is read by
+  scripts/test-hub (see docs/manual-tests/README.md). Step ids are stable:
+  renaming one drops the recorded progress for that step.
+-->
+
+<aside>
+  <p><b>Cakupan.</b> Seluruh alur kenaikan kelas di web: prasyarat evaluasi, membuat evaluasi, override, ajukan / kembalikan / setujui, tahun dan kelas tujuan, penempatan dan kapasitas, eksekusi, lalu SK Kenaikan Kelas dan Surat Keterangan Lulus sampai cetak.</p>
+  <p><b>Data.</b> Tenant <b>TPQ BAITUR ROCHMAN</b>, tahun ajaran <code>2025-2026</code>, kelas A–F (tingkat A–F). Eksekusi tidak bisa di-undo; snapshot DB sudah dibuat sebelum tes dan cara restore ada di fase terakhir.</p>
+</aside>
+
+<h3>Akun dan alamat</h3>
+<div class="grid2">
+  <div class="acct"><b>Admin sekolah + wali kelas</b><code>ningnurokay@gmail.com</code><br><small>role tenant_admin (promotion.manage); di fase 2 ditambah homeroom_teacher</small></div>
+  <div class="acct"><b>Kepala sekolah</b><code>fitrah.pro@gmail.com</code><br><small>role principal (promotion.approve)</small></div>
+  <div class="acct"><b>Aplikasi</b><input data-var="app" data-default="https://akademiq.oracle.fitrah.web.id" placeholder="https://akademiq.oracle.fitrah.web.id"><br><small>ubah bila memakai alamat lain</small></div>
+</div>
+<p>Gunakan dua browser / profil (atau satu jendela incognito) supaya admin dan kepala sekolah bisa login bersamaan. Label di kanan judul tiap langkah menunjukkan siapa yang melakukannya.</p>
+<p class="flow">draft → (Ajukan) → submitted → (Setujui) → approved → (tahun &amp; kelas tujuan) → (Eksekusi) → executed → (Surat)</p>
+
+<!-- ===================================================================== -->
+<section data-phase="setup" data-title="Persiapan lingkungan">
+
+<article data-step="S1" data-title="Snapshot database sudah ada" data-who="Terminal">
+  <p>Pastikan snapshot sebelum tes tersedia (dibuat otomatis sebelum dokumen ini ditulis). Jika belum ada atau ingin snapshot baru:</p>
+  <pre><code>mkdir -p ~/tmp/akademiq-snapshots
+docker exec akademiq-postgres pg_dump -U akademiq -Fc akademiq &gt; ~/tmp/akademiq-snapshots/pre-promotion-test.dump
+ls -la ~/tmp/akademiq-snapshots/</code></pre>
+  <div class="expect"><p>File <code>pre-promotion-test.dump</code> ada dan ukurannya &gt; 1 MB.</p></div>
+</article>
+
+<article data-step="S2" data-title="Stack dev berjalan" data-who="Terminal">
+  <p>Semua service dan web harus hidup (tmux session <code>akademiq</code>, <code>make dev</code>).</p>
+  <pre><code>for p in 3009 8081 8082 8083 8084 8086 8087; do printf '%s ' $p; ss -ltn | grep -q ":$p " &amp;&amp; echo up || echo DOWN; done</code></pre>
+  <div class="expect"><p>Semua port <code>up</code>. Halaman <a class="app-link" href="{{app}}/login">login</a> terbuka.</p></div>
+</article>
+
+<article data-step="S3" data-title="Password akun uji diketahui" data-who="Terminal">
+  <p>Jika belum tahu password dua akun di atas, set password dev lewat CLI (ganti <code>&lt;password&gt;</code> sendiri; jangan pakai password produksi):</p>
+  <pre><code>cd ~/projects/akademiq/apps/backend
+cargo run -q -p akademiq-cli -- iam set-password ningnurokay@gmail.com --password '&lt;password&gt;' --execute
+cargo run -q -p akademiq-cli -- iam set-password fitrah.pro@gmail.com --password '&lt;password&gt;' --execute</code></pre>
+  <div class="expect"><p>Kedua akun bisa login dan masuk ke sekolah <b>TPQ BAITUR ROCHMAN</b>.</p></div>
+</article>
+
+<article data-step="S4" data-title="Menu Kenaikan Kelas terlihat sesuai izin" data-who="Admin + Kepala">
+  <ol>
+    <li>Login sebagai admin. Di sidebar grup akademik ada menu <b>Kenaikan Kelas</b>.</li>
+    <li>Login sebagai kepala sekolah di browser lain. Menu <b>Kenaikan Kelas</b> juga terlihat.</li>
+    <li>Kepala sekolah membuka <a class="app-link" href="{{app}}/promotion">/promotion</a>: tidak ada tombol <b>Buat evaluasi</b>.</li>
+  </ol>
+  <div class="expect"><p>Admin melihat tombol <b>Buat evaluasi</b>; kepala sekolah hanya bisa melihat daftar. Tahun ajaran terpilih otomatis <code>2025-2026</code> (tahun Active).</p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="pre" data-title="Prasyarat evaluasi (uji negatif)">
+
+<article data-step="P1" data-title="Evaluasi ditolak dengan semua alasan sekaligus" data-who="Admin">
+  <p>Data awal sengaja belum lengkap. Buka <a class="app-link" href="{{app}}/promotion">/promotion</a> → <b>Buat evaluasi</b> → biarkan kriteria kosong → <b>Jalankan evaluasi</b>.</p>
+  <div class="expect">
+    <p>Dialog menampilkan alert <b>Evaluasi belum bisa dijalankan</b> dengan semua kelompok berikut (tidak satu per satu):</p>
+    <ul>
+      <li><b>Tingkat kelas</b>: <code>exactly one final grade level is required (found 0)</code></li>
+      <li><b>Tipe rapor sumber kenaikan</b>: <code>no promotion-source report type for this year</code></li>
+      <li><b>Kelas belum tertaut ke tingkat</b>: enam pesan <code>homeroom A … F is not linked to a grade level</code></li>
+      <li><b>Kebijakan nilai (KKM)</b>: <code>no grading policy (KKM) configured for this year</code></li>
+    </ul>
+    <p>Tidak ada evaluasi yang tercipta.</p>
+  </div>
+</article>
+
+<article data-step="P2" data-title="Kriteria kehadiran belum tersedia" data-who="Admin">
+  <p>Di dialog yang sama, lihat field <b>Kehadiran minimum</b>.</p>
+  <div class="expect"><p>Field nonaktif dengan keterangan <b>Belum tersedia</b> / <b>Menunggu modul absensi.</b></p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="master" data-title="Data master: tingkat, KKM, kelas, sumber rapor">
+
+<article data-step="M1" data-title="Tandai tingkat F sebagai tingkat akhir" data-who="Admin">
+  <p>Pengaturan → Akademik → <b>Tingkat Kelas</b> (<a class="app-link" href="{{app}}/settings/academic/grade-levels">buka</a>), tahun <code>2025-2026</code>. Ubah tingkat <b>F</b> → centang <b>Tingkat akhir — siswa di tingkat ini lulus, bukan naik kelas</b> → simpan.</p>
+  <div class="expect"><p>Baris F berbadge <b>Tingkat akhir</b>. Urutan (ordinal) A=1 … F=6 tidak berubah.</p></div>
+</article>
+
+<article data-step="M2" data-title="Simpan ulang kebijakan nilai (KKM 70)" data-who="Admin">
+  <p>Pengaturan → Akademik → <b>Tahun Ajaran</b> → buka <code>2025-2026</code> → tab <b>Kebijakan Nilai</b>. Nilai KKM sudah 70; klik simpan supaya event <code>grading_policy.configured</code> terkirim ke academic-ops.</p>
+  <div class="expect"><p>Toast <b>Kebijakan nilai disimpan.</b> Opsional cek: <code>docker exec akademiq-postgres psql -U akademiq -d akademiq -Atc "select minimum_passing_score from academic_ops.known_grading_policy"</code> → <code>70</code>.</p></div>
+</article>
+
+<article data-step="M3" data-title="Admin juga diberi role wali kelas" data-who="Admin">
+  <p>Rapor hanya bisa diajukan dan disetujui wali kelas. Pengaturan → <b>Pengguna</b> → <code>ningnurokay@gmail.com</code> → <b>Tambah role</b> → <code>homeroom_teacher</code>. Lalu logout dan login lagi supaya token memuat role baru.</p>
+  <div class="expect"><p>Toast <b>Role ditambahkan.</b>; user itu kini punya role tenant_admin, teacher, homeroom_teacher.</p></div>
+</article>
+
+<article data-step="M4" data-title="Tautkan kelas A–F ke tingkat + set wali kelas" data-who="Admin">
+  <p>Menu <b>Kelas</b> (<a class="app-link" href="{{app}}/homerooms">buka</a>). Sebelumnya tiap baris berbadge <b>Belum tertaut</b>. Untuk setiap kelas A–F: <b>Edit kelas</b> → <b>Tingkat</b> = tingkat yang sama namanya → <b>Wali Kelas</b> = <b>NUR HARIYATI RUKMANA</b> → <b>Simpan</b>.</p>
+  <div class="expect"><p>Badge <b>Belum tertaut</b> hilang di keenam kelas; kolom Wali Kelas terisi. Isian Tingkat berupa pilihan (bukan teks bebas).</p></div>
+</article>
+
+<article data-step="M5" data-title="Validasi tingkat beda tahun ditolak" data-who="Admin">
+  <p>Tidak bisa dipicu dari UI (pilihan sudah difilter per tahun). Tandai <b>Skip</b> kecuali ingin menguji lewat API: <code>PATCH /api/v1/academic-ops/homerooms/&lt;id&gt;</code> dengan <code>grade_level_id</code> dari tenant / tahun lain.</p>
+  <div class="expect"><p>Bila diuji: <code>400 VALIDATION_ERROR</code> di field <code>grade_level_id</code> — <code>grade level not found in this academic year</code>.</p></div>
+</article>
+
+<article data-step="M6" data-title="Jadikan Rapor SAS sumber kenaikan (lewat console)" data-who="Admin">
+  <aside class="warn"><p><b>Celah UI yang diketahui:</b> web belum punya isian "sumber kenaikan" pada tipe rapor; flag hanya bisa diubah lewat API. Catat di catatan langkah ini bila ingin dijadikan temuan.</p></aside>
+  <p>Saat login sebagai admin di aplikasi, buka DevTools → Console, tempel:</p>
+  <pre><code>await fetch('/api/v1/grading/report-types/91deb51a-383a-49df-bb9e-54a47a6217cc', {
+  method: 'PATCH',
+  headers: { 'content-type': 'application/json', authorization: 'Bearer ' + localStorage.getItem('akademiq.access_token') },
+  body: JSON.stringify({ is_promotion_source: true }),
+}).then(r =&gt; r.json())</code></pre>
+  <div class="expect"><p>Respons <code>data.is_promotion_source: true</code>. Event <code>report_type.promotion_source_changed</code> mengisi <code>academic_ops.known_report_type</code> (<code>is_promotion_source = t</code>).</p></div>
+</article>
+
+<article data-step="M7" data-title="Prasyarat kini hanya tersisa nilai rapor" data-who="Admin">
+  <p>Ulangi <b>Buat evaluasi</b> → <b>Jalankan evaluasi</b> tanpa kriteria. Jangan lanjutkan bila evaluasi tercipta; itu berarti rapor sudah terbit sebelumnya.</p>
+  <div class="expect"><p>Evaluasi <b>tercipta</b> (prasyarat struktural lolos), tetapi semua siswa masuk tab <b>Tidak bisa dievaluasi</b> karena belum ada rapor terbit. <b>Jangan diajukan</b>: evaluasi ini dipakai lagi di fase 4 lewat <b>Evaluasi ulang</b>.</p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="report" data-title="Terbitkan rapor sumber kenaikan">
+
+<article data-step="R1" data-title="Ajukan rapor ke wali kelas (massal)" data-who="Admin">
+  <p>Menu <b>Rapor</b> (<a class="app-link" href="{{app}}/grading/report-cards">buka</a>) → <b>Jenis Rapor</b> = Rapor Sumatif Akhir, <b>Kelas</b> = A. Pilih semua rapor status Draft <b>kecuali satu siswa</b> (catat namanya) → <b>Submit ke Wali Kelas</b>. Ulangi untuk B–F memilih semua.</p>
+  <p>Siswa A yang ditinggalkan: <input data-var="unpublished_student" placeholder="nama siswa kelas A"></p>
+  <div class="expect"><p>Status rapor terpilih menjadi <b>Review Wali Kelas</b>. Satu rapor di A tetap <b>Draft</b>.</p></div>
+</article>
+
+<article data-step="R2" data-title="Wali kelas menyetujui ke kepala sekolah" data-who="Admin">
+  <p>Masih sebagai admin (sekarang juga wali kelas semua kelas): per kelas pilih rapor <b>Review Wali Kelas</b> → <b>Approve ke Kepala Sekolah</b>.</p>
+  <div class="expect"><p>Status menjadi <b>Persetujuan Kepala Sekolah</b>. Bila muncul error peran, pastikan M3 (logout/login) dan M4 (wali kelas) sudah dilakukan.</p></div>
+</article>
+
+<article data-step="R3" data-title="Kepala sekolah mempublikasikan" data-who="Kepala">
+  <p>Login sebagai kepala sekolah → menu <b>Rapor</b> → per kelas pilih rapor <b>Persetujuan Kepala Sekolah</b> → <b>Publish</b>.</p>
+  <div class="expect"><p>Status <b>Terbit</b>. Cek proyeksi: <code>docker exec akademiq-postgres psql -U akademiq -d akademiq -Atc "select count(distinct student_id) from academic_ops.known_report_score"</code> → sekitar 79 (tanpa siswa A yang ditinggalkan dan rapor tanpa nilai).</p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="eval" data-title="Evaluasi dan override">
+
+<article data-step="E1" data-title="Evaluasi ulang dengan kriteria" data-who="Admin">
+  <p>Buka evaluasi dari M7 (<b>Buka evaluasi berjalan</b> di <a class="app-link" href="{{app}}/promotion">/promotion</a>) → <b>Evaluasi ulang</b> → <b>Rata-rata minimum</b> = <code>80</code>, <b>Maksimum mapel di bawah KKM</b> = <code>2</code> → jalankan.</p>
+  <div class="expect"><p>Toast <b>Evaluasi diulang. 0 keputusan override hilang.</b> Kartu ringkasan menampilkan jumlah Naik / Tinggal / Lulus, KKM <code>70</code>, dan kriteria.</p></div>
+  <p>Catat: Naik <input data-var="n_promote" placeholder="…"> Tinggal <input data-var="n_retain" placeholder="…"> Lulus <input data-var="n_graduate" placeholder="…"></p>
+</article>
+
+<article data-step="E2" data-title="Rekomendasi sesuai aturan" data-who="Admin">
+  <p>Tab <b>Keputusan</b>, sub-tab per kelas (urut A–F). Periksa beberapa siswa:</p>
+  <ul>
+    <li>Rata-rata &lt; 80 → <b>Tinggal</b>.</li>
+    <li>Kelas A–E dengan rata-rata ≥ 80 → <b>Naik</b>.</li>
+    <li>Kelas F (tingkat akhir) dengan rata-rata ≥ 80 → <b>Lulus</b>; F dengan rata-rata &lt; 80 → <b>Tinggal</b>.</li>
+  </ul>
+  <div class="expect"><p>Kolom NIS, Nama, Rata-rata, Di bawah KKM, Rekomendasi, Hasil, Alasan terisi. Rekomendasi = Hasil untuk semua baris.</p></div>
+</article>
+
+<article data-step="E3" data-title="Tab Tidak bisa dievaluasi" data-who="Admin">
+  <p>Buka tab <b>Tidak bisa dievaluasi</b>.</p>
+  <div class="expect"><p>Berisi <span data-ref="unpublished_student"></span> (kelas A) dan siswa yang rapornya tanpa nilai (2 di B, 1 di F), dengan keterangan belum ada rapor terbit pada tipe rapor sumber kenaikan. Mereka <b>tidak</b> dihitung Tinggal.</p></div>
+</article>
+
+<article data-step="E4" data-title="Filter dan pencarian" data-who="Admin">
+  <p>Di tab Keputusan coba filter <b>Semua hasil</b> → Tinggal, centang <b>Hanya override</b>, dan <b>Cari nama atau NIS</b>.</p>
+  <div class="expect"><p>Daftar tersaring sesuai; bila kosong muncul <b>Tidak ada siswa yang cocok.</b></p></div>
+</article>
+
+<article data-step="E5" data-title="Override: alasan wajib minimal 10 karakter" data-who="Admin">
+  <p>Pilih satu siswa berhasil <b>Naik</b> → <b>Ubah</b> → hasil = Tinggal → alasan <code>kurang</code> → simpan.</p>
+  <div class="expect"><p>Form menolak dengan pesan <b>Minimal 10 karakter</b>; tidak tersimpan.</p></div>
+</article>
+
+<article data-step="E6" data-title="Override tersimpan dengan badge" data-who="Admin">
+  <p>Ulangi dengan alasan <code>Sering tidak masuk dan belum tuntas hafalan</code> → simpan. Lalu override satu siswa <b>Tinggal</b> menjadi <b>Naik</b> dengan alasan yang jelas.</p>
+  <p>Siswa yang di-override: <input data-var="override_student" placeholder="nama siswa"></p>
+  <div class="expect"><p>Toast <b>Keputusan diperbarui.</b>; baris berbadge <b>Override</b>, Rekomendasi tetap nilai mesin, Hasil berubah, Alasan tampil. Ringkasan menghitung 2 override.</p></div>
+</article>
+
+<article data-step="E7" data-title="Override yang sama dengan rekomendasi tidak perlu alasan" data-who="Admin">
+  <p>Buka <b>Ubah</b> pada siswa yang hasilnya sama dengan rekomendasi; pilih hasil yang sama dengan rekomendasi.</p>
+  <div class="expect"><p>Isian alasan bertuliskan <b>Tidak perlu: hasil sama dengan rekomendasi</b>.</p></div>
+</article>
+
+<article data-step="E8" data-title="Evaluasi ulang memperingatkan override hilang" data-who="Admin">
+  <p><b>Evaluasi ulang</b> dengan kriteria yang sama.</p>
+  <div class="expect"><p>Dialog menampilkan peringatan <b>Override akan hilang</b> (2 keputusan). Setelah dijalankan toast <b>Evaluasi diulang. 2 keputusan override hilang.</b>; badge Override hilang semua.</p></div>
+</article>
+
+<article data-step="E9" data-title="Override ulang sebelum diajukan" data-who="Admin">
+  <p>Override lagi <span data-ref="override_student"></span> (Naik → Tinggal) dengan alasan ≥ 10 karakter. Biarkan satu override ini untuk diuji di surat nanti.</p>
+  <div class="expect"><p>Satu baris berbadge Override.</p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="approve" data-title="Ajukan, kembalikan, setujui">
+
+<article data-step="A1" data-title="Ajukan evaluasi" data-who="Admin">
+  <p>Klik <b>Ajukan</b> → konfirmasi <b>Ajukan evaluasi?</b>.</p>
+  <div class="expect"><p>Toast <b>Evaluasi diajukan.</b>; indikator tahap di header pindah ke <b>Diajukan</b>; tombol Ubah dan Evaluasi ulang hilang (read-only bagi admin).</p></div>
+</article>
+
+<article data-step="A2" data-title="Admin tidak bisa menyetujui" data-who="Admin">
+  <p>Lihat bar aksi sebagai admin.</p>
+  <div class="expect"><p>Tidak ada tombol <b>Setujui</b> / <b>Kembalikan</b> untuk admin (izin promotion.approve hanya dimiliki kepala sekolah).</p></div>
+</article>
+
+<article data-step="A3" data-title="Kepala sekolah mengembalikan ke draft" data-who="Kepala">
+  <p>Kepala sekolah membuka evaluasi → <b>Kembalikan</b> → konfirmasi <b>Kembalikan ke draft?</b>.</p>
+  <div class="expect"><p>Toast <b>Evaluasi dikembalikan ke draft.</b>; status Draft; override tetap ada.</p></div>
+</article>
+
+<article data-step="A4" data-title="Admin mengajukan ulang" data-who="Admin">
+  <p>Muat ulang halaman admin → <b>Ajukan</b>.</p>
+  <div class="expect"><p>Status Diajukan lagi.</p></div>
+</article>
+
+<article data-step="A5" data-title="Kepala sekolah menyetujui" data-who="Kepala">
+  <p><b>Setujui</b> → konfirmasi <b>Setujui evaluasi?</b>.</p>
+  <div class="expect"><p>Toast <b>Evaluasi disetujui.</b>; tahap <b>Disetujui</b>; header menampilkan disetujui oleh kepala sekolah beserta tanggal. Tab <b>Penempatan</b> muncul.</p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="target" data-title="Siapkan tahun ajaran tujuan">
+
+<aside class="warn"><p>Kelas hanya bisa dibuat di tahun <b>Active</b> dan hanya boleh satu tahun Active. Jadi tahun <code>2025-2026</code> ditutup dulu, lalu tahun tujuan diaktifkan. Akibatnya lulusan tidak otomatis menjadi alumni saat eksekusi; X5 menguji jalan memutarnya.</p></aside>
+
+<article data-step="T1" data-title="Tutup semester dan tahun 2025-2026" data-who="Admin">
+  <p>Pengaturan → Akademik → <b>Semester</b>: ubah <b>Semester 1</b> dan <b>Semester 2</b> ke <b>Ditutup</b>. Lalu <b>Tahun Ajaran</b> → <code>2025-2026</code> → <b>Ubah status ke:</b> Ditutup.</p>
+  <div class="expect"><p>Menutup tahun sebelum semester ditutup ditolak (semester masih aktif). Setelah semester ditutup, tahun berstatus <b>Ditutup</b>.</p></div>
+</article>
+
+<article data-step="T2" data-title="Buat dan aktifkan tahun 2026-2027" data-who="Admin">
+  <p><b>Buat Tahun Ajaran</b> dengan nama <input data-var="target_year" data-default="2026-2027" placeholder="2026-2027"> (tanggal Juli 2026 – Juni 2027) → ubah status ke <b>Aktif</b>. Isi juga Kebijakan Nilai (KKM 70).</p>
+  <div class="expect"><p>Tahun <span data-ref="target_year"></span> berstatus Aktif.</p></div>
+</article>
+
+<article data-step="T3" data-title="Buat tingkat A–F di tahun tujuan" data-who="Admin">
+  <p>Tingkat Kelas untuk <span data-ref="target_year"></span>: <b>Tambah Tingkat Kelas</b> A (urutan 1) sampai F (urutan 6); F dicentang <b>Tingkat akhir</b>.</p>
+  <div class="expect"><p>Enam tingkat dengan urutan 1–6. Penempatan mencocokkan tingkat lintas tahun berdasarkan <b>urutan</b>, bukan nama.</p></div>
+</article>
+
+<article data-step="T4" data-title="Buat kelas tujuan (satu dengan kapasitas kecil)" data-who="Admin">
+  <p>Menu <b>Kelas</b>, tahun <span data-ref="target_year"></span>: buat kelas A–F, masing-masing tertaut ke tingkatnya. Kapasitas 20, kecuali kelas <b>B</b> beri kapasitas <code>5</code> (untuk menguji peringatan kapasitas).</p>
+  <div class="expect"><p>Enam kelas di tahun tujuan, tanpa badge Belum tertaut.</p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="place" data-title="Penempatan">
+
+<article data-step="L1" data-title="Pilih tahun tujuan" data-who="Admin">
+  <p>Evaluasi → tab <b>Penempatan</b> → <b>1. Tahun tujuan</b> → pilih <span data-ref="target_year"></span> → <b>Simpan tahun tujuan</b>.</p>
+  <div class="expect"><p>Toast <b>Tahun tujuan disimpan.</b> Pilihan tidak memuat <code>2025-2026</code> (tahun sumber) maupun tahun Ditutup/Arsip.</p></div>
+</article>
+
+<article data-step="L2" data-title="Default per kelas: Naik ke / Tinggal di" data-who="Admin">
+  <p><b>2. Kelas tujuan</b>: untuk setiap kelas sumber pilih <b>Naik ke</b> (A → B, B → C, … E → F) dan <b>Tinggal di</b> (kelas yang sama). Kelas F hanya punya Tinggal di (bila ada yang tinggal).</p>
+  <div class="expect">
+    <ul>
+      <li>Dropdown Naik ke hanya berisi kelas tingkat berikutnya; Tinggal di hanya tingkat yang sama.</li>
+      <li>Dropdown disembunyikan bila kelas itu tidak punya siswa dengan hasil tersebut.</li>
+      <li>Badge <b>N perubahan belum disimpan</b> muncul; tombol Eksekusi nonaktif selama ada perubahan.</li>
+    </ul>
+  </div>
+</article>
+
+<article data-step="L3" data-title="Koreksi per siswa tidak tertimpa default" data-who="Admin">
+  <p><b>Lihat siswa</b> pada kelas A → ubah satu siswa Naik ke kelas lain yang setingkat (bila ada) atau kosongkan. Lalu ganti lagi default Naik ke kelas A.</p>
+  <div class="expect"><p>Siswa yang dikoreksi manual tetap pada pilihannya; siswa lain mengikuti default. Lulusan F bertuliskan <b>Lulus — tanpa kelas tujuan</b>.</p></div>
+</article>
+
+<article data-step="L4" data-title="Pindah halaman dengan perubahan belum disimpan" data-who="Admin">
+  <p>Coba muat ulang halaman / klik menu lain.</p>
+  <div class="expect"><p>Browser meminta konfirmasi meninggalkan halaman. Batalkan, lalu klik <b>Simpan</b>.</p></div>
+</article>
+
+<article data-step="L5" data-title="Laporan penempatan dan peringatan kapasitas" data-who="Admin">
+  <p>Setelah disimpan, lihat <b>Laporan penempatan</b>.</p>
+  <div class="expect">
+    <p>Satu kartu per kelas tujuan: Kapasitas, Sudah ada, Ditempatkan, Total. Kelas B tujuan berbadge kuning <b>Melebihi kapasitas</b> (peringatan saja, tidak memblokir). Penghitung belum ditempatkan = 0.</p>
+  </div>
+</article>
+
+<article data-step="L6" data-title="Ganti tahun tujuan mengosongkan tujuan" data-who="Admin">
+  <p>Opsional dan merepotkan (perlu tahun Draft lain). Bila diuji: buat tahun Draft lain, pilih sebagai tahun tujuan.</p>
+  <div class="expect"><p>Dialog <b>Ganti tahun tujuan?</b> menyebut N tujuan yang sudah diisi akan dikosongkan; setelah konfirmasi toast menyebut jumlah yang dikosongkan. Kembalikan ke <span data-ref="target_year"></span> dan isi ulang.</p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="exec" data-title="Eksekusi">
+
+<article data-step="X1" data-title="Bentrok enrollment ditolak utuh" data-who="Admin">
+  <p>Sebelum eksekusi: menu <b>Kelas</b> tahun <span data-ref="target_year"></span> → roster salah satu kelas tujuan → enroll manual satu siswa yang akan naik (catat namanya). Lalu kembali ke evaluasi → <b>Eksekusi</b> → ketik nama tahun → Eksekusi.</p>
+  <p>Siswa yang dienroll manual: <input data-var="conflict_student" placeholder="nama siswa"></p>
+  <div class="expect"><p>Alert <b>Eksekusi ditolak</b>, kelompok <b>Bentrok enrollment</b> menyebut <span data-ref="conflict_student"></span> (nama, bukan UUID) sudah terdaftar di tahun tujuan. Tidak ada data yang berubah (status tetap Disetujui).</p></div>
+</article>
+
+<article data-step="X2" data-title="Konfirmasi harus mengetik nama tahun persis" data-who="Admin">
+  <p>Unenroll lagi <span data-ref="conflict_student"></span> dari kelas tujuan. Buka dialog <b>Eksekusi kenaikan kelas</b>. Ketik nama tahun dengan salah satu huruf beda.</p>
+  <div class="expect"><p>Ringkasan berisi jumlah naik/tinggal/lulus, tahun tujuan, dan <b>Kelas melebihi kapasitas</b> (B). Tombol Eksekusi aktif hanya bila teks = <span data-ref="target_year"></span> persis.</p></div>
+</article>
+
+<article data-step="X3" data-title="Eksekusi berhasil" data-who="Admin">
+  <p>Ketik nama tahun dengan benar → <b>Eksekusi</b>.</p>
+  <div class="expect"><p>Toast <b>Kenaikan kelas dieksekusi: N naik, N tinggal, N lulus.</b> sesuai catatan E1 (dengan selisih override E9). Status <b>Dieksekusi</b>; halaman read-only; tab Keputusan menampilkan kolom <b>Kelas tujuan</b>; tab <b>Surat</b> muncul.</p></div>
+</article>
+
+<article data-step="X4" data-title="Data siswa berpindah" data-who="Admin">
+  <p>Menu <b>Kelas</b>, tahun <span data-ref="target_year"></span>: roster kelas tujuan berisi siswa yang naik / tinggal. Siswa yang tidak bisa dievaluasi (E3) tetap di kelas lama 2025-2026.</p>
+  <pre><code>docker exec akademiq-postgres psql -U akademiq -d akademiq -Atc "select status, count(*) from academic_ops.enrollment group by 1 order by 1"
+docker exec akademiq-postgres psql -U akademiq -d akademiq -Atc "select status, count(*) from academic_ops.student where tenant_id='cbd5f3ea-2cfd-4e59-b66e-438b6baad214' group by 1"</code></pre>
+  <div class="expect"><p>Enrollment lama berstatus <code>promoted</code>/selesai, enrollment baru <code>active</code> di tahun tujuan; lulusan berstatus <code>lulus</code>.</p></div>
+</article>
+
+<article data-step="X5" data-title="Lulusan menjadi alumni saat tahun lulus ditutup" data-who="Admin">
+  <p><code>lulus</code> → <code>alumni</code> hanya terjadi ketika tahun kelulusan <i>berubah</i> ke Ditutup. Tahun 2025-2026 sudah ditutup di T1 (sebelum eksekusi), jadi perlu dibuka dan ditutup lagi. Hanya boleh satu tahun Aktif, sehingga urutannya:</p>
+  <ol>
+    <li>Tahun <span data-ref="target_year"></span> → ubah status ke <b>Draft</b>.</li>
+    <li>Tahun <code>2025-2026</code> → <b>Aktif</b>, lalu langsung → <b>Ditutup</b>.</li>
+    <li>Tahun <span data-ref="target_year"></span> → <b>Aktif</b> lagi.</li>
+  </ol>
+  <pre><code>docker exec akademiq-postgres psql -U akademiq -d akademiq -Atc "select status, count(*) from academic_ops.student where tenant_id='cbd5f3ea-2cfd-4e59-b66e-438b6baad214' group by 1"</code></pre>
+  <div class="expect"><p>Sebelum langkah 2 lulusan berstatus <code>lulus</code>; setelahnya <code>alumni</code> (jumlah = Lulus di X3). Siswa lain tidak berubah. Catat di catatan bila urutan ini terasa janggal bagi admin sekolah (temuan alur).</p></div>
+</article>
+
+<article data-step="X6" data-title="Evaluasi baru di tahun sumber tidak bisa dibuat lagi" data-who="Admin">
+  <p>Buka <a class="app-link" href="{{app}}/promotion">/promotion</a>, pilih tahun <code>2025-2026</code>.</p>
+  <div class="expect"><p>Evaluasi tercatat berstatus Dieksekusi dengan tanggal; tidak ada aksi lain yang bisa mengubahnya.</p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="letters" data-title="SK Kenaikan Kelas dan Surat Keterangan Lulus">
+
+<article data-step="K1" data-title="Tanpa kepala sekolah, surat terkunci" data-who="Admin">
+  <p>Tab <b>Surat</b>. Profil sekolah TPQ belum punya nama kepala sekolah.</p>
+  <div class="expect"><p>Kartu <b>Data kepala sekolah</b> menampilkan alert <b>Kepala sekolah belum diisi</b> dengan tautan ke Profil Sekolah; semua tombol Terbitkan nonaktif.</p></div>
+</article>
+
+<article data-step="K2" data-title="Isi kepala sekolah di Profil Sekolah" data-who="Admin">
+  <p>Pengaturan → <b>Profil Sekolah</b> (<a class="app-link" href="{{app}}/settings/school-profile">buka</a>) → <b>Edit Profil Sekolah</b> → bagian <b>Kepala Sekolah</b>: Nama <input data-var="principal1" data-default="Hj. Siti Aminah, S.Pd.I" placeholder="Hj. Siti Aminah, S.Pd.I">, NIP kosong (TPQ boleh tanpa NIP) → simpan.</p>
+  <div class="expect"><p>Kembali ke tab Surat (muat ulang): nama <span data-ref="principal1"></span> tampil, NIP kosong, Kota = <code>KOTA SURABAYA</code>; tombol Terbitkan aktif.</p></div>
+</article>
+
+<article data-step="K3" data-title="Daftar SK per kelas sumber" data-who="Admin">
+  <p>Lihat bagian <b>SK Kenaikan Kelas</b>.</p>
+  <div class="expect"><p>Enam baris A–F dengan Naik / Tinggal / Lulus sesuai keputusan, status <b>Belum terbit</b>, tombol Cetak nonaktif.</p></div>
+</article>
+
+<article data-step="K4" data-title="Terbitkan SK kelas A" data-who="Admin">
+  <p>Baris A → <b>Terbitkan</b> → Nomor SK <code>421.3/001/TPQ-BR/VI/2026</code>, Tanggal surat (default hari ini), Kota (default dari profil) → simpan.</p>
+  <div class="expect"><p>Toast <b>SK diterbitkan.</b>; status <b>Terbit</b>, nomor dan tanggal tampil; Cetak aktif.</p></div>
+</article>
+
+<article data-step="K5" data-title="Nomor SK ganda ditolak" data-who="Admin">
+  <p>Baris B → Terbitkan → pakai nomor yang sama <code>421.3/001/TPQ-BR/VI/2026</code>.</p>
+  <div class="expect"><p>Form menandai Nomor SK: <b>Nomor sudah dipakai surat lain</b>; tidak tersimpan. Ganti ke <code>421.3/002/TPQ-BR/VI/2026</code> → berhasil. Terbitkan juga C–F (003–006).</p></div>
+</article>
+
+<article data-step="K6" data-title="Koreksi SK mengubah nomor/tanggal saja" data-who="Admin">
+  <p>Baris A → <b>Ubah</b> → ganti tanggal ke kemarin → simpan.</p>
+  <div class="expect"><p>Toast <b>SK diperbarui.</b>; status menjadi <b>Terbit · diubah &lt;tanggal&gt;</b>. Nama kepala sekolah pada SK tetap snapshot saat terbit.</p></div>
+</article>
+
+<article data-step="K7" data-title="Cetak SK Kenaikan Kelas" data-who="Admin">
+  <p>Baris A → <b>Cetak</b> (tab baru, dialog print terbuka). Batalkan print untuk memeriksa.</p>
+  <div class="expect">
+    <ul>
+      <li>Kop: logo (bila ada), nama sekolah, alamat/kontak dari profil.</li>
+      <li>Judul <b>SURAT KEPUTUSAN KEPALA SEKOLAH</b>, nomor SK, perihal Kenaikan Kelas Tahun Ajaran <code>2025-2026</code>.</li>
+      <li>Tabel No, Nama, NIS / NISN, Hasil: <b>Naik ke kelas B</b> / <b>Tinggal di kelas A</b>; <span data-ref="override_student"></span> sesuai override.</li>
+      <li>Tempat, tanggal; blok tanda tangan Kepala Sekolah dengan nama <span data-ref="principal1"></span>, <b>tanpa</b> baris NIP.</li>
+      <li>Tombol Kembali tidak ikut tercetak; layout A4 rapi (cek Print preview).</li>
+    </ul>
+  </div>
+</article>
+
+<article data-step="K8" data-title="Isi nomor Surat Keterangan Lulus dari pola" data-who="Admin">
+  <p>Bagian <b>Surat Keterangan Lulus</b> → <b>Isi nomor dari pola</b>: Pola <code>421.3/{n}/SKL-TPQ-BR/2026</code>, Nomor awal <code>1</code>, Jumlah digit <code>3</code>, Tanggal surat hari ini, Kota default → <b>Isi nomor</b>.</p>
+  <div class="expect"><p>Kolom Nomor surat terisi berurutan 001, 002, … (urut kelas lalu nama); indikator perubahan belum disimpan muncul. Belum tersimpan ke server.</p></div>
+</article>
+
+<article data-step="K9" data-title="Pola tanpa {n} ditolak" data-who="Admin">
+  <p>Buka lagi dialog pola, isi Pola <code>421.3/SKL/2026</code>.</p>
+  <div class="expect"><p>Form menolak: pola harus memuat <code>{n}</code>.</p></div>
+</article>
+
+<article data-step="K10" data-title="Nomor ganda di draft ditandai" data-who="Admin">
+  <p>Di tabel lulusan, ubah nomor baris kedua sama dengan baris pertama.</p>
+  <div class="expect"><p>Kedua baris ditandai <b>Nomor dipakai dua kali</b>; simpan tidak mengirim sampai diperbaiki. Kembalikan nomornya, lalu <b>Simpan</b>.</p></div>
+</article>
+
+<article data-step="K11" data-title="Cetak semua dan cetak satu SKL" data-who="Admin">
+  <p><b>Cetak semua</b>, lalu <b>Cetak</b> pada satu baris.</p>
+  <div class="expect"><p>Satu halaman A4 per lulusan: judul <b>SURAT KETERANGAN LULUS</b>, nomor, identitas (nama, tempat/tanggal lahir, NIS, NISN, kelas terakhir F), "telah LULUS … Tahun Ajaran 2025-2026", tanggal lulus = tanggal eksekusi, tanda tangan <span data-ref="principal1"></span>. Cetak satu hanya berisi siswa itu.</p></div>
+</article>
+
+<article data-step="K12" data-title="Ganti kepala sekolah: surat lama tetap" data-who="Admin">
+  <p>Profil Sekolah → ganti nama kepala sekolah ke <input data-var="principal2" data-default="Drs. H. Ahmad Fauzi" placeholder="Drs. H. Ahmad Fauzi">, isi NIP <code>196805121993031004</code> → simpan. Cetak ulang SK kelas A.</p>
+  <div class="expect"><p>Kartu Data kepala sekolah di tab Surat menampilkan <span data-ref="principal2"></span>, tetapi cetakan SK yang sudah terbit masih memakai <span data-ref="principal1"></span> tanpa NIP (snapshot).</p></div>
+</article>
+
+<article data-step="K13" data-title="Perbarui data kepala sekolah pada surat" data-who="Admin">
+  <p>Tab Surat → <b>Perbarui data kepala sekolah</b> → konfirmasi.</p>
+  <div class="expect"><p>Dialog <b>Perbarui data kepala sekolah?</b> menyebut N surat akan memakai data terbaru (6 SK + jumlah SKL). Setelahnya cetakan SK dan SKL memakai <span data-ref="principal2"></span> dengan baris <b>NIP. 196805121993031004</b>; nomor dan tanggal tidak berubah.</p></div>
+</article>
+
+<article data-step="K14" data-title="Kepala sekolah: surat hanya-baca tetapi bisa cetak" data-who="Kepala">
+  <p>Login sebagai kepala sekolah → evaluasi → tab <b>Surat</b>.</p>
+  <div class="expect"><p>Daftar SK dan SKL tampil; tidak ada tombol Terbitkan / Ubah / Isi nomor / Simpan / Perbarui; tombol Cetak berfungsi dan halaman cetak termuat tanpa error izin.</p></div>
+</article>
+
+<article data-step="K15" data-title="Nama tahun tujuan di tab Penempatan (kepala sekolah)" data-who="Kepala">
+  <p>Masih sebagai kepala sekolah, buka tab <b>Penempatan</b>.</p>
+  <div class="expect"><p>Header kepala sekolah menampilkan tahun ajaran dan semester (izin <code>academic.config.read</code>, IAM V27), dan tab Penempatan menampilkan nama tahun tujuan <span data-ref="target_year"></span>, bukan <code>—</code>.</p></div>
+</article>
+
+</section>
+
+<!-- ===================================================================== -->
+<section data-phase="wrap" data-title="Penutup dan restore">
+
+<article data-step="W1" data-title="Ekspor laporan tes" data-who="Penguji">
+  <p>Klik <b>Laporan</b> di panel kiri → <b>Salin</b> / <b>Unduh .md</b>, lalu bagikan bila ada langkah Fail atau Blocked.</p>
+  <div class="expect"><p>Laporan memuat ringkasan, langkah gagal di atas beserta catatan, dan nilai yang dicatat.</p></div>
+</article>
+
+<article data-step="W2" data-title="Kembalikan database ke kondisi sebelum tes" data-who="Terminal">
+  <aside class="danger"><p>Menghapus semua hasil tes (evaluasi, tahun tujuan, surat, perubahan profil, role tambahan). Lakukan hanya bila ingin mengulang tes.</p></aside>
+  <ol>
+    <li>Hentikan stack: <code>tmux attach -t akademiq</code> lalu <kbd>q</kbd> di mprocs.</li>
+    <li>Restore dan bersihkan antrean event:</li>
+  </ol>
+  <pre><code>docker exec -i akademiq-postgres pg_restore -U akademiq -d akademiq --clean --if-exists &lt; ~/tmp/akademiq-snapshots/pre-promotion-test.dump
+bash ~/projects/akademiq/scripts/rabbitmq-purge.sh
+cd ~/projects/akademiq &amp;&amp; tmux new-session -d -s akademiq 'make dev; exec bash'</code></pre>
+  <ol start="3"><li>Reset progres di hub (tombol <b>Reset progres</b>) bila ingin mulai dari nol.</li></ol>
+  <div class="expect"><p>Tenant TPQ kembali: satu tahun <code>2025-2026</code> Aktif, kelas A–F belum tertaut, rapor Draft, tidak ada evaluasi.</p></div>
+</article>
+
+</section>
+</body>
+</html>

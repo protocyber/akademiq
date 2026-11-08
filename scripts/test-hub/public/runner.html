@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{DOC_TITLE}} · {{TITLE}}</title>
+<script>try{var t=localStorage.getItem("test-hub-theme");document.documentElement.dataset.theme=t||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<link rel="stylesheet" href="/assets/hub.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+<style id="doc-style"></style>
+</head>
+<body data-slug="{{SLUG}}">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#10b981"/></linearGradient></defs>
+</svg>
+<header class="topbar" id="topbar"></header>
+<div class="runner">
+  <aside class="side" id="side">
+    <div class="ring-box">
+      <svg class="ring" viewBox="0 0 64 64" aria-hidden="true">
+        <circle class="bg" cx="32" cy="32" r="27"/><circle class="fg" id="ring-fg" cx="32" cy="32" r="27" stroke-dasharray="169.6" stroke-dashoffset="169.6"/>
+        <text x="32" y="33" id="ring-text">0%</text>
+      </svg>
+      <div class="counts" id="counts"></div>
+    </div>
+    <div class="side-section">
+      <h4>Tampilkan</h4>
+      <div class="seg" id="filters">
+        <button type="button" data-f="" aria-pressed="true">All</button>
+        <button type="button" data-f="todo" aria-pressed="false">Untested</button>
+        <button type="button" data-f="problem" aria-pressed="false" title="Fail + Blocked">Issues</button>
+        <button type="button" data-f="notes" aria-pressed="false">Notes</button>
+      </div>
+    </div>
+    <div class="side-section" id="viewer-box" hidden>
+      <h4>Lihat progres</h4>
+      <select class="input" id="viewer"></select>
+    </div>
+    <div class="side-section">
+      <h4>Fase</h4>
+      <nav class="toc" id="toc"></nav>
+    </div>
+    <div class="side-section">
+      <h4>Aksi</h4>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn sm" type="button" id="btn-next">Langkah berikutnya</button>
+        <button class="btn sm" type="button" id="btn-report">Laporan</button>
+        <button class="btn sm" type="button" id="btn-collapse">Ringkas yang selesai</button>
+        <button class="btn sm" type="button" id="btn-keys">Pintasan <kbd>?</kbd></button>
+        <button class="btn sm danger" type="button" id="btn-reset">Reset progres</button>
+      </div>
+    </div>
+  </aside>
+  <main class="main">
+    <div class="doc-head">
+      <h1 id="doc-title">{{DOC_TITLE}}</h1>
+      <p class="lead" id="doc-summary"></p>
+      <div class="viewing" id="viewing" hidden></div>
+    </div>
+    <div class="doc" id="doc"><div class="empty">Memuat dokumen…</div></div>
+  </main>
+</div>
+
+<dialog id="dlg-report">
+  <div class="dlg-head"><h3>Laporan tes</h3><button class="btn icon ghost" data-close type="button">✕</button></div>
+  <div class="dlg-body"><textarea class="report" id="report" readonly></textarea></div>
+  <div class="dlg-foot">
+    <button class="btn" type="button" id="report-download">Unduh .md</button>
+    <button class="btn primary" type="button" id="report-copy">Salin</button>
+  </div>
+</dialog>
+
+<dialog id="dlg-keys">
+  <div class="dlg-head"><h3>Pintasan keyboard</h3><button class="btn icon ghost" data-close type="button">✕</button></div>
+  <div class="dlg-body">
+    <table class="kbd-table">
+      <tr><td><kbd>j</kbd> / <kbd>k</kbd></td><td>Langkah berikut / sebelumnya</td></tr>
+      <tr><td><kbd>Space</kbd></td><td>Lompat ke langkah berikutnya yang belum dikerjakan</td></tr>
+      <tr><td><kbd>p</kbd></td><td>Pass</td></tr>
+      <tr><td><kbd>f</kbd></td><td>Fail (lalu tulis catatan)</td></tr>
+      <tr><td><kbd>b</kbd></td><td>Blocked</td></tr>
+      <tr><td><kbd>s</kbd></td><td>Skip</td></tr>
+      <tr><td><kbd>u</kbd></td><td>Hapus status</td></tr>
+      <tr><td><kbd>n</kbd></td><td>Tulis catatan</td></tr>
+      <tr><td><kbd>x</kbd></td><td>Ringkas / buka langkah</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Keluar dari catatan</td></tr>
+      <tr><td><kbd>?</kbd></td><td>Tampilkan bantuan ini</td></tr>
+    </table>
+  </div>
+</dialog>
+
+<script type="module" src="/assets/runner.js"></script>
+</body>
+</html>

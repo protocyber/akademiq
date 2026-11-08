@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{TITLE}}</title>
+<script>try{var t=localStorage.getItem("test-hub-theme");document.documentElement.dataset.theme=t||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+<link rel="stylesheet" href="/assets/hub.css">
+<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+<header class="topbar" id="topbar"></header>
+<main class="page">
+  <div class="hero">
+    <h1>Dokumen tes manual</h1>
+    <p>Progres disimpan per user di server. Login dengan user yang sama di perangkat lain untuk melanjutkan.</p>
+  </div>
+  <div class="toolbar">
+    <label class="search"><span class="sr-only">Cari</span><span id="search-icon"></span><input id="q" type="search" placeholder="Cari dokumen…  ( / )" autocomplete="off"></label>
+  </div>
+  <div class="grid" id="list"><div class="empty">Memuat…</div></div>
+</main>
+<script type="module" src="/assets/index.js"></script>
+</body>
+</html>
