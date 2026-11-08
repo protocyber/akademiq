@@ -33,7 +33,8 @@ re-proposed without a new reason).
 | Letter for retained students | not planned | 3e spec, out of scope | They appear on their class SK. |
 | Grade transcript attached to the graduation certificate | open | 3e spec, out of scope | |
 | Academic-year rename does not reach academic-ops (`known_academic_year.name`) | open | 3e spec §2.3 | academic-config emits no rename event; letters keep the name projected at creation. Add `academic_year.updated` when renames matter. |
-| Principal sees "—" for the target year name on the 3d placement tab | open | found while planning 3e | `placement-tab` reads year names via `useAcademicYears` (`academic.config.read`), which the principal lacks. Fix by reading `known_academic_year.name` through academic-ops once 3e adds it. |
+| No web control for a report type's "promotion source" flag | open | found writing the promotion manual test (2026-11-06) | `PATCH /grading/report-types/:id` accepts `is_promotion_source`, but `reportTypeUpdateSchema` and the term form never send it, so a school cannot pass the `report_type` precondition without the API. Add a toggle in the report-type form (Semester settings). |
+| Preparing the target year forces closing the source year before execution | open | found writing the promotion manual test (2026-11-06) | Homerooms can only be created in an `Active` year and a tenant has one `Active` year, so the source year is closed first; graduates then stay `lulus` until the source year is reopened and closed again (`lulus → alumni` fires on the status change). Options: allow homerooms in `Draft` years, or run the alumni step at execution when the source year is already `Closed`. |
 
 ## Promotion (A1) — accepted UI gaps from Plan 3d
 
