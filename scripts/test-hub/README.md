@@ -70,8 +70,9 @@ Roles:
 
 - Mark each step **Pass / Fail / Blocked / Skipped** (unmarked = Untested);
   marking Fail jumps to the note. Notes save as you type.
-- Sidebar: overall ring, per-phase progress, filters (All / Untested /
-  Issues = Fail + Blocked / Notes), "Langkah berikutnya", "Laporan" (Markdown report with failures
+- Sidebar: overall ring with counts — click a count (Pass, Fail, Blocked,
+  Skipped, Untested, Notes) to show only those steps; "Tampilkan semua" or
+  `Esc` clears it. Per-phase progress, "Langkah berikutnya", "Laporan" (Markdown report with failures
   first), "Reset progres".
 - Keyboard: `j`/`k` move, `Space` next open step, `p` `f` `b` `s` set status,
   `u` clear, `n` note, `x` collapse, `?` help.

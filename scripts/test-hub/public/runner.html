@@ -23,15 +23,7 @@
       </svg>
       <div class="counts" id="counts"></div>
     </div>
-    <div class="side-section">
-      <h4>Tampilkan</h4>
-      <div class="seg" id="filters">
-        <button type="button" data-f="" aria-pressed="true">All</button>
-        <button type="button" data-f="todo" aria-pressed="false">Untested</button>
-        <button type="button" data-f="problem" aria-pressed="false" title="Fail + Blocked">Issues</button>
-        <button type="button" data-f="notes" aria-pressed="false">Notes</button>
-      </div>
-    </div>
+    <div class="filter-line" id="filter-line" aria-live="polite"></div>
     <div class="side-section" id="viewer-box" hidden>
       <h4>Lihat progres</h4>
       <select class="input" id="viewer"></select>
@@ -57,6 +49,7 @@
       <p class="lead" id="doc-summary"></p>
       <div class="viewing" id="viewing" hidden></div>
     </div>
+    <div class="empty" id="filter-empty" hidden></div>
     <div class="doc" id="doc"><div class="empty">Memuat dokumen…</div></div>
   </main>
 </div>
@@ -83,7 +76,7 @@
       <tr><td><kbd>u</kbd></td><td>Hapus status</td></tr>
       <tr><td><kbd>n</kbd></td><td>Tulis catatan</td></tr>
       <tr><td><kbd>x</kbd></td><td>Ringkas / buka langkah</td></tr>
-      <tr><td><kbd>Esc</kbd></td><td>Keluar dari catatan</td></tr>
+      <tr><td><kbd>Esc</kbd></td><td>Keluar dari catatan / hapus filter</td></tr>
       <tr><td><kbd>?</kbd></td><td>Tampilkan bantuan ini</td></tr>
     </table>
   </div>

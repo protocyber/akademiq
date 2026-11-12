@@ -34,6 +34,7 @@ let progress = { rev: 0, steps: {}, vars: {} };
 let viewing = null; // user id when an admin views someone else's progress
 let stepEls = [];
 let focused = -1;
+let filter = ""; // active step filter (see FILTERS)
 let defaults = {};
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -314,10 +315,12 @@ function paintSummary() {
   const pct = c.total ? Math.round((100 * c.done) / c.total) : 0;
   $("#ring-fg").style.strokeDashoffset = String(169.6 * (1 - pct / 100));
   $("#ring-text").textContent = `${pct}%`;
-  $("#counts").innerHTML = `
-    <span><i class="dot pass"></i>Pass <b>${c.pass}</b></span><span><i class="dot fail"></i>Fail <b>${c.fail}</b></span>
-    <span><i class="dot blocked"></i>Blocked <b>${c.blocked}</b></span><span><i class="dot skip"></i>Skipped <b>${c.skip}</b></span>
-    <span><i class="dot todo"></i>Untested <b>${c.total - c.done}</b></span><span><i class="dot notes"></i>Notes <b>${c.notes}</b></span>`;
+  const item = (f, dot, label, n) =>
+    `<button type="button" data-f="${f}" aria-pressed="${filter === f}" title="Tampilkan hanya ${label}"><i class="dot ${dot}"></i>${label} <b>${n}</b></button>`;
+  $("#counts").innerHTML =
+    item("pass", "pass", "Pass", c.pass) + item("fail", "fail", "Fail", c.fail) +
+    item("blocked", "blocked", "Blocked", c.blocked) + item("skip", "skip", "Skipped", c.skip) +
+    item("todo", "todo", "Untested", c.total - c.done) + item("notes", "notes", "Notes", c.notes);
 
   for (const p of doc.phases) {
     const pc = counts(p.steps);
@@ -333,10 +336,54 @@ function paintSummary() {
     const sec = document.getElementById(`phase-${p.id}`);
     if (sec) {
       $("[data-phase-count]", sec).textContent = `${pc.done}/${pc.total} selesai${pc.fail ? ` · ${pc.fail} fail` : ""}`;
-      sec.classList.toggle("phase-done", pc.done === pc.total);
-      sec.classList.toggle("phase-clean", !pc.fail && !pc.blocked);
-      sec.classList.toggle("phase-nonotes", !pc.notes);
     }
+  }
+  applyFilter();
+}
+
+// ------------------------------------------------------------------ filter
+
+const FILTERS = {
+  "": () => true,
+  todo: (st) => !st.s,
+  notes: (st) => !!st.note,
+  pass: (st) => st.s === "pass",
+  fail: (st) => st.s === "fail",
+  blocked: (st) => st.s === "blocked",
+  skip: (st) => st.s === "skip",
+};
+const FILTER_LABEL = { todo: "Untested", notes: "Notes", pass: "Pass", fail: "Fail", blocked: "Blocked", skip: "Skipped" };
+function setFilter(f) {
+  filter = FILTERS[f] ? f : "";
+  for (const b of $$("#counts button")) b.setAttribute("aria-pressed", String(b.dataset.f === filter));
+  applyFilter();
+}
+
+// Hide steps that do not match, and phases left with no visible step.
+function applyFilter() {
+  const match = FILTERS[filter];
+  let shown = 0;
+  for (const el of stepEls) {
+    const ok = match(stepState(el.dataset.step));
+    el.classList.toggle("filtered-out", !ok);
+    if (ok) shown++;
+  }
+  for (const sec of $$("section[data-phase]")) {
+    sec.classList.toggle("filtered-out", !!filter && !$("article.step:not(.filtered-out)", sec));
+  }
+  // Free text outside steps (intro, account table) only shows unfiltered.
+  document.body.classList.toggle("filtering", !!filter);
+  // Under the counts: a hint when idle, the active filter and a way out otherwise.
+  $("#filter-line").innerHTML = filter
+    ? `<span>Menampilkan <b>${esc(FILTER_LABEL[filter])}</b> · ${shown} langkah</span><button type="button" class="btn sm" data-clear-filter title="Tampilkan semua langkah (Esc)">✕ Semua</button>`
+    : `<span>Klik angka di atas untuk menyaring langkah.</span>`;
+  $("#filter-line").classList.toggle("active", !!filter);
+  const empty = $("#filter-empty");
+  if (empty) {
+    empty.hidden = !filter || shown > 0;
+    empty.innerHTML = filter
+      ? `Tidak ada langkah <b>${esc(FILTER_LABEL[filter])}</b>. <button type="button" class="btn sm" data-clear-filter>Tampilkan semua</button>`
+      : "";
   }
 }
 
@@ -428,7 +475,8 @@ function report() {
   };
   section("Failed", (id) => stepState(id).s === "fail");
   section("Blocked", (id) => stepState(id).s === "blocked");
-  section("Other notes", (id) => !["fail", "blocked"].includes(stepState(id).s) && stepState(id).note);
+  section("Skipped", (id) => stepState(id).s === "skip");
+  section("Other notes", (id) => !["fail", "blocked", "skip"].includes(stepState(id).s) && stepState(id).note);
   section("Untested", (id) => !stepState(id).s);
   const vars = Object.entries(progress.vars);
   if (vars.length) {
@@ -509,13 +557,14 @@ function wire() {
   });
 
   // filters
-  for (const b of $$("#filters button")) {
-    b.addEventListener("click", () => {
-      for (const x of $$("#filters button")) x.setAttribute("aria-pressed", String(x === b));
-      document.body.classList.remove("f-todo", "f-problem", "f-notes");
-      if (b.dataset.f) document.body.classList.add(`f-${b.dataset.f}`);
-    });
-  }
+  // Legend counts are filters too; clicking the active one clears it.
+  $("#counts").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-f]");
+    if (b) setFilter(filter === b.dataset.f ? "" : b.dataset.f);
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("[data-clear-filter]")) setFilter("");
+  });
 
   $("#toc").addEventListener("click", () => document.body.classList.remove("side-open"));
   $("#btn-next").addEventListener("click", nextTodo);
@@ -560,6 +609,7 @@ function wire() {
     const t = e.target;
     const typing = t.closest?.("input, textarea, select, [contenteditable]");
     if (e.key === "Escape" && typing) return t.blur();
+    if (e.key === "Escape" && filter && !$("dialog[open]")) return setFilter("");
     if (typing || e.ctrlKey || e.metaKey || e.altKey || $("dialog[open]")) return;
     const art = stepEls[focused];
     if (e.key === "j") move(1);
