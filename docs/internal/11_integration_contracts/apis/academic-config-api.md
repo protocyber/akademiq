@@ -897,7 +897,9 @@ Success (200):
 ```
 
 `results[]` is `{item, source, target_existing, copied, skipped}`; skipped rows
-are still present in `id_map` (mapped to the existing target row). A real run
+are still present in `id_map` (mapped to the existing target row); maps are also
+filled by name/code when terms/grade_levels are not in items (no ItemResult, no
+writes). A real run
 stores `results` as `config_result` and `id_map` on the copy run in the same
 transaction.
 
