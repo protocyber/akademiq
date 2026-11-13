@@ -128,3 +128,17 @@ Found in per-task review of the academic-year-copy feature; none blocks the feat
 | T5 | Promotion-source check is read-then-insert without a lock | Two concurrent copies could both set the flag. |
 | T6 | A failed completion PATCH is reported as a grading-step error | |
 | T7 | Back from the dates step on resume only returns to Ringkasan | |
+| Branch | `academic_year_copy_run` has no `created_by` column (spec §6) | Add in a new migration or drop from the spec. |
+| Branch | Grading copy 403 code is `WRONG_APPROVER_ROLE`; config/ops return `FORBIDDEN` | Align the codes; the web falls back to a generic message. |
+| Branch | Draft homerooms appear in the manual enrolment dropdown | Backend rejects with 409 `ACADEMIC_YEAR_NOT_ACTIVE` (mapped message); filter in the UI. |
+| Branch | No tests for an `id_map` fill on dry run, or for no double-mapping when the item is requested | |
+| Branch | Old resume test in `year-copy-wizard.test.tsx` still asserts zero counts; no `canManage=false` test for `canCopyYear` | |
+
+## Pre-existing failures seen at the academic-year-copy final gate
+
+These fail on base backend `b29a70b` too (verified in a detached worktree), so they are unrelated to the copy feature:
+
+- academic-config `status_transition_legal_and_illegal_paths`: the test expects 400 for a forward transition with an empty reason, but `commands.rs` allows it (the reason is only required on backward/archived transitions).
+- academic-ops `import_valid_sheet_and_bad_sheet_rolls_back` (400 instead of 201) and `photo_upload_validates_type_and_size_and_sets_photo_url` (`INVALID_FILE_TYPE` instead of `VALIDATION_ERROR`).
+- grading `grade_read_permits_teacher_and_denies_super_admin` and `report_read_permits_teacher_and_denies_super_admin` (409 instead of 200 for teacher reads).
+- web `npm run lint`: 7 errors in files the branch does not touch (`components/ui/form.tsx`, `grading/entry`, `settings/academic/terms`, `settings/roles`).
