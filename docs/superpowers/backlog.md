@@ -111,7 +111,7 @@ Found in per-task review of the academic-year-copy feature; none blocks the feat
 
 | Task | Item | Notes |
 |---|---|---|
-| T2 | PATCH copy-run `result` is accepted as non-array JSON | Should be a JSON array of `{item, source, target_existing, copied, skipped}`. |
+| T2 | PATCH copy-run `result` is accepted as any JSON; `config_result` is stored as a bare `results` array while `ops_result`/`grading_result` hold the web's `{results: [...]}` object | Unify the three shapes (and validate) together with the web runner and resume banner; do not tighten the server alone. |
 | T3 | No unit test for `shift_date` | |
 | T3 | Skipped terms are still validated | A term that will be skipped can fail `term_dates` validation. |
 | T3 | No tests for 403, the `is_final` guard, or an unknown source/target in config | |

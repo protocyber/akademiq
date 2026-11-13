@@ -831,10 +831,12 @@ Errors: `404` when the year has no in-progress run.
 Records progress, or ends the run. Send exactly one of two shapes.
 
 Progress for a step the web ran against another service (`step` is `ops` or
-`grading`; `result` is the `results` array returned by that service):
+`grading`; `result` is the response `data` of that service's copy call, i.e.
+`{ "results": [...] }`, stored verbatim as `ops_result` / `grading_result`.
+Note that `config_result` is stored as the bare `results` array):
 
 ```json
-{ "step": "ops", "result": [ { "item": "classes", "source": 6, "target_existing": 0, "copied": 6, "skipped": 0 } ] }
+{ "step": "ops", "result": { "results": [ { "item": "classes", "source": 6, "target_existing": 0, "copied": 6, "skipped": 0 } ] } }
 ```
 
 End the run (`completed` or `cancelled`; cancelling rolls nothing back):
@@ -872,7 +874,7 @@ order regardless of request order.
 ```
 
 - `copy_run_id` is required unless `dry_run` is `true`; it must name an `in_progress` run with the same source and target (`400 VALIDATION_ERROR` on `copy_run_id` otherwise).
-- `term_dates` overrides the default shift (source dates moved by the distance between the two year starts; a shifted 29 February becomes 28 February). Dates are validated like manual term creation (inside the target year, no overlap). Only a target term named exactly `Semester 1` is narrowed (the auto-seeded term); other target names conflicting with the dates give `400 term_dates`.
+- `term_dates` overrides the default shift (source dates moved by the distance between the two year starts; a shifted 29 February becomes 28 February). Dates are validated like manual term creation (inside the target year, no overlap). Only the untouched auto-seeded term (named `Semester 1`, status `Draft`, spanning the whole target year) is narrowed to make room. A copied term that overlaps any other existing target term, or that the narrowed default term would still overlap, gives `400 term_dates`.
 - `dry_run: true` runs everything, then rolls back: nothing is written, the run is not touched, and the counts are those that would result.
 
 Success (200):
