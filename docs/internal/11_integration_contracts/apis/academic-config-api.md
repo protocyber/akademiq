@@ -752,6 +752,160 @@ Success (200): the full re-ordered list, same shape as the `GET` above.
 Errors: `VALIDATION_ERROR` (400) when `ordered_ids` does not exactly match
 the set of grade levels in the year.
 
+## Academic Year Copy
+
+Copies a school's yearly setup from a source year into a **Draft** target year
+(design: `docs/superpowers/specs/2026-11-12-academic-year-copy-design.md`).
+The web app orchestrates the whole flow: it records a copy run here, calls this
+service's copy endpoint, then the academic-ops and grading copy endpoints (see
+their API docs), passing the `id_map` returned here. See
+`08_sequences/02_Academic_Year_Initialization.md`.
+
+All four endpoints require the `tenant_admin` role **and**
+`academic.config.write` (`403 FORBIDDEN` otherwise) and the academic-config
+entitlement. `tenant_id` comes from the JWT. Existing target data is skipped,
+never overwritten, so every call is idempotent.
+
+Copy items (shared by all three services; each ignores items it does not own):
+`terms`, `grade_levels`, `classes`, `homeroom_teachers`, `curriculum`,
+`grading_policy`, `report_types`, `evaluation_weights`, `teaching_assignments`,
+`timetable`. This service owns `terms`, `grade_levels`, `classes` (class
+templates), `curriculum` (curriculum versions, subject groups, subjects) and
+`grading_policy`.
+
+### `POST /academic-years/{academic_year_id}/copy-runs`
+
+Starts a copy run for the target year in the path.
+
+```json
+{
+  "source_academic_year_id": "uuid",
+  "items": ["terms", "grade_levels", "classes", "curriculum", "grading_policy"],
+  "term_dates": [
+    { "source_term_id": "uuid", "start_date": "2026-07-13", "end_date": "2026-12-18" }
+  ]
+}
+```
+
+`term_dates` is optional and stored as given (the admin's edited shifted dates).
+
+Success (201):
+
+```json
+{
+  "data": {
+    "copy_run_id": "uuid",
+    "source_academic_year_id": "uuid",
+    "target_academic_year_id": "uuid",
+    "items": ["terms", "grade_levels", "classes"],
+    "term_dates": null,
+    "status": "in_progress",
+    "id_map": null,
+    "config_result": null,
+    "ops_result": null,
+    "grading_result": null,
+    "created_at": "…",
+    "updated_at": "…"
+  },
+  "meta": {}
+}
+```
+
+Errors:
+
+- `400 VALIDATION_ERROR` with `fields.source_academic_year_id` when source = target or the source year is unknown; `fields.items` when empty or containing an unknown item.
+- `404` when the target year does not exist.
+- `409 ACADEMIC_YEAR_NOT_DRAFT` when the target year is not `Draft`.
+- `409 COPY_RUN_IN_PROGRESS` when the target year already has an `in_progress` run (one per target, partial unique index).
+
+### `GET /academic-years/{academic_year_id}/copy-runs/current`
+
+Returns the target year's `in_progress` run (same shape as above, with
+`id_map`, `config_result`, `ops_result`, `grading_result` filled in as steps
+finish). The web uses it to show the "Lanjutkan" banner and to resume.
+
+Errors: `404` when the year has no in-progress run.
+
+### `PATCH /copy-runs/{copy_run_id}`
+
+Records progress, or ends the run. Send exactly one of two shapes.
+
+Progress for a step the web ran against another service (`step` is `ops` or
+`grading`; `result` is the `results` array returned by that service):
+
+```json
+{ "step": "ops", "result": [ { "item": "classes", "source": 6, "target_existing": 0, "copied": 6, "skipped": 0 } ] }
+```
+
+End the run (`completed` or `cancelled`; cancelling rolls nothing back):
+
+```json
+{ "status": "completed" }
+```
+
+Success (200): the updated run, same shape as `POST …/copy-runs`.
+
+Errors:
+
+- `400 VALIDATION_ERROR` with `fields.step` (not `ops`/`grading`), `fields.result` (step without result), `fields.status` (not `completed`/`cancelled`) or `fields.body` (neither shape given, or both mixed).
+- `404` when the run does not exist for the tenant.
+- `409 COPY_RUN_NOT_IN_PROGRESS` when the run is already `completed` or `cancelled`.
+
+### `POST /academic-years/copy`
+
+Copies this service's items in **one transaction** and emits the same events
+as the manual create endpoints (`academic_term.created`, `grade_level.created`,
+`grading_policy.configured`, …) through the outbox. Items are applied in plan
+order regardless of request order.
+
+```json
+{
+  "source_academic_year_id": "uuid",
+  "target_academic_year_id": "uuid",
+  "copy_run_id": "uuid",
+  "items": ["terms", "grade_levels", "classes", "curriculum", "grading_policy"],
+  "term_dates": [
+    { "source_term_id": "uuid", "start_date": "2026-07-13", "end_date": "2026-12-18" }
+  ],
+  "dry_run": false
+}
+```
+
+- `copy_run_id` is required unless `dry_run` is `true`; it must name an `in_progress` run with the same source and target (`400 VALIDATION_ERROR` on `copy_run_id` otherwise).
+- `term_dates` overrides the default shift (source dates moved by the distance between the two year starts; a shifted 29 February becomes 28 February). Dates are validated like manual term creation (inside the target year, no overlap). Only a target term named exactly `Semester 1` is narrowed (the auto-seeded term); other target names conflicting with the dates give `400 term_dates`.
+- `dry_run: true` runs everything, then rolls back: nothing is written, the run is not touched, and the counts are those that would result.
+
+Success (200):
+
+```json
+{
+  "data": {
+    "results": [
+      { "item": "terms", "source": 2, "target_existing": 1, "copied": 1, "skipped": 1 },
+      { "item": "grade_levels", "source": 6, "target_existing": 0, "copied": 6, "skipped": 0 }
+    ],
+    "id_map": {
+      "terms": { "<source term id>": "<target term id>" },
+      "grade_levels": { "<source grade level id>": "<target grade level id>" },
+      "subjects": { "<source subject id>": "<target subject id>" }
+    }
+  },
+  "meta": {}
+}
+```
+
+`results[]` is `{item, source, target_existing, copied, skipped}`; skipped rows
+are still present in `id_map` (mapped to the existing target row). A real run
+stores `results` as `config_result` and `id_map` on the copy run in the same
+transaction.
+
+Errors:
+
+- `400 VALIDATION_ERROR` with `fields.source_academic_year_id` (source = target, or unknown), `fields.items` (empty or unknown item), `fields.term_dates` (invalid shifted/edited dates), `fields.copy_run_id` (missing or not matching an in-progress run).
+- `403 FORBIDDEN` without the `tenant_admin` role; `403` without `academic.config.write`.
+- `404` when the target year does not exist.
+- `409 ACADEMIC_YEAR_NOT_DRAFT` when the target year is not `Draft`.
+
 ## Health
 
 ### `GET /healthz`

@@ -283,7 +283,7 @@ Errors:
 
 ### POST `/homerooms`
 
-Creates a homeroom for a known active academic year. Requires `academic_ops`
+Creates a homeroom for a known `Draft` or `Active` academic year (Draft allows preparing next year's classes; enrolling still requires `Active`). Requires `academic_ops`
 entitlement and an active subscription projection.
 
 Request:
@@ -319,7 +319,7 @@ homeroom is unlinked. Promotion target placement matches on it.
 
 Errors:
 
-- `400 UNKNOWN_ACADEMIC_YEAR` when the year is missing from the local projection or is not active.
+- `400 UNKNOWN_ACADEMIC_YEAR` when the year is missing from the local projection or is `Closed`/`Archived`.
 - `400 VALIDATION_ERROR` on `grade_level_id` ("grade level not found in this academic year") when the level is not a known grade level of this tenant and academic year. Nothing is written.
 - `403 SUBSCRIPTION_INACTIVE` when the tenant subscription projection is inactive.
 
@@ -446,6 +446,61 @@ Returns `204 No Content` on success.
 ### GET `/homerooms/{homeroom_id}/teaching-assignments`
 
 Lists teaching assignments for a homeroom (homeroom-scoped variant).
+
+## Academic Year Copy
+
+### POST `/academic-years/copy`
+
+Copies the academic-ops part of a school's yearly setup from a source year
+into a `Draft` target year, in **one transaction**. Called by the web copy
+wizard after academic-config's copy step (see
+`academic-config-api.md` → Academic Year Copy and
+`08_sequences/02_Academic_Year_Initialization.md`). Requires the
+`academic_ops` entitlement, an active subscription projection
+(`403 SUBSCRIPTION_INACTIVE`), the `tenant_admin` role **and**
+`academic.config.write`. Existing target data is skipped, never overwritten.
+
+Request:
+
+```json
+{
+  "source_academic_year_id": "uuid",
+  "target_academic_year_id": "uuid",
+  "copy_run_id": "uuid",
+  "items": ["classes", "homeroom_teachers", "teaching_assignments", "timetable"],
+  "id_map": {
+    "grade_levels": { "<source grade level id>": "<target grade level id>" },
+    "subjects": { "<source subject id>": "<target subject id>" }
+  },
+  "dry_run": false
+}
+```
+
+- Items owned here: `classes` (homerooms, name + capacity + mapped grade level), `homeroom_teachers` (off by default; archived teachers skipped), `teaching_assignments`, `timetable`. Any item other than `classes` requires `classes` in the same call. Unknown items → `400 VALIDATION_ERROR` on `items`.
+- `id_map` is the `id_map` returned by academic-config's copy call. It is **required on a real run** (`400 VALIDATION_ERROR` on `id_map` when absent, when `grade_levels` is empty, or when an id is not a UUID). With `dry_run: true` it may be omitted.
+- `copy_run_id` is an audit label only; this service does not read the run.
+- `dry_run: true` does all the work, then rolls back and returns the would-be counts.
+
+Success (200):
+
+```json
+{
+  "data": { "results": [
+    { "item": "classes", "source": 6, "target_existing": 0, "copied": 6, "skipped": 0 },
+    { "item": "homeroom_teachers", "source": 6, "target_existing": 0, "copied": 5, "skipped": 1 }
+  ] },
+  "meta": {}
+}
+```
+
+`results[]` is `{item, source, target_existing, copied, skipped}`.
+
+Errors:
+
+- `400 VALIDATION_ERROR` with `fields.items`, `fields.id_map`, or `fields.source_academic_year_id` (source = target, or unknown) / `fields.target_academic_year_id` (unknown).
+- `403 FORBIDDEN` without the `tenant_admin` role or `academic.config.write`.
+- `409 ACADEMIC_YEAR_NOT_DRAFT` when the target year is not `Draft`.
+- `409 COPY_DEPENDENCY_NOT_READY` (retryable) when a mapped target grade level has not yet reached this service's projection; the web retries after a short delay.
 
 ## Imports
 

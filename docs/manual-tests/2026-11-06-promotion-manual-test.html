@@ -265,11 +265,13 @@ cargo run -q -p akademiq-cli -- iam set-password fitrah.pro@gmail.com --password
 <article data-step="T3" data-title="Buat tingkat A–F di tahun tujuan" data-who="Admin">
   <p>Tingkat Kelas untuk <span data-ref="target_year"></span>: <b>Tambah Tingkat Kelas</b> A (urutan 1) sampai F (urutan 6); F dicentang <b>Tingkat akhir</b>.</p>
   <div class="expect"><p>Enam tingkat dengan urutan 1–6. Penempatan mencocokkan tingkat lintas tahun berdasarkan <b>urutan</b>, bukan nama.</p></div>
+  <p>Alternatif: T3 dan T4 dapat dikerjakan sekaligus lewat <b>Salin dari tahun lain</b> pada tahun tujuan berstatus Draft (tahun sumber <code>2025-2026</code>, centang Tingkat dan Kelas).</p>
 </article>
 
 <article data-step="T4" data-title="Buat kelas tujuan (satu dengan kapasitas kecil)" data-who="Admin">
   <p>Menu <b>Kelas</b>, tahun <span data-ref="target_year"></span>: buat kelas A–F, masing-masing tertaut ke tingkatnya. Kapasitas 20, kecuali kelas <b>B</b> beri kapasitas <code>5</code> (untuk menguji peringatan kapasitas).</p>
   <div class="expect"><p>Enam kelas di tahun tujuan, tanpa badge Belum tertaut.</p></div>
+  <p>Alternatif: jika kelas disalin lewat <b>Salin dari tahun lain</b> (lihat T3), ubah kapasitas kelas <b>B</b> menjadi <code>5</code> setelah penyalinan.</p>
 </article>
 
 </section>

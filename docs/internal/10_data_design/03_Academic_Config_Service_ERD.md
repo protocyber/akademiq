@@ -82,6 +82,22 @@ GRADE_LEVEL {
 
 ACADEMIC_YEAR ||--o{ ACADEMIC_TERM : "has terms"
 ACADEMIC_TERM ||--o{ ACADEMIC_TERM_STATUS_TRANSITION : "records transitions"
+ACADEMIC_YEAR_COPY_RUN {
+  uuid copy_run_id PK
+  uuid tenant_id
+  uuid source_academic_year_id FK
+  uuid target_academic_year_id FK
+  text_array items
+  jsonb term_dates
+  string status "in_progress|completed|cancelled"
+  jsonb id_map
+  jsonb config_result
+  jsonb ops_result
+  jsonb grading_result
+  timestamptz created_at
+  timestamptz updated_at
+}
+
 ACADEMIC_YEAR ||--o{ CURRICULUM_VERSION : defines
 CURRICULUM_VERSION ||--o{ SUBJECT_GROUP : "groups subjects"
 SUBJECT_GROUP ||--o{ SUBJECT : contains
@@ -89,6 +105,8 @@ ACADEMIC_YEAR ||--o{ GRADING_POLICY : applies
 ACADEMIC_YEAR ||--o{ CLASS_TEMPLATE : provides
 ACADEMIC_YEAR ||--o{ GRADE_LEVEL : defines
 GRADE_LEVEL ||--o{ CLASS_TEMPLATE : categorises
+ACADEMIC_YEAR ||--o{ ACADEMIC_YEAR_COPY_RUN : "is copy target of"
+ACADEMIC_YEAR ||--o{ ACADEMIC_YEAR_COPY_RUN : "is copy source of"
 ```
 
 ## 🧠 What This Database Owns
@@ -105,6 +123,7 @@ This service stores year-based academic structure and rules. It defines how the 
 | Subject | Subjects taught under that curriculum |
 | Grading Policy | Rules for scoring and passing |
 | Class Template | Default class structure for yearly setup |
+| Academic Year Copy Run | Progress record of one "copy from another year" wizard run into a Draft target year (items, term dates, `id_map`, per-service results) |
 | Grade Level | Ordered grade ladder per academic year; `ordinal` drives promotion, `is_final` marks the graduating grade |
 
 ## 🔗 Important Relationships
@@ -125,3 +144,5 @@ Academic years define curriculum versions and grading policies. Each academic ye
 - At most one `grade_level` per academic year may have `is_final = true`; a second is rejected as `VALIDATION_ERROR` (400) on the `is_final` field.
 - Deleting a `grade_level` still referenced by a `class_template` is rejected (`GRADE_LEVEL_IN_USE`, 409).
 - `grade_level.code` and `grade_level.label` are `VARCHAR(64)`.
+- At most one `in_progress` `academic_year_copy_run` per `(tenant_id, target_academic_year_id)` (partial unique index `academic_year_copy_run_one_in_progress_idx` on `status = 'in_progress'`); a second start returns `COPY_RUN_IN_PROGRESS` (409). `completed` and `cancelled` runs are kept as history.
+- `academic_year_copy_run.id_map` and `config_result` are written by the config copy step in the same transaction as the copied rows; `ops_result` / `grading_result` are written by the web via `PATCH /copy-runs/{id}`.

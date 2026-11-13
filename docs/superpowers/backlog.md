@@ -34,7 +34,8 @@ re-proposed without a new reason).
 | Grade transcript attached to the graduation certificate | open | 3e spec, out of scope | |
 | Academic-year rename does not reach academic-ops (`known_academic_year.name`) | open | 3e spec §2.3 | academic-config emits no rename event; letters keep the name projected at creation. Add `academic_year.updated` when renames matter. |
 | No web control for a report type's "promotion source" flag | open | found writing the promotion manual test (2026-11-06) | `PATCH /grading/report-types/:id` accepts `is_promotion_source`, but `reportTypeUpdateSchema` and the term form never send it, so a school cannot pass the `report_type` precondition without the API. Add a toggle in the report-type form (Semester settings). |
-| Preparing the target year forces closing the source year before execution | open | found writing the promotion manual test (2026-11-06) | Homerooms can only be created in an `Active` year and a tenant has one `Active` year, so the source year is closed first; graduates then stay `lulus` until the source year is reopened and closed again (`lulus → alumni` fires on the status change). Options: allow homerooms in `Draft` years, or run the alumni step at execution when the source year is already `Closed`. |
+| ~~Preparing the target year forces closing the source year before execution~~ | **closed** | found writing the promotion manual test (2026-11-06); resolved by the academic-year-copy feature (`docs/superpowers/specs/2026-11-12-academic-year-copy-design.md`) | Homerooms are now allowed in `Draft` years (`create_homeroom` accepts `Draft` or `Active`; `enroll_student` still requires `Active`), so the target year's classes are prepared while the source year stays `Active`, and "Salin dari tahun lain" copies them. |
+| academic-ops `create_homeroom` / teaching-assignment writes check no permission | open | academic-year-copy spec §8 | Only entitlement and subscription are checked; any authenticated user of the tenant can write. Add an explicit permission check. |
 
 ## Promotion (A1) — accepted UI gaps from Plan 3d
 
@@ -103,3 +104,27 @@ Seen at every promotion final gate; tracked here until someone owns them.
 - grading: `grade_read_permits_teacher_and_denies_super_admin`, `report_read_permits_teacher_and_denies_super_admin` (409 vs 200; failing since `3c07572`).
 - academic-ops: the end-to-end consumer tests (`grade_level_created_event_is_consumed_end_to_end`, `report_type_promotion_source_event_is_consumed_end_to_end`, `school_profile_event_is_consumed_end_to_end`) are flaky under load: a fixed 3 s sleep before publishing plus a 10 s poll. Each passes alone; in the same run one or another times out. Wait for the consumer's queue binding instead of sleeping.
 - web lint: 7 unused-import errors in `src/app/grading/entry/page.tsx`, `src/app/settings/academic/terms/page.tsx`, `src/app/settings/roles/page.tsx`, `src/components/ui/form.tsx`.
+
+## Academic year copy — deferred review findings
+
+Found in per-task review of the academic-year-copy feature; none blocks the feature.
+
+| Task | Item | Notes |
+|---|---|---|
+| T2 | PATCH copy-run `result` is accepted as non-array JSON | Should be a JSON array of `{item, source, target_existing, copied, skipped}`. |
+| T3 | No unit test for `shift_date` | |
+| T3 | Skipped terms are still validated | A term that will be skipped can fail `term_dates` validation. |
+| T3 | No tests for 403, the `is_final` guard, or an unknown source/target in config | |
+| T3 | TOCTOU: the Draft check on the target year sits outside the transaction | |
+| T3 | `grading_policy` upsert under concurrency | Two concurrent copies can race on the one-per-year policy. |
+| T3 | A re-run of a subset replaces the stored `id_map` | The map should be merged, not replaced. |
+| T3 | A duplicate source template is copied twice | |
+| T3 | `copy_curriculum` is long | Split it. |
+| T3 | Only a target term named exactly "Semester 1" is narrowed | Other names conflicting with the dates → `400 term_dates`. |
+| T4 | No `UNIQUE(tenant_id, academic_year_id, name)` on homeroom | Duplicate names are possible under concurrency. |
+| T4 | Timetable slot key | Review the (homeroom, day, start time) matching key. |
+| T4 | `copy_run_id` is not logged on error paths | |
+| T4 | Stray spaces in a test SQL string | |
+| T5 | Promotion-source check is read-then-insert without a lock | Two concurrent copies could both set the flag. |
+| T6 | A failed completion PATCH is reported as a grading-step error | |
+| T7 | Back from the dates step on resume only returns to Ringkasan | |

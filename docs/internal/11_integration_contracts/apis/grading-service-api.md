@@ -386,6 +386,55 @@ constraint. Copying report types between terms does not propagate this flag.
 - `403 WRONG_APPROVER_ROLE` when caller is not a tenant admin.
 - `409 DUPLICATE_REPORT_TYPE_CODE` when `code` already exists for the academic year.
 
+## POST /academic-years/copy
+
+Copies report types and evaluation weights from a source year into a `Draft`
+target year, in **one transaction**. Called by the web copy wizard after
+academic-config's copy step (see `academic-config-api.md` → Academic Year Copy
+and `08_sequences/02_Academic_Year_Initialization.md`). Requires `grading`
+entitlement, the `tenant_admin` role **and** `academic.config.write`. Existing
+target data is skipped, never overwritten. This is separate from
+`POST /report-types/copy` (term-to-term copy inside one year).
+
+**Request**
+
+```json
+{
+  "source_academic_year_id": "uuid",
+  "target_academic_year_id": "uuid",
+  "copy_run_id": "uuid",
+  "items": ["report_types", "evaluation_weights"],
+  "id_map": { "terms": { "<source term id>": "<target term id>" } },
+  "dry_run": false
+}
+```
+
+- Items: `report_types` (matched on mapped term + `code`; the promotion-source flag is carried over only when the target year has no promotion source yet) and `evaluation_weights` (evaluation templates plus formula-template weights; requires `report_types` in the same call). Unknown items → `400 VALIDATION_ERROR` on `items`.
+- `id_map.terms` is the term map returned by academic-config. It is **required on a real run** (`400 VALIDATION_ERROR` on `id_map` when absent, empty or not UUIDs); optional with `dry_run: true`.
+- `copy_run_id` is an audit label only; this service does not read the run.
+- `dry_run: true` does the work, rolls back and returns would-be counts.
+
+**Response 200**
+
+```json
+{
+  "data": { "results": [
+    { "item": "report_types", "source": 2, "target_existing": 0, "copied": 2, "skipped": 0 },
+    { "item": "evaluation_weights", "source": 8, "target_existing": 0, "copied": 8, "skipped": 0 }
+  ] },
+  "meta": {}
+}
+```
+
+`results[]` is `{item, source, target_existing, copied, skipped}`.
+
+**Errors**
+
+- `400 VALIDATION_ERROR` with `fields.items`, `fields.id_map`, `fields.source_academic_year_id` (source = target, or unknown) or `fields.target_academic_year_id` (unknown).
+- `403 WRONG_APPROVER_ROLE` / `403 FORBIDDEN` without the `tenant_admin` role or `academic.config.write`.
+- `409 ACADEMIC_YEAR_NOT_DRAFT` when the target year is not `Draft`.
+- `409 COPY_DEPENDENCY_NOT_READY` (retryable) when a mapped target term has not yet reached this service's `valid_term` projection; the web retries after a short delay.
+
 ## PATCH /report-types/{id}
 
 Update a report type's `code`, `name`, and/or `position`. Omitted fields are left
