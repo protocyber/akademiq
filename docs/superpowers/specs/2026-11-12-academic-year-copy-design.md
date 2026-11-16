@@ -34,8 +34,8 @@ and coming back shows a "Lanjutkan" banner that finishes the remaining parts.
 |---|---|---|
 | D1 | What is copied | Checklist; defaults below (§2) |
 | D2 | Source year | Admin picks any year of the tenant; default is the most recent year by start date other than the target |
-| D3 | UI | Multi-step wizard, full page with the step list on the side (layout B) |
-| D4 | Entry points | "Tahun ajaran baru" (create + copy) and "Salin dari tahun lain" on an existing Draft year |
+| D3 | UI | Multi-step wizard in a wide modal over the Tahun Ajaran page, step list on the side (layout B). Revised: was a full page under the academic settings tabs |
+| D4 | Entry points | "Salin dari tahun lain" on an existing Draft year. Creating a year stays in the "Buat Tahun Ajaran" modal; its success toast offers "Salin data dari tahun lain" |
 | D5 | Target constraints | Target must be `Draft`; existing data is skipped, never overwritten |
 | D6 | Classes in Draft years | Allowed (manual and via copy); enrolling students still requires an `Active` year |
 | D7 | Orchestration | The web calls one copy endpoint per service in order: academic-config → academic-ops → grading |
@@ -46,7 +46,7 @@ and coming back shows a "Lanjutkan" banner that finishes the remaining parts.
 | # | Call | Why |
 |---|---|---|
 | C1 | academic-config returns a source→target **id map** (terms, grade levels, subjects) and stores it on the copy run; the web passes it to academic-ops and grading | academic-config emits no subject events today, so academic-ops cannot map subjects through a projection. An id map avoids a new event + projection + backfill. Each service still validates the ids it can (grade levels via `known_grade_level`, terms via `valid_term`) |
-| C2 | Every copy endpoint supports `dry_run: true`, returning the would-be copied/skipped counts | Feeds the counts in wizard step 3 and the summary in step 5 without new read endpoints |
+| C2 | Every copy endpoint supports `dry_run: true`, returning the would-be copied/skipped counts | Feeds the counts in wizard step 2 and the summary in step 4 without new read endpoints |
 | C3 | Permission: the wizard and all copy / copy-run endpoints require the tenant admin role **and** `academic.config.write` | grading's `report-types/copy` already uses `require_admin`; academic-ops' `create_homeroom` checks no permission today (separate gap, listed in §8) |
 | C4 | `copy_run_id` on the academic-ops and grading calls is an audit label only; those services do not read the run | Reading it would be a synchronous call to academic-config (§1.3) |
 | C5 | "Batalkan" only stops the run; nothing is rolled back and there is no "undo copy" | Copied rows are ordinary data the admin can edit or delete with the existing screens; a target that already holds them is skipped on the next run |
@@ -258,31 +258,30 @@ after the last one. Cancelling keeps everything already copied.
 
 ## 7. Web wizard
 
-Route `/settings/academic/years/copy` (new year) and
-`/settings/academic/years/:id/copy` (existing Draft year). Full page, step
+A wide modal over the Tahun Ajaran page (`/settings/academic/years`, no route
+of its own), for an existing Draft year. Inside the modal, step
 list on the left with the source and target year always visible, content on
 the right (layout B). shadcn/ui only, TanStack Query for every call, error
 messages from `@/lib/errors/messages`, following `apps/web/CONVENTIONS.md`.
 
-1. **Identitas tahun** — name, start date, end date. Skipped when opened from
-   an existing Draft year. Creating the year happens when leaving this step.
-2. **Tahun sumber** — select of the tenant's other years, default per D2, plus
+1. **Tahun sumber** — select of the tenant's other years, default per D2, plus
    "Mulai kosong" (ends the wizard; just the empty year).
-3. **Data yang disalin** — the §2 checklist with counts (from `dry_run`
+2. **Data yang disalin** — the §2 checklist with counts (from `dry_run`
    calls, C2) and dependency locking.
-4. **Tanggal semester** — table of copied terms with shifted dates, editable.
+3. **Tanggal semester** — table of copied terms with shifted dates, editable.
    Skipped when "Semester" is unchecked.
-5. **Ringkasan** — what will be created; "Mulai salin" starts the run and
+4. **Ringkasan** — what will be created; "Mulai salin" starts the run and
    calls config → ops → grading in order, showing each part's progress and its
    "X disalin, Y dilewati" result. `COPY_DEPENDENCY_NOT_READY` is retried
    automatically with backoff for up to about a minute, then shown as a
    retryable error.
 
-Entry points: the "Tahun ajaran baru" button on the Tahun Ajaran page opens
-the wizard at step 1; an existing Draft year's row menu offers "Salin dari
-tahun lain" (step 2). When `copy-runs/current` returns a run, the Tahun Ajaran
+Entry points: an existing Draft year's row menu offers "Salin dari tahun lain"
+(step 1). The "Buat Tahun Ajaran" button keeps opening the year form modal;
+after a create, school admins get a success toast with a "Salin data dari tahun
+lain" action that opens the wizard for the new year. When `copy-runs/current` returns a run, the Tahun Ajaran
 page shows a banner "Penyalinan dari <source> belum selesai (<n> dari 3
-bagian)" with **Lanjutkan** (opens the wizard at step 5 with the stored
+bagian)" with **Lanjutkan** (opens the wizard at step 4 with the stored
 choices and runs the remaining parts) and **Batalkan**.
 
 ## 8. Docs to update
